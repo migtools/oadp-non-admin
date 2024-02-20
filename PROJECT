@@ -7,4 +7,14 @@ layout:
 - go.kubebuilder.io/v4
 projectName: oadp-nac
 repo: oadp.openshift.io/nac
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: oadp.openshift.io
+  group: oadp.openshift.io
+  kind: NonAdminBackup
+  path: oadp.openshift.io/nac/api/v1alpha1
+  version: v1alpha1
 version: "3"
