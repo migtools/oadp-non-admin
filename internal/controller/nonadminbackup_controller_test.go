@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	oadpopenshiftiov1alpha1 "oadp.openshift.io/nac/api/v1alpha1"
+	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 )
 
 var _ = Describe("NonAdminBackup Controller", func() {

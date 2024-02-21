@@ -34,9 +34,11 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	oadpopenshiftiov1alpha1 "oadp.openshift.io/nac/api/v1alpha1"
-	"oadp.openshift.io/nac/internal/controller"
+	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	"github.com/openshift/oadp-non-admin/internal/controller"
 	//+kubebuilder:scaffold:imports
+
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 var (
@@ -130,6 +132,14 @@ func main() {
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+
+	if err = (&controller.VeleroBackupReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VeleroBackup")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

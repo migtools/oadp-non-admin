@@ -15,6 +15,6 @@ resources:
   domain: oadp.openshift.io
   group: oadp.openshift.io
   kind: NonAdminBackup
-  path: oadp.openshift.io/nac/api/v1alpha1
+  path: github.com/openshift/oadp-non-admin/api/v1alpha1
   version: v1alpha1
 version: "3"

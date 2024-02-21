@@ -1,4 +1,4 @@
-module oadp.openshift.io/nac
+module github.com/openshift/oadp-non-admin
 
 go 1.21
 

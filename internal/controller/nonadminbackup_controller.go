@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	oadpopenshiftiov1alpha1 "oadp.openshift.io/nac/api/v1alpha1"
+	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 )
 
 // NonAdminBackupReconciler reconciles a NonAdminBackup object

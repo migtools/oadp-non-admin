@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	oadpopenshiftiov1alpha1 "oadp.openshift.io/nac/api/v1alpha1"
+	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
