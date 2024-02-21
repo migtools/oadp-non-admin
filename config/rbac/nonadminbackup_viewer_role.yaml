@@ -12,7 +12,7 @@ metadata:
   name: nonadminbackup-viewer-role
 rules:
 - apiGroups:
-  - oadp.openshift.io.oadp.openshift.io
+  - nac.oadp.openshift.io
   resources:
   - nonadminbackups
   verbs:
@@ -20,7 +20,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - oadp.openshift.io.oadp.openshift.io
+  - nac.oadp.openshift.io
   resources:
   - nonadminbackups/status
   verbs:

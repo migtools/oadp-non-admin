@@ -17,25 +17,29 @@ limitations under the License.
 package v1alpha1
 
 import (
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
+	// +optional
+	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
+	LogLevel string `json:"logLevel,omitempty"`
 
-	// Foo is an example field of NonAdminBackup. Edit nonadminbackup_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// https://github.com/vmware-tanzu/velero/blob/main/pkg/apis/velero/v1/backup_types.go
+
+	// BackupSpec defines the specification for a Velero backup.
+	BackupSpec *velerov1api.BackupSpec `json:"backupSpec,omitempty"`
+
+	// BackupStatus captures the current status of a Velero backup.
+	BackupStatus *velerov1api.BackupStatus `json:"backupStatus,omitempty"`
 }
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true
