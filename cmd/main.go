@@ -21,6 +21,8 @@ import (
 	"flag"
 	"os"
 
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -37,8 +39,6 @@ import (
 	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 	"github.com/openshift/oadp-non-admin/internal/controller"
 	//+kubebuilder:scaffold:imports
-
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 var (
@@ -50,6 +50,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(oadpopenshiftiov1alpha1.AddToScheme(scheme))
+
+	utilruntime.Must(velerov1api.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

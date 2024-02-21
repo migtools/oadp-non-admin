@@ -25,11 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
-// NonAdminBackupReconciler reconciles a NonAdminBackup object
-type NonAdminBackupReconciler struct {
+// VeleroBackupReconciler reconciles a VeleroBackup object
+type VeleroBackupReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 	Log    logr.Logger
@@ -39,18 +39,20 @@ type NonAdminBackupReconciler struct {
 //+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
 
+//+kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch;delete
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the NonAdminBackup object against the actual cluster state, and then
+// the VeleroBackup object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
-func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *VeleroBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
-	log := r.Log.WithValues("NonAdminBackup", req.NamespacedName)
+	log := r.Log.WithValues("VeleroBackup", req.NamespacedName)
 
 	// TODO(user): your logic here
 	log.Info("Reconcile loop")
@@ -59,8 +61,8 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *VeleroBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&oadpopenshiftiov1alpha1.NonAdminBackup{}).
+		For(&velerov1api.Backup{}).
 		Complete(r)
 }
