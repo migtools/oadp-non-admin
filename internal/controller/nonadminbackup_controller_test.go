@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 )
 
 var _ = Describe("NonAdminBackup Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("NonAdminBackup Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		nonadminbackup := &oadpopenshiftiov1alpha1.NonAdminBackup{}
+		nonadminbackup := &nacv1alpha1.NonAdminBackup{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind NonAdminBackup")
 			err := k8sClient.Get(ctx, typeNamespacedName, nonadminbackup)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &oadpopenshiftiov1alpha1.NonAdminBackup{
+				resource := &nacv1alpha1.NonAdminBackup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("NonAdminBackup Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &oadpopenshiftiov1alpha1.NonAdminBackup{}
+			resource := &nacv1alpha1.NonAdminBackup{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

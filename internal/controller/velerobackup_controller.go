@@ -54,9 +54,41 @@ func (r *VeleroBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	r.Log = log.FromContext(ctx)
 	log := r.Log.WithValues("VeleroBackup", req.NamespacedName)
 
-	// TODO(user): your logic here
-	log.Info("Reconcile loop")
+	// Check if the reconciliation request is for the oadp namespace
+	if req.Namespace != OadpNamespace {
+		log.Info("Ignoring reconciliation request for namespace", "Namespace", req.Namespace)
+		return ctrl.Result{}, nil
+	}
 
+	// TODO(user): your logic here
+
+	backup := &velerov1api.Backup{}
+	err := r.Get(ctx, req.NamespacedName, backup)
+	if err != nil {
+		log.Error(err, "Unable to fetch VeleroBackup CR", "Name", req.Name, "Namespace", req.Namespace)
+		return ctrl.Result{}, err
+	}
+
+	if !HasRequiredLabel(backup) {
+		log.Info("Ignoring VeleroBackup without the required label", "Name", backup.Name, "Namespace", backup.Namespace)
+		return ctrl.Result{}, nil
+	}
+
+	log.Info("Velero Backup Reconcile loop")
+	nonAdminBackup, err := GetNonAdminFromBackup(ctx, r.Client, backup)
+	if err != nil {
+		log.V(1).Info("Could not find matching Velero Non Admin Backup", "error", err)
+		// We don't report error to reconcile
+	} else {
+		log.V(1).Info("Got Velero Non Admin Backup:", "nab", nonAdminBackup)
+		log.V(1).Info("Velero Backup status:", "Status", backup.Status)
+		nonAdminBackup.Spec.BackupStatus = &backup.Status
+		if err := r.Client.Update(ctx, nonAdminBackup); err != nil {
+			log.Error(err, "Failed to update NonAdminBackup status")
+		} else {
+			log.V(1).Info("Updated NonAdminBackup status:", "Status", backup.Status)
+		}
+	}
 	return ctrl.Result{}, nil
 }
 

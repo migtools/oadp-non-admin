@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/created-by: oadp-nac
   name: nonadminbackup-sample
 spec:
-  # TODO(user): Add fields here
+  backupSpec: {}

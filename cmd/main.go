@@ -36,7 +36,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	oadpopenshiftiov1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
 	"github.com/openshift/oadp-non-admin/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
@@ -49,7 +49,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(oadpopenshiftiov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(velerov1api.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
