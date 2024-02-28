@@ -2,7 +2,7 @@
 // TODO(user): Add simple overview of use/purpose
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+// Non Admin controller
 
 ## Getting Started
 
@@ -12,11 +12,106 @@
 - kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
+### Creating Non Admin User on the OCP cluster
+**Create sample Namespace:**
+```sh
+$ oc create ns nac-testing
+```
+
+**Create sample identity file:**
+```sh
+# Using user nacuser with sample pass
+$ htpasswd -c -B -b ./users_file.htpasswd nacuser Mypassw0rd
+```
+
+**Create secret from the previously created htpasswd file in OpenShift**
+```sh
+$ oc create secret generic htpass-secret --from-file=htpasswd=./users_file.htpasswd -n openshift-config
+```
+
+**Create OAuth file**
+```sh
+$ cat > oauth-nacuser.yaml <<EOF
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+  - name: oadp_nac_test_provider 
+    mappingMethod: claim 
+    type: HTPasswd
+    htpasswd:
+      fileData:
+        name: htpass-secret 
+EOF
+```
+**Apply the OAuth file to the cluster:**
+```sh
+$ oc apply -f oauth-nacuser.yaml
+```
+
+### Assigning NAC permissions to the user
+
+Ensure you have appropriate Cluster Role available in youc cluster:
+```shell
+$ oc apply -f config/rbac/nonadminbackup_editor_role.yaml
+```
+
+**Create Role Binding for our test user within nac-testing namespace:**
+**NOTE:** There could be also a ClusterRoleBinding for the nacuser or one of the groups
+to which nacuser belongs to easy administrative tasks and allow use of NAC for wider audience. Please see next paragraph. 
+```sh
+$ cat > nacuser-rolebinding.yaml <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nacuser-nonadminbackup
+  namespace: nac-testing
+subjects:
+- kind: User
+  name: nacuser
+roleRef:
+  kind: ClusterRole
+  name: nonadminbackup-editor-role
+  apiGroup: rbac.authorization.k8s.io
+EOF
+```
+**Apply the Cluster Role Binding file to the cluster:**
+```sh
+$ oc apply -f nacuser-rolebinding.yaml
+```
+
+**Alternatively Create Cluster Role Binding for our test user within nac-testing namespace:**
+```sh
+$ cat > nacuser-clusterrolebinding.yaml <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nacuser-nonadminbackup-cluster
+subjects:
+- kind: User
+  name: nacuser
+roleRef:
+  kind: ClusterRole
+  name: nonadminbackup-editor-role
+  apiGroup: rbac.authorization.k8s.io
+EOF
+```
+**Apply the Cluster Role Binding file to the cluster:**
+```sh
+$ oc apply -f nacuser-clusterrolebinding.yaml
+```
+
 ### To Deploy on the cluster
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/oadp-nac:tag
+# Example to build with podman
+export NAC_TAG="v0.0.1"
+export IMG_REGISTRY="quay.io/<USER>/oadp-nac"
+
+make docker-build docker-push IMG="${IMG_REGISTRY}:${NAC_REV}" CONTAINER_TOOL=podman
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified. 
@@ -32,7 +127,10 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/oadp-nac:tag
+export NAC_TAG="v0.0.1"
+export IMG_REGISTRY="quay.io/<USER>/oadp-nac"
+
+make deploy IMG="${IMG_REGISTRY}:${NAC_REV}"
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin 
