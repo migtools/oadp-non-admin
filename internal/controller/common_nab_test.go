@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )

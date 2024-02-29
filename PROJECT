@@ -6,16 +6,16 @@ domain: oadp.openshift.io
 layout:
 - go.kubebuilder.io/v4
 projectName: oadp-nac
-repo: oadp.openshift.io/nac
+repo: github.com/migtools/oadp-non-admin
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: oadp.openshift.io
-  group: oadp.openshift.io
+  group: nac
   kind: NonAdminBackup
-  path: github.com/openshift/oadp-non-admin/api/v1alpha1
+  path: github.com/migtools/oadp-non-admin/api/v1alpha1
   version: v1alpha1
 - controller: true
   domain: oadp.openshift.io

@@ -1,19 +1,16 @@
-module github.com/openshift/oadp-non-admin
+module github.com/migtools/oadp-non-admin
 
 go 1.21
 
 require (
+	github.com/go-logr/logr v1.4.1
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
+	github.com/stretchr/testify v1.8.4
+	github.com/vmware-tanzu/velero v1.12.0
 	k8s.io/apimachinery v0.29.0
 	k8s.io/client-go v0.29.0
 	sigs.k8s.io/controller-runtime v0.17.0
-)
-
-require (
-	github.com/go-logr/logr v1.4.1
-	github.com/stretchr/testify v1.8.4
-	github.com/vmware-tanzu/velero v1.12.0
 )
 
 require (

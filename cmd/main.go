@@ -36,8 +36,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
-	"github.com/openshift/oadp-non-admin/internal/controller"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 

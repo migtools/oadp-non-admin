@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift/oadp-non-admin/test/utils"
+	"github.com/migtools/oadp-non-admin/test/utils"
 )
 
 const namespace = "oadp-nac-system"

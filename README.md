@@ -194,6 +194,28 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/oadp-nac/<tag or branch
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
+## Architecture
+
+The project was generated using kubebuilder version `v3.14.0`, running the following commands
+```sh
+kubebuilder init \
+    --plugins go.kubebuilder.io/v4 \
+    --project-version 3 \
+    --project-name=oadp-nac \
+    --repo=github.com/migtools/oadp-non-admin \
+    --domain=oadp.openshift.io
+kubebuilder create api \
+    --plugins go.kubebuilder.io/v4 \
+    --group nac \
+    --version v1alpha1 \
+    --kind NonAdminBackup \
+    --resource --controller
+make manifests
+```
+> **NOTE:** The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](PROJECT) file
+
+To upgrade kubebuilder version, create kubebuilder structure using the current kubebuilder version and the upgrade version, using the same commands presented earlier, in two different folders. Then generate a `diff` file from the two folders and apply changes to project code.
+
 ## License
 
 Copyright 2024.
