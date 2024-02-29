@@ -133,6 +133,28 @@ export IMG_REGISTRY="quay.io/<USER>/oadp-nac"
 make deploy IMG="${IMG_REGISTRY}:${NAC_REV}"
 ```
 
+**Check your deployment**
+
+```sh
+oc get all -n oadp-nac-system
+```
+
+Result:
+```sh
+NAME                                               READY   STATUS    RESTARTS   AGE
+pod/oadp-nac-controller-manager-74bbf4577b-nssw4   2/2     Running   0          3m7s
+
+NAME                                                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+service/oadp-nac-controller-manager-metrics-service   ClusterIP   172.30.201.185   <none>        8443/TCP   3m8s
+
+NAME                                          READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/oadp-nac-controller-manager   1/1     1            1           3m7s
+
+NAME                                                     DESIRED   CURRENT   READY   AGE
+replicaset.apps/oadp-nac-controller-manager-74bbf4577b   1         1         1       3m7s
+
+```
+
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin 
 privileges or be logged in as admin.
 
