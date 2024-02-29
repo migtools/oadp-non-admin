@@ -38,12 +38,12 @@ metadata:
   name: cluster
 spec:
   identityProviders:
-  - name: oadp_nac_test_provider 
-    mappingMethod: claim 
+  - name: oadp_nac_test_provider
+    mappingMethod: claim
     type: HTPasswd
     htpasswd:
       fileData:
-        name: htpass-secret 
+        name: htpass-secret
 EOF
 ```
 **Apply the OAuth file to the cluster:**
@@ -60,7 +60,7 @@ $ oc apply -f config/rbac/nonadminbackup_editor_role.yaml
 
 **Create Role Binding for our test user within nac-testing namespace:**
 **NOTE:** There could be also a ClusterRoleBinding for the nacuser or one of the groups
-to which nacuser belongs to easy administrative tasks and allow use of NAC for wider audience. Please see next paragraph. 
+to which nacuser belongs to easy administrative tasks and allow use of NAC for wider audience. Please see next paragraph.
 ```sh
 $ cat > nacuser-rolebinding.yaml <<EOF
 apiVersion: rbac.authorization.k8s.io/v1
@@ -114,8 +114,8 @@ export IMG_REGISTRY="quay.io/<USER>/oadp-nac"
 make docker-build docker-push IMG="${IMG_REGISTRY}:${NAC_REV}" CONTAINER_TOOL=podman
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified. 
-And it is required to have access to pull the image from the working environment. 
+**NOTE:** This image ought to be published in the personal registry you specified.
+And it is required to have access to pull the image from the working environment.
 Make sure you have the proper permission to the registry if the above commands don’t work.
 
 **Install the CRDs into the cluster:**
@@ -155,7 +155,7 @@ replicaset.apps/oadp-nac-controller-manager-74bbf4577b   1         1         1  
 
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin 
+> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
 privileges or be logged in as admin.
 
 **Create instances of your solution**
