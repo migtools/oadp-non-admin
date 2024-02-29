@@ -201,3 +201,28 @@ GOBIN=$(LOCALBIN) go install $${package} ;\
 mv "$$(echo "$(1)" | sed "s/-$(3)$$//")" $(1) ;\
 }
 endef
+
+##@ oadp-nac specifics
+
+.PHONY: ci
+ci: simulation-test lint docker-build hadolint check-generate check-manifests ## Run all checks run by the project continuous integration (CI) locally.
+
+.PHONY: simulation-test
+simulation-test: envtest ## Run unit and integration tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+
+.PHONY: hadolint
+hadolint: ## Run container file linter.
+	$(CONTAINER_TOOL) run --rm --interactive ghcr.io/hadolint/hadolint < ./Dockerfile
+
+.PHONY: check-generate
+check-generate: TEMP:= $(shell mktemp -d)
+check-generate: ## Check if 'make generate' was run.
+	@cp -r ./ $(TEMP) && cd $(TEMP) && make generate && cd - && diff -ruN ./ $(TEMP)/ || (echo "run 'make generate' to generate code" && exit 1)
+	@chmod -R 777 $(TEMP) && rm -rf $(TEMP)
+
+.PHONY: check-manifests
+check-manifests: TEMP:= $(shell mktemp -d)
+check-manifests: ## Check if 'make manifests' was run.
+	@cp -r ./ $(TEMP) && cd $(TEMP) && make manifests && cd - && diff -ruN ./ $(TEMP)/ || (echo "run 'make manifests' to generate code" && exit 1)
+	@chmod -R 777 $(TEMP) && rm -rf $(TEMP)

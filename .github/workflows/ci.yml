@@ -1,0 +1,63 @@
+name: Continuos Integration
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron:  '0 0 * * 1' # Every Monday at 00:00 UTC
+
+jobs:
+  golang-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [
+          "1.21",
+        ]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+            go-version: ${{ matrix.go-version }}
+
+      - name: Install Go dependencies
+        run: go mod download
+
+      - name: Go unit and integration tests
+        run: make simulation-test
+
+    # TODO coverage report
+
+      - name: Go linters
+        run: make lint
+
+  container-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build container image
+        run: make docker-build
+
+      - name: Container file linter
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+  project-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if 'make generate' was run
+        run: make check-generate
+
+      - name: Check if 'make manifests' was run
+        run: make check-manifests
+
+    # TODO editorconfig
