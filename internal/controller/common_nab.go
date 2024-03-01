@@ -7,7 +7,7 @@ import (
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 
-	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
 func GetVeleroBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {

@@ -13,7 +13,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	nacv1alpha1 "github.com/openshift/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
