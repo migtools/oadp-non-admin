@@ -5,16 +5,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 func TestGetNonAdminFromBackup(t *testing.T) {
