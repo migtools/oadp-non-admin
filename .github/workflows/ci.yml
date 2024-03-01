@@ -62,4 +62,5 @@ jobs:
       - name: Check if 'make manifests' was run
         run: make check-manifests
 
-    # TODO editorconfig
+      - name: Check all files format
+        run: make ec

@@ -10,11 +10,11 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[Makefile]
+[{*.go,go.mod,Makefile}]
 indent_style = unset
 
 [{*.{yaml,yml},PROJECT}]
 indent_size = 2
 
-[{*.go,go.mod,*.md,LICENSE}]
+[{*.md,LICENSE}]
 indent_size = unset

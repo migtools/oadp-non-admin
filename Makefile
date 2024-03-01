@@ -204,6 +204,21 @@ endef
 
 ##@ oadp-nac specifics
 
+EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
+EC_VERSION ?= 2.8.0
+
+.PHONY: editorconfig
+editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
+	@[ -f $(EC) ] || { \
+	set -e ;\
+	ec_binary=ec-$(shell go env GOOS)-$(shell go env GOARCH) ;\
+	ec_tar=$(LOCALBIN)/$${ec_binary}.tar.gz ;\
+	curl -sSLo $${ec_tar} https://github.com/editorconfig-checker/editorconfig-checker/releases/download/$(EC_VERSION)/$${ec_binary}.tar.gz ;\
+	tar xzf $${ec_tar} ;\
+	rm -rf $${ec_tar} ;\
+	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
+	}
+
 .PHONY: ci
 ci: simulation-test lint docker-build hadolint check-generate check-manifests ec ## Run all checks run by the project continuous integration (CI) locally.
 
@@ -222,21 +237,6 @@ check-generate: generate ## Check if 'make generate' was run.
 .PHONY: check-manifests
 check-manifests: manifests ## Check if 'make manifests' was run.
 	test -z "$(shell git status --short)" || (echo "run 'make manifests' to generate code" && exit 1)
-
-EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
-EC_VERSION ?= 2.8.0
-
-.PHONY: editorconfig
-editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
-	@[ -f $(EC) ] || { \
-	set -e ;\
-	ec_binary=ec-$(shell go env GOOS)-$(shell go env GOARCH) ;\
-	ec_tar=$(LOCALBIN)/$${ec_binary}.tar.gz ;\
-	curl -sSLo $${ec_tar} https://github.com/editorconfig-checker/editorconfig-checker/releases/download/$(EC_VERSION)/$${ec_binary}.tar.gz ;\
-	tar xzf $${ec_tar} ;\
-	rm -rf $${ec_tar} ;\
-	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
-	}
 
 .PHONY: ec
 ec: editorconfig ## Run file formatter checks against all project's files.
