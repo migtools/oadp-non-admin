@@ -238,6 +238,57 @@ make manifests
 
 To upgrade kubebuilder version, create kubebuilder structure using the current kubebuilder version and the upgrade version, using the same commands presented earlier, in two different folders. Then generate a `diff` file from the two folders and apply changes to project code.
 
+## Quality
+
+The quality checks of the project are reproduced by the continuos integration (CI) pipeline of the project. CI configuration in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) file.
+
+To run all checks locally, run `make ci`.
+
+### Tests
+
+To run unit and integration tests, run
+```sh
+make simulation-test
+```
+
+TODO report, coverage and tests information
+
+### Linters and code formatters
+
+To run Go linters and check Go code format, run
+```sh
+make lint
+```
+
+To fix Go linters issues and format Go code, run
+```sh
+make lint-fix
+```
+
+Go linters and Go code formatters configuration in [`.golangci.yml`](.golangci.yml) file.
+
+To check all files format, run
+```sh
+make ec
+```
+
+Files format configuration in [`.editorconfig`](.editorconfig) file.
+
+### Container file linter
+
+To run container file linter, run
+```sh
+make hadolint
+```
+
+### Code generation
+
+To check if project code was generated, run
+```sh
+make check-generate
+make check-manifests
+```
+
 ## License
 
 Copyright 2024.
