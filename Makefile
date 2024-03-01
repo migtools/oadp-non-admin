@@ -216,13 +216,9 @@ hadolint: ## Run container file linter.
 	$(CONTAINER_TOOL) run --rm --interactive ghcr.io/hadolint/hadolint < ./Dockerfile
 
 .PHONY: check-generate
-check-generate: TEMP:= $(shell mktemp -d)
-check-generate: ## Check if 'make generate' was run.
-	@cp -r ./ $(TEMP) && cd $(TEMP) && make generate && cd - && diff -ruN ./ $(TEMP)/ || (echo "run 'make generate' to generate code" && exit 1)
-	@chmod -R 777 $(TEMP) && rm -rf $(TEMP)
+check-generate: generate ## Check if 'make generate' was run.
+	test -z "$(shell git status --short)" || (echo "run 'make generate' to generate code" && exit 1)
 
 .PHONY: check-manifests
-check-manifests: TEMP:= $(shell mktemp -d)
-check-manifests: ## Check if 'make manifests' was run.
-	@cp -r ./ $(TEMP) && cd $(TEMP) && make manifests && cd - && diff -ruN ./ $(TEMP)/ || (echo "run 'make manifests' to generate code" && exit 1)
-	@chmod -R 777 $(TEMP) && rm -rf $(TEMP)
+check-manifests: manifests ## Check if 'make manifests' was run.
+	test -z "$(shell git status --short)" || (echo "run 'make manifests' to generate code" && exit 1)
