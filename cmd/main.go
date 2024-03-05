@@ -49,7 +49,7 @@ func init() {
 	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(velerov1api.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
+	// +kubebuilder:scaffold:scheme
 }
 
 func main() {
@@ -130,7 +130,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
 		os.Exit(1)
 	}
-	//+kubebuilder:scaffold:builder
+	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

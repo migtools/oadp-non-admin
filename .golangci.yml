@@ -1,8 +1,10 @@
-# Documentation reference https://github.com/golangci/golangci-lint/blob/v1.56.2/.golangci.reference.yml
+# Documentation reference https://github.com/golangci/golangci-lint/blob/v1.55.2/.golangci.reference.yml
 run:
   skip-dirs-use-default: false
   modules-download-mode: readonly
-  allow-parallel-runners: false
+  allow-parallel-runners: true
+  skip-dirs:
+    - test/*
 
 output:
   format: colored-line-number
@@ -107,8 +109,14 @@ issues:
         - revive
       text: "^struct-tag: unknown option 'inline' in JSON tag$"
     - linters:
-        - stylecheck
-      text: "ST1000:|ST1020:|ST1021:|ST1022:"
+        - revive
+      text: "^add-constant: avoid magic numbers like '0', create a named constant for it$"
+    - linters:
+        - revive
+      text: "^add-constant: avoid magic numbers like '1', create a named constant for it$"
+    # - linters:
+    #     - stylecheck
+    #   text: "ST1000:|ST1020:|ST1021:|ST1022:"
   max-issues-per-linter: 0
   max-same-issues: 0
 

@@ -23,11 +23,6 @@ import (
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
-	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
-	// +optional
-	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
-	LogLevel string `json:"logLevel,omitempty"`
-
 	// https://github.com/vmware-tanzu/velero/blob/main/pkg/apis/velero/v1/backup_types.go
 
 	// BackupSpec defines the specification for a Velero backup.
@@ -35,6 +30,11 @@ type NonAdminBackupSpec struct {
 
 	// BackupStatus captures the current status of a Velero backup.
 	BackupStatus *velerov1api.BackupStatus `json:"backupStatus,omitempty"`
+
+	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
+	// +optional
+	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
+	LogLevel string `json:"logLevel,omitempty"`
 }
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
@@ -42,8 +42,8 @@ type NonAdminBackupStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // NonAdminBackup is the Schema for the nonadminbackups API
 type NonAdminBackup struct {
@@ -54,7 +54,7 @@ type NonAdminBackup struct {
 	Status NonAdminBackupStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NonAdminBackupList contains a list of NonAdminBackup
 type NonAdminBackupList struct {

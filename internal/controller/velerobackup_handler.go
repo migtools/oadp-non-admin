@@ -1,4 +1,18 @@
-// velerobackup_handler.go
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 package controller
 
@@ -7,14 +21,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// Handler for VeleroBackup events
+// VeleroBackupHandler Handles VeleroBackup events
 type VeleroBackupHandler struct {
 	Logger logr.Logger
 }
@@ -23,35 +36,35 @@ func getVeleroBackupHandlerLogger(ctx context.Context, name, namespace string) l
 	return log.FromContext(ctx).WithValues("VeleroBackupHandler", types.NamespacedName{Name: name, Namespace: namespace})
 }
 
-func (h *VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (*VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	nameSpace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
-	log := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
-	log.V(1).Info("Received Create VeleroBackupHandler")
+	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
+	logger.V(1).Info("Received Create VeleroBackupHandler")
 }
 
-func (h *VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	nameSpace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
-	log := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
-	log.V(1).Info("Received Update VeleroBackupHandler")
+	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
+	logger.V(1).Info("Received Update VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
 
 	if annotations == nil {
-		log.V(1).Info("Backup annotations not found")
+		logger.V(1).Info("Backup annotations not found")
 		return
 	}
 
 	nabOriginNamespace, ok := annotations[NabOriginNamespaceAnnotation]
 	if !ok {
-		log.V(1).Info("Backup NonAdminBackup origin namespace annotation not found")
+		logger.V(1).Info("Backup NonAdminBackup origin namespace annotation not found")
 		return
 	}
 
 	nabOriginName, ok := annotations[NabOriginNameAnnotation]
 	if !ok {
-		log.V(1).Info("Backup NonAdminBackup origin name annotation not found")
+		logger.V(1).Info("Backup NonAdminBackup origin name annotation not found")
 		return
 	}
 
@@ -61,10 +74,10 @@ func (h *VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent,
 	}})
 }
 
-func (h *VeleroBackupHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	// Delete event handler for the Backup object. We should ignore it.
+func (*VeleroBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+	// Delete event handler for the Backup object
 }
 
-func (h *VeleroBackupHandler) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface) {
-	// Generic event handler for the Backup object. We should ignore it.
+func (*VeleroBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+	// Generic event handler for the Backup object
 }

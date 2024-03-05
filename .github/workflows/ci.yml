@@ -36,7 +36,9 @@ jobs:
     # TODO coverage report
 
       - name: Go linters
-        run: make lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: v1.55.2
 
   container-check:
     runs-on: ubuntu-latest
