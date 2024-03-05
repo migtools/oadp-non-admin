@@ -47,6 +47,8 @@ type NonAdminBackupReconciler struct {
 //+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
 
+//+kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
@@ -79,7 +81,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	veleroBackupSpec, err := GetVeleroBackupSpecFromNonAdminBackup(&nab)
 
 	if veleroBackupSpec == nil {
-		log.Error(err, "unable to fetch VeleroBackupSpec from NonAdminBackup")
+		log.Error(err, "NonAdminBackup CR does not contain valid VeleroBackupSpec")
 		return ctrl.Result{}, nil
 	}
 
@@ -106,10 +108,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			Spec: *veleroBackupSpec,
 		}
 	} else if err != nil && !errors.IsNotFound(err) {
-		log.Error(err, "unable to fetch VeleroBackup")
+		log.Error(err, "Unable to fetch VeleroBackup")
 		return ctrl.Result{}, err
 	} else {
-		log.Info("Backup already exists", "Name", veleroBackupName)
+		log.Info("Backup already exists, updating NonAdminBackup status", "Name", veleroBackupName)
+		err := UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, log, &nab, &veleroBackup)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -142,5 +148,13 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
+		Watches(&velerov1api.Backup{}, &VeleroBackupHandler{}).
+		WithEventFilter(CompositePredicate{
+			NonAdminBackupPredicate: NonAdminBackupPredicate{},
+			VeleroBackupPredicate: VeleroBackupPredicate{
+				OadpVeleroNamespace: "openshift-adp",
+			},
+			Context: r.Context,
+		}).
 		Complete(r)
 }
