@@ -31,13 +31,13 @@ func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.
 
 func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
 	nameSpace := evt.Object.GetNamespace()
-	name := evt.Object.GetName()
-	log := getBackupPredicateLogger(ctx, name, nameSpace)
-	log.V(1).Info("Received Create VeleroBackupPredicate")
-
 	if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
 		return false
 	}
+
+	name := evt.Object.GetName()
+	log := getBackupPredicateLogger(ctx, name, nameSpace)
+	log.V(1).Info("Received Create VeleroBackupPredicate")
 
 	backup, ok := evt.Object.(*velerov1api.Backup)
 	if !ok {
