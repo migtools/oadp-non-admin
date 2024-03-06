@@ -39,6 +39,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: v1.55.2
+          skip-pkg-cache: true
 
   container-check:
     runs-on: ubuntu-latest
