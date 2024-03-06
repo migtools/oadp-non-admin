@@ -55,22 +55,35 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 
 func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, log logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) error {
 	// Make a copy of the current status for comparison
-	oldStatus := nab.Spec.BackupStatus.DeepCopy()
+	oldStatus := nab.Status.BackupStatus.DeepCopy()
 	oldSpec := nab.Spec.BackupSpec.DeepCopy()
 
 	// Update the status & spec
-	nab.Spec.BackupStatus = &veleroBackup.Status
-	nab.Spec.BackupSpec = &veleroBackup.Spec
+	// Copy the status from veleroBackup.Status to nab.Status
+	nab.Status.BackupStatus = veleroBackup.Status.DeepCopy()
 
-	if reflect.DeepEqual(oldStatus, nab.Spec.BackupStatus) && reflect.DeepEqual(oldSpec, nab.Spec.BackupSpec) {
-		// No change, no need to update
-		log.V(1).Info("NonAdminBackup status and spec is already up to date")
-		return nil
+	nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
+
+	// Check if the spec has been updated
+	if !reflect.DeepEqual(oldSpec, nab.Spec.BackupSpec) {
+		if err := r.Update(ctx, nab); err != nil {
+			log.Error(err, "Failed to update NonAdminBackup Spec")
+			return err
+		}
+		log.V(1).Info("NonAdminBackup spec was updated")
+	} else {
+		log.V(1).Info("NonAdminBackup spec is already up to date")
 	}
 
-	if err := r.Update(ctx, nab); err != nil {
-		log.Error(err, "Failed to update NonAdminBackup")
-		return err
+	// Check if the status has been updated
+	if !reflect.DeepEqual(oldStatus, nab.Status.BackupStatus) {
+		if err := r.Status().Update(ctx, nab); err != nil {
+			log.Error(err, "Failed to update NonAdminBackup Status")
+			return err
+		}
+		log.V(1).Info("NonAdminBackup status was updated")
+	} else {
+		log.V(1).Info("NonAdminBackup status is already up to date")
 	}
 
 	return nil

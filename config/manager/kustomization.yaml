@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/migi/oadp-nac-operator
-  newTag: v0.0.37
+  newTag: v0.0.41
