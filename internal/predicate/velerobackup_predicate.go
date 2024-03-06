@@ -36,30 +36,23 @@ type VeleroBackupPredicate struct {
 	Logger              logr.Logger
 }
 
-// TODO try to remove calls to get logger functions, try to initialize it
-
 func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("VeleroBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
 }
 
 // Create event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	nameSpace := evt.Object.GetNamespace()
-	if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
-		return false
-	}
+	if backup, ok := evt.Object.(*velerov1api.Backup); ok {
+		nameSpace := evt.Object.GetNamespace()
+		if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
+			return false
+		}
 
-	name := evt.Object.GetName()
-	logger := getBackupPredicateLogger(ctx, name, nameSpace)
-	logger.V(1).Info("Received Create VeleroBackupPredicate")
+		name := evt.Object.GetName()
+		logger := getBackupPredicateLogger(ctx, name, nameSpace)
+		logger.V(1).Info("VeleroBackupPredicate: Received Create event")
 
-	backup, ok := evt.Object.(*velerov1api.Backup)
-	if !ok {
-		// The event object is not a Backup, ignore it
-		return false
-	}
-	if function.CheckVeleroBackupLabels(backup) {
-		return true
+		return function.CheckVeleroBackupLabels(backup)
 	}
 	return false
 }
@@ -69,8 +62,7 @@ func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, e
 	nameSpace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
 	logger := getBackupPredicateLogger(ctx, name, nameSpace)
-	logger.V(1).Info("Received Update VeleroBackupPredicate")
-
+	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
 	return nameSpace == veleroBackupPredicate.OadpVeleroNamespace
 }
 

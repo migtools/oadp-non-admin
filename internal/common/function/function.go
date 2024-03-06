@@ -21,11 +21,14 @@ import (
 	"context"
 	"crypto/sha1" //nolint:gosec // TODO remove
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -117,28 +120,135 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 	return veleroBackupName
 }
 
-// UpdateNonAdminBackupFromVeleroBackup update, if necessary, NonAdminBackup object fields related to referenced Velero Backup object, if no error occurs
-func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) error {
-	// Make a copy of the current status for comparison
-	oldStatus := nab.Spec.BackupStatus.DeepCopy()
-	oldSpec := nab.Spec.BackupSpec.DeepCopy()
+// UpdateNonAdminPhase updates the phase of a NonAdminBackup object with the provided phase.
+func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, phase nacv1alpha1.NonAdminBackupPhase) (bool, error) {
+	if nab == nil {
+		return false, errors.New("NonAdminBackup object is nil")
+	}
 
-	// Update the status & spec
-	nab.Spec.BackupStatus = &veleroBackup.Status
-	nab.Spec.BackupSpec = &veleroBackup.Spec
+	// Ensure phase is valid
+	if phase == constant.EmptyString {
+		return false, errors.New("NonAdminBackupPhase cannot be empty")
+	}
 
-	if reflect.DeepEqual(oldStatus, nab.Spec.BackupStatus) && reflect.DeepEqual(oldSpec, nab.Spec.BackupSpec) {
+	oldPhase := nab.Status.Phase
+	nab.Status.Phase = phase
+
+	logger.V(1).Info(fmt.Sprintf("Setting NonAdminBackup Phase to: %s", phase))
+
+	if oldPhase == nab.Status.Phase {
 		// No change, no need to update
-		logger.V(1).Info("NonAdminBackup status and spec is already up to date")
-		return nil
+		logger.V(1).Info("NonAdminBackup Phase is already up to date")
+		return false, nil
 	}
 
-	if err := r.Update(ctx, nab); err != nil {
-		logger.Error(err, "Failed to update NonAdminBackup")
-		return err
+	// Update NAB status
+	if err := r.Status().Update(ctx, nab); err != nil {
+		logger.Error(err, "Failed to update NonAdminBackup Phase")
+		return false, err
 	}
 
-	return nil
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Phase set to: %s", phase))
+
+	return true, nil
+}
+
+// UpdateNonAdminBackupCondition updates the condition of a NonAdminBackup object
+// based on the provided parameters. It validates the input parameters and ensures
+// that the condition is set to the desired status only if it differs from the current status.
+// If the condition is already set to the desired status, no update is performed.
+func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition nacv1alpha1.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
+	if nab == nil {
+		return false, errors.New("NonAdminBackup object is nil")
+	}
+
+	// Ensure phase and condition are valid
+	if condition == constant.EmptyString {
+		return false, errors.New("NonAdminBackup Condition cannot be empty")
+	}
+
+	if conditionStatus == constant.EmptyString {
+		return false, errors.New("NonAdminBackup Condition Status cannot be empty")
+	} else if conditionStatus != metav1.ConditionTrue && conditionStatus != metav1.ConditionFalse && conditionStatus != metav1.ConditionUnknown {
+		return false, errors.New("NonAdminBackup Condition Status must be valid metav1.ConditionStatus")
+	}
+
+	if reason == constant.EmptyString {
+		return false, errors.New("NonAdminBackup Condition Reason cannot be empty")
+	}
+
+	if message == constant.EmptyString {
+		return false, errors.New("NonAdminBackup Condition Message cannot be empty")
+	}
+
+	// Check if the condition is already set to the desired status
+	currentCondition := apimeta.FindStatusCondition(nab.Status.Conditions, string(condition))
+	if currentCondition != nil && currentCondition.Status == conditionStatus {
+		// Condition is already set to the desired status, no need to update
+		logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition is already set to: %s", condition))
+		return false, nil
+	}
+
+	// Update NAB status condition
+	apimeta.SetStatusCondition(&nab.Status.Conditions,
+		metav1.Condition{
+			Type:    string(condition),
+			Status:  conditionStatus,
+			Reason:  reason,
+			Message: message,
+		},
+	)
+
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition to: %s", condition))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason to: %s", reason))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message to: %s", message))
+
+	// Update NAB status
+	if err := r.Status().Update(ctx, nab); err != nil {
+		logger.Error(err, "NonAdminBackup Condition - Failed to update")
+		return false, err
+	}
+
+	return true, nil
+}
+
+// UpdateNonAdminBackupFromVeleroBackup update, if necessary, NonAdminBackup object fields related to referenced Velero Backup object, if no error occurs
+func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) (bool, error) {
+	logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - request to update")
+
+	if reflect.DeepEqual(nab.Status.BackupStatus, &veleroBackup.Status) && reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
+		// No change, no need to update
+		logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - nothing to update")
+		return false, nil
+	}
+
+	// Check if BackupStatus needs to be updated
+	if !reflect.DeepEqual(nab.Status.BackupStatus, &veleroBackup.Status) || nab.Status.OadpVeleroBackup != veleroBackup.Name {
+		nab.Status.BackupStatus = veleroBackup.Status.DeepCopy()
+		nab.Status.OadpVeleroBackup = veleroBackup.Name
+		if err := r.Status().Update(ctx, nab); err != nil {
+			logger.Error(err, "NonAdminBackup BackupStatus - Failed to update")
+			return false, err
+		}
+		logger.V(1).Info("NonAdminBackup BackupStatus - updated")
+	} else {
+		logger.V(1).Info("NonAdminBackup BackupStatus - up to date")
+	}
+
+	// Check if BackupSpec needs to be updated
+	if !reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
+		nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
+		if err := r.Update(ctx, nab); err != nil {
+			logger.Error(err, "NonAdminBackup BackupSpec - Failed to update")
+			return false, err
+		}
+		logger.V(1).Info("NonAdminBackup BackupSpec - updated")
+	} else {
+		logger.V(1).Info("NonAdminBackup BackupSpec - up to date")
+	}
+
+	// If either BackupStatus or BackupSpec was updated, return true
+	return true, nil
 }
 
 // CheckVeleroBackupLabels return true if Velero Backup object has required Non Admin labels, false otherwise
@@ -148,8 +258,6 @@ func CheckVeleroBackupLabels(backup *velerov1api.Backup) bool {
 	value, exists := labels[constant.ManagedByLabel]
 	return exists && value == constant.ManagedByLabelValue
 }
-
-// TODO not used
 
 // GetNonAdminBackupFromVeleroBackup return referenced NonAdminBackup object from Velero Backup object, if no error occurs
 func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1api.Backup) (*nacv1alpha1.NonAdminBackup, error) {

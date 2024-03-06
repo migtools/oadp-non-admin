@@ -39,3 +39,16 @@ const (
 
 // OadpNamespace is the namespace OADP operator is installed
 var OadpNamespace = os.Getenv(NamespaceEnvVar)
+
+// EmptyString defines a constant for the empty string
+const EmptyString = ""
+
+// NameSpaceString k8s Namespace string
+const NameSpaceString = "Namespace"
+
+// MaxKubernetesNameLength represents maximum length of the name in k8s
+const MaxKubernetesNameLength = 253
+
+// VeleroBackupNamePrefix represents the prefix for the object name generated
+// by the NonAdminController
+const VeleroBackupNamePrefix = "nab"

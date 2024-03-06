@@ -503,6 +503,22 @@ spec:
                       type: string
                     type: array
                 type: object
+              logLevel:
+                description: NonAdminBackup log level (use debug for the most logging,
+                  leave unset for default)
+                enum:
+                - trace
+                - debug
+                - info
+                - warning
+                - error
+                - fatal
+                - panic
+                type: string
+            type: object
+          status:
+            description: NonAdminBackupStatus defines the observed state of NonAdminBackup
+            properties:
               backupStatus:
                 description: BackupStatus captures the current status of a Velero
                   backup.
@@ -634,22 +650,6 @@ spec:
                       file in object storage.
                     type: integer
                 type: object
-              logLevel:
-                description: NonAdminBackup log level (use debug for the most logging,
-                  leave unset for default)
-                enum:
-                - trace
-                - debug
-                - info
-                - warning
-                - error
-                - fatal
-                - panic
-                type: string
-            type: object
-          status:
-            description: NonAdminBackupStatus defines the observed state of NonAdminBackup
-            properties:
               conditions:
                 items:
                   description: "Condition contains details for one aspect of the current
@@ -719,6 +719,18 @@ spec:
                   - type
                   type: object
                 type: array
+              oadpVeleroBackup:
+                description: 'OadpVeleroBackup references the VeleroBackup object.
+                  Format: <name>.<namespace>'
+                type: string
+              phase:
+                description: NonAdminBackupPhase is a simple one high-level summary
+                  of the lifecycle of an NonAdminBackup.
+                enum:
+                - New
+                - BackingOff
+                - Created
+                type: string
             type: object
         type: object
     served: true
