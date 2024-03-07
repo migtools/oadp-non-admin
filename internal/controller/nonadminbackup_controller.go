@@ -14,24 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package controller contains all controllers of the project
 package controller
 
 import (
 	"context"
 
 	"github.com/go-logr/logr"
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
+	"github.com/migtools/oadp-non-admin/internal/handler"
+	"github.com/migtools/oadp-non-admin/internal/predicate"
 )
 
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
@@ -43,11 +46,16 @@ type NonAdminBackupReconciler struct {
 	NamespacedName types.NamespacedName
 }
 
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
+const (
+	nameField     = "Name"
+	oadpNamespace = "openshift-adp" // TODO user input
+)
 
-//+kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
+
+// +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -60,7 +68,7 @@ type NonAdminBackupReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
 func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
-	log := r.Log.WithValues("NonAdminBackup", req.NamespacedName)
+	logger := r.Log.WithValues("NonAdminBackup", req.NamespacedName)
 
 	r.Context = ctx
 	r.NamespacedName = req.NamespacedName
@@ -69,77 +77,76 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	err := r.Get(ctx, req.NamespacedName, &nab)
 
 	if err != nil && errors.IsNotFound(err) {
-		log.V(1).Info("Deleted NonAdminBackup CR", "Name", req.Name, "Namespace", req.Namespace)
+		logger.V(1).Info("Deleted NonAdminBackup CR", nameField, req.Name, "Namespace", req.Namespace)
 		return ctrl.Result{}, nil
 	}
 
 	if err != nil {
-		log.Error(err, "Unable to fetch NonAdminBackup CR", "Name", req.Name, "Namespace", req.Namespace)
+		logger.Error(err, "Unable to fetch NonAdminBackup CR", nameField, req.Name, "Namespace", req.Namespace)
 		return ctrl.Result{}, err
 	}
 
-	veleroBackupSpec, err := GetVeleroBackupSpecFromNonAdminBackup(&nab)
+	backupSpec, err := function.GetBackupSpecFromNonAdminBackup(&nab)
 
-	if veleroBackupSpec == nil {
-		log.Error(err, "NonAdminBackup CR does not contain valid VeleroBackupSpec")
+	if backupSpec == nil {
+		logger.Error(err, "NonAdminBackup CR does not contain valid BackupSpec")
 		return ctrl.Result{}, nil
 	}
 
 	if err != nil {
-		log.Error(err, "Error while performing NonAdminBackup reconcile")
+		logger.Error(err, "Error while performing NonAdminBackup reconcile")
 		return ctrl.Result{}, err
 	}
 
-	log.Info("NonAdminBackup Reconcile loop")
+	logger.Info("NonAdminBackup Reconcile loop")
 
-	veleroBackupName := GenerateVeleroBackupName(nab.Namespace, nab.Name)
+	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
 
 	veleroBackup := velerov1api.Backup{}
-	err = r.Get(ctx, client.ObjectKey{Namespace: OadpNamespace, Name: veleroBackupName}, &veleroBackup)
+	err = r.Get(ctx, client.ObjectKey{Namespace: oadpNamespace, Name: veleroBackupName}, &veleroBackup)
 
 	if err != nil && errors.IsNotFound(err) {
 		// Create backup
-		log.Info("No backup found", "Name", veleroBackupName)
+		logger.Info("No backup found", nameField, veleroBackupName)
 		veleroBackup = velerov1api.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
-				Namespace: OadpNamespace,
+				Namespace: oadpNamespace,
 			},
-			Spec: *veleroBackupSpec,
+			Spec: *backupSpec,
 		}
 	} else if err != nil && !errors.IsNotFound(err) {
-		log.Error(err, "Unable to fetch VeleroBackup")
+		logger.Error(err, "Unable to fetch VeleroBackup")
 		return ctrl.Result{}, err
 	} else {
-		log.Info("Backup already exists, updating NonAdminBackup status", "Name", veleroBackupName)
-		err := UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, log, &nab, &veleroBackup)
+		logger.Info("Backup already exists, updating NonAdminBackup status", nameField, veleroBackupName)
+		err = function.UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, logger, &nab, &veleroBackup)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
 
-	// Ensure labels for the BackupSpec are merged
-	// with the existing NAB labels
+	// Ensure labels are set for the Backup object
 	existingLabels := veleroBackup.Labels
-	nacManagedLabels := CreateLabelsForNac(existingLabels)
-	veleroBackup.Labels = nacManagedLabels
+	naManagedLabels := function.AddNonAdminLabels(existingLabels)
+	veleroBackup.Labels = naManagedLabels
 
 	// Ensure annotations are set for the Backup object
 	existingAnnotations := veleroBackup.Annotations
 	ownerUUID := string(nab.ObjectMeta.UID)
-	nacManagedAnnotations := CreateAnnotationsForNac(nab.Namespace, nab.Name, ownerUUID, existingAnnotations)
-	veleroBackup.Annotations = nacManagedAnnotations
+	nabManagedAnnotations := function.AddNonAdminBackupAnnotations(nab.Namespace, nab.Name, ownerUUID, existingAnnotations)
+	veleroBackup.Annotations = nabManagedAnnotations
 
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, &veleroBackup, nil)
 	if err != nil {
-		log.Error(err, "Failed to create backup", "Name", veleroBackupName)
+		logger.Error(err, "Failed to create backup", nameField, veleroBackupName)
 		return ctrl.Result{}, err
-	} else {
-		log.Info("Backup successfully created", "Name", veleroBackupName)
 	}
 
-	log.Info("NonAdminBackup Reconcile loop end")
+	logger.Info("Backup successfully created", nameField, veleroBackupName)
+
+	logger.Info("NonAdminBackup Reconcile loop end")
 
 	return ctrl.Result{}, nil
 }
@@ -148,10 +155,10 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
-		Watches(&velerov1api.Backup{}, &VeleroBackupHandler{}).
-		WithEventFilter(CompositePredicate{
-			NonAdminBackupPredicate: NonAdminBackupPredicate{},
-			VeleroBackupPredicate: VeleroBackupPredicate{
+		Watches(&velerov1api.Backup{}, &handler.VeleroBackupHandler{}).
+		WithEventFilter(predicate.CompositePredicate{
+			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
+			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
 				OadpVeleroNamespace: "openshift-adp",
 			},
 			Context: r.Context,

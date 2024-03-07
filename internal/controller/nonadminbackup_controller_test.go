@@ -19,19 +19,18 @@ package controller
 import (
 	"context"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	ginkgov2 "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
-var _ = Describe("NonAdminBackup Controller", func() {
-	Context("When reconciling a resource", func() {
+var _ = ginkgov2.Describe("NonAdminBackup Controller", func() {
+	ginkgov2.Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
 		ctx := context.Background()
@@ -42,8 +41,8 @@ var _ = Describe("NonAdminBackup Controller", func() {
 		}
 		nonadminbackup := &nacv1alpha1.NonAdminBackup{}
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind NonAdminBackup")
+		ginkgov2.BeforeEach(func() {
+			ginkgov2.By("creating the custom resource for the Kind NonAdminBackup")
 			err := k8sClient.Get(ctx, typeNamespacedName, nonadminbackup)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &nacv1alpha1.NonAdminBackup{
@@ -53,21 +52,21 @@ var _ = Describe("NonAdminBackup Controller", func() {
 					},
 					// TODO(user): Specify other spec details if needed.
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+				gomega.Expect(k8sClient.Create(ctx, resource)).To(gomega.Succeed())
 			}
 		})
 
-		AfterEach(func() {
+		ginkgov2.AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			resource := &nacv1alpha1.NonAdminBackup{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			By("Cleanup the specific resource instance NonAdminBackup")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			ginkgov2.By("Cleanup the specific resource instance NonAdminBackup")
+			gomega.Expect(k8sClient.Delete(ctx, resource)).To(gomega.Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
+		ginkgov2.It("should successfully reconcile the resource", func() {
+			ginkgov2.By("Reconciling the created resource")
 			controllerReconciler := &NonAdminBackupReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
@@ -76,7 +75,7 @@ var _ = Describe("NonAdminBackup Controller", func() {
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
-			Expect(err).NotTo(HaveOccurred())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
 			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
