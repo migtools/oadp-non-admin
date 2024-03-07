@@ -66,6 +66,8 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	r.NamespacedName = req.NamespacedName
 
 	nab := nacv1alpha1.NonAdminBackup{}
+	nab.Status.Phase = nacv1alpha1.NonAdminBackupPhaseNew
+
 	err := r.Get(ctx, req.NamespacedName, &nab)
 
 	if err != nil && errors.IsNotFound(err) {
@@ -82,6 +84,12 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	if veleroBackupSpec == nil {
 		log.Error(err, "NonAdminBackup CR does not contain valid VeleroBackupSpec")
+		nab.Status.Phase = nacv1alpha1.NonAdminBackupPhaseFailedValidation
+		nab.Status.FailureReason = "NonAdminBackup CR does not contain valid VeleroBackupSpec"
+		if err := r.Status().Update(ctx, &nab); err != nil {
+			log.Error(err, "Failed to update NonAdminBackup Status")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
 	}
 

@@ -21,6 +21,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +kubebuilder:validation:Enum=Error;FailedValidation;New;Completed
+type NonAdminBackupPhase string
+
+const (
+	NonAdminBackupPhaseError NonAdminBackupPhase = "Error"
+
+	NonAdminBackupPhaseFailedValidation NonAdminBackupPhase = "FailedValidation"
+
+	// Used as a New object, that needs to be processed
+	// By NonAdminController
+	NonAdminBackupPhaseNew NonAdminBackupPhase = "New"
+
+	NonAdminBackupPhaseCompleted NonAdminBackupPhase = "Completed"
+)
+
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
 	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
@@ -32,14 +47,21 @@ type NonAdminBackupSpec struct {
 
 	// BackupSpec defines the specification for a Velero backup.
 	BackupSpec *velerov1api.BackupSpec `json:"backupSpec,omitempty"`
-
-	// BackupStatus captures the current status of a Velero backup.
-	BackupStatus *velerov1api.BackupStatus `json:"backupStatus,omitempty"`
 }
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// +optional
+	Phase NonAdminBackupPhase `json:"phase,omitempty"`
+
+	// +optional
+	FailureReason string `json:"failureReason,omitempty"`
+
+	// BackupStatus captures the current status of a Velero backup.
+	// +optional
+	BackupStatus *velerov1api.BackupStatus `json:"backupStatus,omitempty"`
 }
 
 //+kubebuilder:object:root=true
