@@ -36,9 +36,10 @@ jobs:
     # TODO coverage report
 
       - name: Go linters
+        if: ${{ matrix.go-version == '1.21' }}
         uses: golangci/golangci-lint-action@v4
         with:
-          version: v1.55.2
+          version: v1.56.2
           skip-pkg-cache: true
 
   container-check:

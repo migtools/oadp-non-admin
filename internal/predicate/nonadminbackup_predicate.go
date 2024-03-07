@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package predicate
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
+// NonAdminBackupPredicate contains event filters for Non Admin Backup objects
 type NonAdminBackupPredicate struct {
 	Logger logr.Logger
 }
@@ -35,6 +36,7 @@ func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace strin
 	return log.FromContext(ctx).WithValues("NonAdminBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
 }
 
+// Create event filter
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
 	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
 		nameSpace := evt.Object.GetNamespace()
@@ -47,6 +49,7 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 	return false
 }
 
+// Update event filter
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	if _, ok := evt.ObjectNew.(*nacv1alpha1.NonAdminBackup); ok {
 		nameSpace := evt.ObjectNew.GetNamespace()
@@ -58,6 +61,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	return false
 }
 
+// Delete event filter
 func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
 	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
 		nameSpace := evt.Object.GetNamespace()
@@ -69,6 +73,7 @@ func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent
 	return false
 }
 
+// Generic event filter
 func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEvent) bool {
 	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
 		nameSpace := evt.Object.GetNamespace()
