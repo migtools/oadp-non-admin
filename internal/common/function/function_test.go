@@ -35,7 +35,7 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-func TestMergeUniqueKeyTOfTMaps(t *testing.T) {
+func TestMergeMaps(t *testing.T) {
 	const (
 		d     = "d"
 		delta = "delta"
@@ -93,13 +93,13 @@ func TestMergeUniqueKeyTOfTMaps(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := mergeUniqueKeyTOfTMaps(tt.args...)
+			got, err := mergeMaps(tt.args...)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("mergeUniqueKeyTOfTMaps() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("mergeMaps() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("mergeUniqueKeyTOfTMaps() = %v, want %v", got, tt.want)
+				t.Errorf("mergeMaps() = %v, want %v", got, tt.want)
 			}
 		})
 	}

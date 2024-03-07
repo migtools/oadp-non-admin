@@ -44,7 +44,7 @@ func AddNonAdminLabels(labels map[string]string) map[string]string {
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
 
-	mergedLabels, err := mergeUniqueKeyTOfTMaps(defaultLabels, labels)
+	mergedLabels, err := mergeMaps(defaultLabels, labels)
 	if err != nil {
 		// TODO logger
 		_, _ = fmt.Println("Error merging labels:", err)
@@ -64,7 +64,7 @@ func AddNonAdminBackupAnnotations(ownerNamespace string, ownerName string, owner
 		constant.NabOriginUUIDAnnotation:      ownerUUID,
 	}
 
-	mergedAnnotations, err := mergeUniqueKeyTOfTMaps(defaultAnnotations, existingAnnotations)
+	mergedAnnotations, err := mergeMaps(defaultAnnotations, existingAnnotations)
 	if err != nil {
 		// TODO logger
 		_, _ = fmt.Println("Error merging annotations:", err)
@@ -198,27 +198,27 @@ func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance clien
 	return nonAdminBackup, nil
 }
 
-// TODO import?
-// Similar to as pkg/common/common.go:AppendUniqueKeyTOfTMaps from github.com/openshift/oadp-operator
-func mergeUniqueKeyTOfTMaps[T comparable](userMap ...map[T]T) (map[T]T, error) {
-	var base map[T]T
-	for i, mapElements := range userMap {
-		if mapElements == nil {
+// TODO import? Similar to as pkg/common/common.go:AppendUniqueKeyTOfTMaps from github.com/openshift/oadp-operator
+
+// Return map, of the same type as the input maps, that contains all keys/values from all input maps.
+// Key/value pairs that are identical in different input maps, are added only once to return map.
+// If a key exists in more than one input map, with a different value, an error is returned
+func mergeMaps[T comparable](maps ...map[T]T) (map[T]T, error) {
+	merge := make(map[T]T)
+	for _, m := range maps {
+		if m == nil {
 			continue
 		}
-		if base == nil {
-			base = make(map[T]T)
-		}
-		for k, v := range mapElements {
-			existingValue, found := base[k]
+		for k, v := range m {
+			existingValue, found := merge[k]
 			if found {
 				if existingValue != v {
-					return nil, fmt.Errorf("conflicting key %v with value %v in map %d may not override %v", k, v, i, existingValue)
+					return nil, fmt.Errorf("conflicting key %v: has both value %v and value %v in input maps", k, v, existingValue)
 				}
-			} else {
-				base[k] = v
+				continue
 			}
+			merge[k] = v
 		}
 	}
-	return base, nil
+	return merge, nil
 }
