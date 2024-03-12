@@ -18,6 +18,6 @@ kubebuilder create api \
     --resource --controller
 make manifests
 ```
-> **NOTE:** The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](PROJECT) file
+> **NOTE:** The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](../PROJECT) file
 
 > **NOTE:** More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
