@@ -30,7 +30,7 @@ To create a non admin user to test NAC, check [non admin user documentation](non
 
 To uninstall the previously installed OADP NAC in your cluster, run
 ```sh
-make deploy-dev
+make undeploy-dev
 ```
 
 ## Code quality and standardization
