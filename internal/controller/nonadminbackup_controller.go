@@ -159,7 +159,7 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
-				OadpVeleroNamespace: "openshift-adp",
+				OadpVeleroNamespace: oadpNamespace,
 			},
 			Context: r.Context,
 		}).

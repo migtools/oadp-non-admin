@@ -26,3 +26,6 @@ go.work
 *.swp
 *.swo
 *~
+
+# oadp-nac specifics
+dev/*

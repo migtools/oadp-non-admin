@@ -116,14 +116,11 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	rm Dockerfile.cross
 
 .PHONY: build-installer
+build-installer: DIR?=dist
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p dist
-	@if [ -d "config/crd" ]; then \
-		$(KUSTOMIZE) build config/crd > dist/install.yaml; \
-	fi
-	echo "---" >> dist/install.yaml  # Add a document separator before appending
+	mkdir -p $(DIR)
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default >> dist/install.yaml
+	$(KUSTOMIZE) build config/default > $(DIR)/install.yaml
 
 ##@ Deployment
 
@@ -204,7 +201,11 @@ endef
 
 ##@ oadp-nac specifics
 
+## Tool Binaries
+OC_CLI ?= $(shell which oc)
 EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
+
+## Tool Versions
 EC_VERSION ?= 2.8.0
 
 .PHONY: editorconfig
@@ -241,3 +242,15 @@ check-manifests: manifests ## Check if 'make manifests' was run.
 .PHONY: ec
 ec: editorconfig ## Run file formatter checks against all project's files.
 	$(EC)
+
+.PHONY: deploy-dev
+deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(shell echo $$RANDOM):1h
+deploy-dev: ## Build and push development controller image from current branch and deploy development controller to cluster
+	PROD_IMG=$(IMG) IMG=$(DEV_IMG) DIR=dev make docker-build docker-push build-installer
+	IMG=$(PROD_IMG) cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG} && cd -
+	$(OC_CLI) apply -f dev/install.yaml
+
+# TODO prior delete CR instances, to avoid finalizers problem
+.PHONY: undeploy-dev
+undeploy-dev: ## Undeploy development controller from cluster
+	$(OC_CLI) delete -f dev/install.yaml

@@ -68,3 +68,5 @@ jobs:
 
       - name: Check all files format
         run: make ec
+
+      # TODO do not allow overwrite of production image

@@ -1,5 +1,5 @@
 # Adds namespace to all resources.
-namespace: oadp-nac-system
+namespace: oadp-nac-system # TODO change
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
