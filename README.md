@@ -3,6 +3,7 @@
 Non Admin Controller
 
 [![Continuos Integration](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml)
+[![OADP version compatibility check](https://github.com/migtools/oadp-non-admin/actions/workflows/oadp-compatibility-check.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/oadp-compatibility-check.yml)
 
 <!-- TODO add Official documentation link once it is created -->
 
@@ -18,54 +19,40 @@ This open source controller adds the non admin feature to [OADP operator](https:
 - go version v1.21.0+
 - oc
 - Access to a OpenShift cluster
-- [OADP operator](https://github.com/openshift/oadp-operator) installed in the cluster
-
-<!-- TODO update in future, probably will need to use unsupported override in DPA -->
 
 ### Install
 
-To install latest OADP NAC in `oadp-nac-system` namespace in your cluster, run
+To install OADP operator in your cluster, with OADP NAC from current branch, run
 ```sh
-make deploy
+make deploy-dev
 ```
 
-To check the deployment, run
+The command can be customized by setting the following environment variables
 ```sh
-oc get all -n oadp-nac-system
-```
-
-you should have an output similar to this:
-```
-NAME                                               READY   STATUS    RESTARTS   AGE
-pod/oadp-nac-controller-manager-74bbf4577b-nssw4   2/2     Running   0          3m7s
-
-NAME                                                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
-service/oadp-nac-controller-manager-metrics-service   ClusterIP   172.30.201.185   <none>        8443/TCP   3m8s
-
-NAME                                          READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/oadp-nac-controller-manager   1/1     1            1           3m7s
-
-NAME                                                     DESIRED   CURRENT   READY   AGE
-replicaset.apps/oadp-nac-controller-manager-74bbf4577b   1         1         1       3m7s
+OADP_FORK=<OADP_operator_user_or_org>
+OADP_VERSION=<OADP_operator_branch_or_tag>
+OADP_NAMESPACE=<OADP_operator_installation_namespace>
 ```
 
 ### Testing
 
-To test NAC functionality, create non admin CRs. For example, run
-```sh
-oc apply -f config/samples/nac_v1alpha1_nonadminbackup.yaml
-```
+To test NAC functionality:
+- create DPA with non admin feature enabled
+- create non admin CRs. For example, run
+    ```sh
+    oc apply -f config/samples/nac_v1alpha1_nonadminbackup.yaml
+    ```
 
 To create a non admin user to test NAC, check [non admin user documentation](docs/non_admin_user.md).
 
 ### Uninstall
 
-To uninstall the previously installed OADP NAC in your cluster, run
+To uninstall the previously installed OADP operator in your cluster, run
 ```sh
-make undeploy
+make undeploy-dev
 ```
 
-> **NOTE:** make sure there are no running instances of CRDs. Finalizers in those objects can fail the `undeploy` command.
+> **NOTE:** make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
 
 ## Contributing
 
@@ -77,12 +64,11 @@ For a better understanding of the project, check our [architecture documentation
 
 ## OADP version compatibility
 
-OADP NAC needs OADP operator to work. The relationship between compatible versions is presented below.
+OADP NAC needs OADP operator to work. The relationship between compatible branches is presented below.
 
-| NAC version | OADP version |
-|-------------|--------------|
-| master      | master       |
-| v0.1.0      | v1.4.0       |
+| NAC branch | OADP branch |
+|------------|-------------|
+| master     | master      |
 
 ## License
 

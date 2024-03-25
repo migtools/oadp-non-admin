@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= quay.io/konveyor/non-admin-controller:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
@@ -116,11 +116,14 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	rm Dockerfile.cross
 
 .PHONY: build-installer
-build-installer: DIR?=dist
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
-	mkdir -p $(DIR)
+	mkdir -p dist
+	@if [ -d "config/crd" ]; then \
+		$(KUSTOMIZE) build config/crd > dist/install.yaml; \
+	fi
+	echo "---" >> dist/install.yaml  # Add a document separator before appending
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > $(DIR)/install.yaml
+	$(KUSTOMIZE) build config/default >> dist/install.yaml
 
 ##@ Deployment
 
@@ -221,7 +224,7 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	}
 
 .PHONY: ci
-ci: simulation-test lint docker-build hadolint check-generate check-manifests ec ## Run all checks run by the project continuous integration (CI) locally.
+ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all checks run by the project continuous integration (CI) locally.
 
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
@@ -243,14 +246,37 @@ check-manifests: manifests ## Check if 'make manifests' was run.
 ec: editorconfig ## Run file formatter checks against all project's files.
 	$(EC)
 
-.PHONY: deploy-dev
-deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(shell echo $$RANDOM):1h
-deploy-dev: ## Build and push development controller image from current branch and deploy development controller to cluster
-	PROD_IMG=$(IMG) IMG=$(DEV_IMG) DIR=dev make docker-build docker-push build-installer
-	IMG=$(PROD_IMG) cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG} && cd -
-	$(OC_CLI) apply -f dev/install.yaml
+.PHONY: check-images
+check-images: MANAGER_IMAGE:=$(shell grep -I 'newName: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
+check-images: MANAGER_TAG:=$(shell grep -I 'newTag: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
+check-images: ## Check if images are the same in Makefile and config/manager/kustomization.yaml
+	@if [ "$(MANAGER_IMAGE)" == "" ];then echo "No manager image found" && exit 1;fi
+	@if [ "$(MANAGER_TAG)" == "" ];then echo "No manager tag found" && exit 1;fi
+	@grep -Iq "IMG ?= $(MANAGER_IMAGE):$(MANAGER_TAG)" ./Makefile || (echo "Images differ" && exit 1)
 
-# TODO prior delete CR instances, to avoid finalizers problem
+# A valid oadp-operator git repo fork (for example https://github.com/openshift/oadp-operator)
+OADP_FORK ?= openshift
+# A valid branch or tag from oadp-operator git repo
+OADP_VERSION ?= master
+# namespace to deploy development OADP operator
+OADP_NAMESPACE ?= openshift-adp
+
+.PHONY: deploy-dev
+deploy-dev: TEMP:=$(shell mktemp -d)
+deploy-dev: NAC_PATH:=$(shell pwd)
+deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(shell echo $$RANDOM):1h
+deploy-dev: ## Build and push development controller image from current branch and deploy development OADP operator using that image
+	IMG=$(DEV_IMG) make docker-build docker-push
+	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
+	cd $(TEMP)/oadp-operator && \
+	NON_ADMIN_CONTROLLER_PATH=$(NAC_PATH) NON_ADMIN_CONTROLLER_IMG=$(DEV_IMG) OADP_TEST_NAMESPACE=$(OADP_NAMESPACE) \
+		make update-non-admin-manifests deploy-olm && cd -
+	chmod -R 777 $(TEMP) && rm -rf $(TEMP)
+
 .PHONY: undeploy-dev
-undeploy-dev: ## Undeploy development controller from cluster
-	$(OC_CLI) delete -f dev/install.yaml
+undeploy-dev: ## Undeploy development OADP operator from cluster
+	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
+	cd $(TEMP)/oadp-operator && \
+	OADP_TEST_NAMESPACE=$(OADP_NAMESPACE) \
+		make undeploy-olm && cd -
+	chmod -R 777 $(TEMP) && rm -rf $(TEMP)
