@@ -24,12 +24,10 @@ metadata:
     app.kubernetes.io/created-by: oadp-operator
     app.kubernetes.io/part-of: oadp-operator
     app.kubernetes.io/managed-by: kustomize
-    component: non-admin-controller
 spec:
   selector:
     matchLabels:
       control-plane: non-admin-controller-manager
-      component: non-admin-controller
   replicas: 1
   template:
     metadata:
@@ -37,7 +35,6 @@ spec:
         kubectl.kubernetes.io/default-container: manager
       labels:
         control-plane: non-admin-controller-manager
-        component: non-admin-controller
     spec:
       # TODO(user): Uncomment the following code to configure the nodeAffinity expression
       # according to the platforms which are supported by your solution.
