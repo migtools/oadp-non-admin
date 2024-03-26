@@ -31,6 +31,8 @@ OADP_NAMESPACE=<OADP_operator_installation_namespace>
 DEV_IMG=<NAC_image>
 ```
 
+> **TODO:** If `OADP_NAMESPACE` is set to a value different than `openshift-adp`, you also need to change the value here https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
+
 To create a non admin user to test NAC, check [non admin user documentation](non_admin_user.md).
 
 To uninstall the previously installed OADP operator in your cluster, run
@@ -38,7 +40,7 @@ To uninstall the previously installed OADP operator in your cluster, run
 make undeploy-dev
 ```
 
-> **NOTE:** make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
+> **NOTE:** Make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
 
 ## Code quality and standardization
 
