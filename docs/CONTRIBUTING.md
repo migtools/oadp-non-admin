@@ -15,23 +15,30 @@ If you are upgrading project's kubebuilder version, please follow [upgrade kubeb
 - docker version 17.03+
 - oc
 - Access to a OpenShift cluster
-- [OADP operator](https://github.com/openshift/oadp-operator) installed in the cluster
 
 ## Install from source
 
-To install OADP NAC from current branch in `oadp-nac-system` namespace in your cluster, run
+To install OADP operator in your cluster, with OADP NAC from current branch, run
 ```sh
 make deploy-dev
 ```
 
-> **NOTE:** You can use a different development image by running `export DEV_IMG=quay.io/user/image-name:tag` prior to `deploy-dev` command.
+The command can be customized by setting the following environment variables
+```sh
+OADP_FORK=<OADP_operator_user_or_org>
+OADP_VERSION=<OADP_operator_branch_or_tag>
+OADP_NAMESPACE=<OADP_operator_installation_namespace>
+DEV_IMG=<NAC_image>
+```
 
 To create a non admin user to test NAC, check [non admin user documentation](non_admin_user.md).
 
-To uninstall the previously installed OADP NAC in your cluster, run
+To uninstall the previously installed OADP operator in your cluster, run
 ```sh
 make undeploy-dev
 ```
+
+> **NOTE:** make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
 
 ## Code quality and standardization
 

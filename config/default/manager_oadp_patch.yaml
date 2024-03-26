@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    metadata:
+      annotations:
+    spec:
+      containers:
+      - name: manager
+        imagePullPolicy: Always
+        args:
+        command:
+        livenessProbe:
+        readinessProbe:
+        resources:
+        securityContext:
+      restartPolicy: Always
+      securityContext:
+      terminationGracePeriodSeconds:

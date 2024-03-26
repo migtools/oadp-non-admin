@@ -19,40 +19,14 @@ This open source controller adds the non admin feature to [OADP operator](https:
 - go version v1.21.0+
 - oc
 - Access to a OpenShift cluster
+- [OADP operator](https://github.com/openshift/oadp-operator) installed in the cluster
 
-### Install
+### Using NAC
 
-To install OADP operator in your cluster, with OADP NAC from current branch, run
-```sh
-make deploy-dev
-```
-
-The command can be customized by setting the following environment variables
-```sh
-OADP_FORK=<OADP_operator_user_or_org>
-OADP_VERSION=<OADP_operator_branch_or_tag>
-OADP_NAMESPACE=<OADP_operator_installation_namespace>
-```
-
-### Testing
-
-To test NAC functionality:
-- create DPA with non admin feature enabled
-- create non admin CRs. For example, run
-    ```sh
-    oc apply -f config/samples/nac_v1alpha1_nonadminbackup.yaml
-    ```
-
-To create a non admin user to test NAC, check [non admin user documentation](docs/non_admin_user.md).
-
-### Uninstall
-
-To uninstall the previously installed OADP operator in your cluster, run
-```sh
-make undeploy-dev
-```
-
-> **NOTE:** make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
+To use NAC functionality:
+- as admin user, create non admin user (to create a non admin user to test NAC, check [non admin user documentation](docs/non_admin_user.md)) and its namespace
+- as admin user, create/update DPA and set non admin feature to enabled
+- as non admin user, create non admin CRs
 
 ## Contributing
 
