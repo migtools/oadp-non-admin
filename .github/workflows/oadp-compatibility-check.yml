@@ -7,10 +7,6 @@ on:
       # add release branches
   schedule:
     - cron: '0 0 * * 1' # Every Monday at 00:00 UTC
-  # TODO remove, just for test
-  pull_request:
-    branches:
-      - master
 
 jobs:
   golang-check:
@@ -26,12 +22,8 @@ jobs:
       - name: Checkout OADP operator
         uses: actions/checkout@v4
         with:
-          # repository: openshift/oadp-operator
-          # TODO remove, just for test
-          repository: mateusoliveira43/oadp-operator
-          # ref: ${{ matrix.oadp-version }}
-          # TODO remove, just for test
-          ref: feat/nac-integration
+          repository: openshift/oadp-operator
+          ref: ${{ matrix.oadp-version }}
 
       - uses: actions/setup-go@v5
         with:
@@ -40,12 +32,8 @@ jobs:
       - name: Checkout Non Admin Controller (NAC)
         uses: actions/checkout@v4
         with:
-          # repository: migtools/oadp-non-admin
-          # TODO remove, just for test
-          repository: mateusoliveira43/oadp-non-admin
-          # ref: ${{ matrix.oadp-version }}
-          # TODO remove, just for test
-          ref: fix/contribution-doc
+          repository: migtools/oadp-non-admin
+          ref: ${{ matrix.oadp-version }}
           path: oadp-non-admin
 
       - name: Check Non Admin Controller (NAC) manifests
