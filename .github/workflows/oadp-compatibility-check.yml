@@ -26,8 +26,12 @@ jobs:
       - name: Checkout OADP operator
         uses: actions/checkout@v4
         with:
-          repository: openshift/oadp-operator
-          ref: ${{ matrix.oadp-version }}
+          # repository: openshift/oadp-operator
+          # TODO remove, just for test
+          repository: mateusoliveira43/oadp-operator
+          # ref: ${{ matrix.oadp-version }}
+          # TODO remove, just for test
+          ref: feat/nac-integration
 
       - uses: actions/setup-go@v5
         with:
@@ -36,8 +40,12 @@ jobs:
       - name: Checkout Non Admin Controller (NAC)
         uses: actions/checkout@v4
         with:
-          repository: migtools/oadp-non-admin
-          ref: ${{ matrix.oadp-version }}
+          # repository: migtools/oadp-non-admin
+          # TODO remove, just for test
+          repository: mateusoliveira43/oadp-non-admin
+          # ref: ${{ matrix.oadp-version }}
+          # TODO remove, just for test
+          ref: fix/contribution-doc
           path: oadp-non-admin
 
       - name: Check Non Admin Controller (NAC) manifests
