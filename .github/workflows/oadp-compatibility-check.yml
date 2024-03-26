@@ -51,4 +51,4 @@ jobs:
       - name: Check Non Admin Controller (NAC) manifests
         run: |
           NON_ADMIN_CONTROLLER_PATH=./oadp-non-admin make update-non-admin-manifests
-          test -z "$(git status --short)" || (echo "run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests" && exit 1)
+          test -z "$(git status --short -- ':!oadp-non-admin')" || (echo "run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests" && exit 1)
