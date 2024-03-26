@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: non-admin-controller-manager
   namespace: system
 spec:
   template:
@@ -9,7 +9,7 @@ spec:
       annotations:
     spec:
       containers:
-      - name: manager
+      - name: non-admin-manager
         imagePullPolicy: Always
         args:
         command:

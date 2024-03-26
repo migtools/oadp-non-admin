@@ -2,9 +2,9 @@
 
 ## OADP integration
 
-Normally, to ship a controller to users, the project would present the file created by `make build-installer` command (which contains Namespace, ServiceAccount, Deployment, etc, objects), to user to install the controller. But since NAC needs OADP operator to properly work, those Kubernetes objects are shipped within OADP operator.
+Normally, to ship a controller to users, the project would present the file created by `make build-installer` command (which include various Kubernetes objects, like Namespace, ServiceAccount, Deployment, etc), to user to install the controller. But since NAC needs OADP operator to properly work, those Kubernetes objects are shipped within OADP operator (and also Kubernetes objects in `config/samples/` folder). Because of this restriction, generated Kubernetes objects names and labels in `config/` folder, may need to be updated to match OADP operator standards (and avoid duplications).
 
-Because of this restriction, generated Kubernetes object names and labels in `config` folder, may need to be updated to match OADP operator standards.
+> **NOTE:** If needed, you can test NAC alone by running `make build-installer` and `oc apply -f ./dist/install.yaml`. You may want to customize namespace and container image in that file prior to deploying it to your cluster.
 
 NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository. To run the command:
 - switch to OADP operator repository branch you want to update
@@ -17,6 +17,10 @@ NAC objects are included in OADP operator through `make update-non-admin-manifes
     NON_ADMIN_CONTROLLER_PATH=/home/user/oadp-non-admin make update-non-admin-manifests
     ```
 - create pull request targeting OADP operator repository branch you want to update
+
+> **NOTE:** To `make update-non-admin-manifests` command properly work, `RELATED_IMAGE_NON_ADMIN_CONTROLLER` must be already set in `config/manager/manager.yaml` file of OADP operator repository branch.
+
+> **NOTE:** `make update-non-admin-manifests` command does not work for deletion, i.e., if a file that was previously managed by the command is deleted (or renamed), it needs to be manually deleted.
 
 The continuos integration (CI) pipeline of the project verifies if OADP operator repository compatible branches have up to date NAC objects included. OADP version compatibility check configuration in [`.github/workflows/oadp-compatibility-check.yml`](../.github/workflows/oadp-compatibility-check.yml) file.
 
