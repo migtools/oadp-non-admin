@@ -264,7 +264,8 @@ OADP_NAMESPACE ?= openshift-adp
 .PHONY: deploy-dev
 deploy-dev: TEMP:=$(shell mktemp -d)
 deploy-dev: NAC_PATH:=$(shell pwd)
-deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(shell echo $$RANDOM):1h
+deploy-dev: AUX_RANDOM:=$(shell echo $$RANDOM)
+deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(AUX_RANDOM):1h
 deploy-dev: ## Build and push development controller image from current branch and deploy development OADP operator using that image
 	IMG=$(DEV_IMG) make docker-build docker-push
 	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
@@ -274,6 +275,7 @@ deploy-dev: ## Build and push development controller image from current branch a
 	chmod -R 777 $(TEMP) && rm -rf $(TEMP)
 
 .PHONY: undeploy-dev
+undeploy-dev: TEMP:=$(shell mktemp -d)
 undeploy-dev: ## Undeploy development OADP operator from cluster
 	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
 	cd $(TEMP)/oadp-operator && \
