@@ -21,6 +21,8 @@ This open source controller adds the non admin feature to [OADP operator](https:
 - Access to a OpenShift cluster
 - [OADP operator](https://github.com/openshift/oadp-operator) installed in the cluster
 
+> **TODO:** Today, OADP operator must be installed in `openshift-adp` namespace, because of this limitation https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
+
 ### Using NAC
 
 To use NAC functionality:
