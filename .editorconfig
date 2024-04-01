@@ -13,7 +13,7 @@ insert_final_newline = true
 [{*.go,go.mod,Makefile}]
 indent_style = unset
 
-[{*.{yaml,yml},PROJECT}]
+[{*.{yaml,yml},PROJECT,OWNERS}]
 indent_size = 2
 
 [{*.md,LICENSE}]
