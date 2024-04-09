@@ -33,9 +33,9 @@ type NonAdminRestoreReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -46,7 +46,7 @@ type NonAdminRestoreReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
-func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (*NonAdminRestoreReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
 	// TODO(user): your logic here
