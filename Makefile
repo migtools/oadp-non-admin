@@ -1,6 +1,6 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= quay.io/konveyor/non-admin-controller:latest
+IMG ?= quay.io/konveyor/oadp-non-admin:latest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
@@ -204,6 +204,8 @@ endef
 
 ##@ oadp-nac specifics
 
+COVERAGE_THRESHOLD=55
+
 ## Tool Binaries
 OC_CLI ?= $(shell which oc)
 EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
@@ -229,6 +231,19 @@ ci: simulation-test lint docker-build hadolint check-generate check-manifests ec
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	@make check-coverage
+
+.PHONY: check-coverage
+check-coverage: ## Check if coverage threshold was reached.
+	@{ \
+	set -e ;\
+	current_coverage=$(shell go tool cover -func=cover.out | grep total | grep -Eo "[0-9]+\.[0-9]+") ;\
+	if  [ "$$(echo "$$current_coverage < $(COVERAGE_THRESHOLD)" | bc -l)" -eq 1 ];then \
+		echo "Current coverage ($$current_coverage%) is below project threshold of $(COVERAGE_THRESHOLD)%" ;\
+		exit 1 ;\
+	fi ;\
+	echo "Coverage threshold of $(COVERAGE_THRESHOLD)% reached: $$current_coverage%" ;\
+	}
 
 .PHONY: hadolint
 hadolint: ## Run container file linter.

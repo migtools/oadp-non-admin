@@ -50,12 +50,17 @@ To run all checks locally, run `make ci`.
 
 ### Tests
 
-To run unit and integration tests, run
+To run unit and integration tests and coverage report, run
 ```sh
 make simulation-test
 ```
 
-TODO report, coverage and tests information
+To see the html report, run
+```sh
+go tool cover -html=cover.out
+```
+
+TODO end to end tests
 
 ### Linters and code formatters
 

@@ -33,8 +33,6 @@ jobs:
       - name: Go unit and integration tests
         run: make simulation-test
 
-    # TODO coverage report
-
       - name: Go linters
         if: ${{ matrix.go-version == '1.21' }}
         uses: golangci/golangci-lint-action@v4

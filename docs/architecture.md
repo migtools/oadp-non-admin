@@ -4,7 +4,7 @@
 
 Normally, to ship a controller to users, the project would present the file created by `make build-installer` command (which include various Kubernetes objects, like Namespace, ServiceAccount, Deployment, etc), to user to install the controller. But since NAC needs OADP operator to properly work, those Kubernetes objects are shipped within OADP operator (and also Kubernetes objects in `config/samples/` folder). Because of this restriction, generated Kubernetes objects names and labels in `config/` folder, may need to be updated to match OADP operator standards (and avoid duplications, by adding `non-admin-` prefix to Kubernetes object names).
 
-> **NOTE:** If needed, you can test NAC alone by running `make build-installer` and `oc apply -f ./dist/install.yaml`. You may want to customize namespace (`openshift-adp-system`) and container image (`quay.io/konveyor/non-admin-controller:latest`) in that file prior to deploying it to your cluster.
+> **NOTE:** If needed, you can test NAC alone by running `make build-installer` and `oc apply -f ./dist/install.yaml`. You may want to customize namespace (`openshift-adp-system`) and container image (`quay.io/konveyor/oadp-non-admin:latest`) in that file prior to deploying it to your cluster.
 
 NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository. To run the command:
 - switch to OADP operator repository branch you want to update
