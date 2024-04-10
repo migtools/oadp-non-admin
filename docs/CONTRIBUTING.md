@@ -20,27 +20,25 @@ If you are upgrading project's kubebuilder version, please follow [upgrade kubeb
 
 To install OADP operator in your cluster, with OADP NAC from current branch, run
 ```sh
-make deploy-dev
+export DEV_IMG=ttl.sh/oadp-non-admin-$(git rev-parse --short HEAD)-$(echo $RANDOM):1h
+export NAC_PATH=$PWD
+git clone --depth=1 git@github.com:openshift/oadp-operator.git -b master # or appropriate branch
+IMG=$DEV_IMG make docker-build docker-push
+cd oadp-operator
+NON_ADMIN_CONTROLLER_PATH=$NAC_PATH NON_ADMIN_CONTROLLER_IMG=$DEV_IMG make update-non-admin-manifests deploy-olm
 ```
 
-The command can be customized by setting the following environment variables
-```sh
-OADP_FORK=<OADP_operator_user_or_org>
-OADP_VERSION=<OADP_operator_branch_or_tag>
-OADP_NAMESPACE=<OADP_operator_installation_namespace>
-DEV_IMG=<NAC_image>
-```
-
-> **TODO:** If `OADP_NAMESPACE` is set to a value different than `openshift-adp`, you also need to change the value here https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
+> **TODO:** If `OADP_TEST_NAMESPACE` is set to a value different than `openshift-adp`, you also need to change the value here https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
 
 To create a non admin user to test NAC, check [non admin user documentation](non_admin_user.md).
 
 To uninstall the previously installed OADP operator in your cluster, run
 ```sh
-make undeploy-dev
+cd oadp-operator
+make undeploy-olm
 ```
 
-> **NOTE:** Make sure there are no running instances of CRDs. Finalizers in those objects can fail `undeploy-dev` command.
+> **NOTE:** Make sure there are no running instances of CRDs. Finalizers in those objects can fail uninstall command.
 
 ## Code quality and standardization
 

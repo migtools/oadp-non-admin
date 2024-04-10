@@ -3,7 +3,6 @@
 Non Admin Controller
 
 [![Continuos Integration](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml)
-[![OADP version compatibility check](https://github.com/migtools/oadp-non-admin/actions/workflows/oadp-compatibility-check.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/oadp-compatibility-check.yml)
 
 <!-- TODO add Official documentation link once it is created -->
 
@@ -16,19 +15,26 @@ This open source controller adds the non admin feature to [OADP operator](https:
 ## Getting Started
 
 ### Prerequisites
-- go version v1.21.0+
 - oc
 - Access to a OpenShift cluster
 - [OADP operator](https://github.com/openshift/oadp-operator) installed in the cluster
 
-> **TODO:** Today, OADP operator must be installed in `openshift-adp` namespace, because of this limitation https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
+> **NOTE:** Before OADP operator version 1.4.0 is released, you need to [install OADP operator from source](docs/CONTRIBUTING.md#install-from-source) to use NAC.
 
 ### Using NAC
 
 To use NAC functionality:
-- as admin user, create non admin user (to create a non admin user to test NAC, check [non admin user documentation](docs/non_admin_user.md)) and its namespace
-- as admin user, create/update DPA and set non admin feature to enabled
-- as non admin user, create non admin CRs
+- **as admin user**:
+    - create non admin user (to create a non admin user to test NAC, check [non admin user documentation](docs/non_admin_user.md)) and its namespace
+    - create/update DPA and configure non admin feature as needed, setting it to enabled
+- **as non admin user**:
+    - create sample application
+
+        For example, use one of the sample applications available in `hack/samples/apps/` folder, by running `oc apply -f ./hack/samples/apps/<name>`. If the template contains `-csi` suffix, it is meant for CSI or DataMover backup/restore; otherwise, it is meant for a filesystem (Restic or Kopia) backup/restore.
+    - create NonAdminBackup
+
+        For example, if you used one of the sample applications available in `samples/` folder, create an appropriate NonAdminBackup.
+    - TODO NonAdminRestore
 
 ## Contributing
 
@@ -37,14 +43,6 @@ Please check our [contributing documentation](docs/CONTRIBUTING.md) to propose c
 ## Architecture
 
 For a better understanding of the project, check our [architecture documentation](docs/architecture.md).
-
-## OADP version compatibility
-
-OADP NAC needs OADP operator to work. The relationship between compatible branches is presented below.
-
-| NAC branch | OADP branch |
-|------------|-------------|
-| master     | master      |
 
 ## License
 

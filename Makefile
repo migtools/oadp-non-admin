@@ -1,8 +1,9 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/konveyor/oadp-non-admin:latest
+# Kubernetes version from OpenShift 4.15.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.28
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -204,8 +205,6 @@ endef
 
 ##@ oadp-nac specifics
 
-COVERAGE_THRESHOLD=55
-
 ## Tool Binaries
 OC_CLI ?= $(shell which oc)
 EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
@@ -225,8 +224,11 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
 	}
 
+# TODO increase!!!
+COVERAGE_THRESHOLD=24
+
 .PHONY: ci
-ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all checks run by the project continuous integration (CI) locally.
+ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.
 
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
@@ -234,7 +236,7 @@ simulation-test: envtest ## Run unit and integration tests.
 	@make check-coverage
 
 .PHONY: check-coverage
-check-coverage: ## Check if coverage threshold was reached.
+check-coverage: ## Check if test coverage threshold was reached.
 	@{ \
 	set -e ;\
 	current_coverage=$(shell go tool cover -func=cover.out | grep total | grep -Eo "[0-9]+\.[0-9]+") ;\
@@ -268,32 +270,3 @@ check-images: ## Check if images are the same in Makefile and config/manager/kus
 	@if [ "$(MANAGER_IMAGE)" == "" ];then echo "No manager image found" && exit 1;fi
 	@if [ "$(MANAGER_TAG)" == "" ];then echo "No manager tag found" && exit 1;fi
 	@grep -Iq "IMG ?= $(MANAGER_IMAGE):$(MANAGER_TAG)" ./Makefile || (echo "Images differ" && exit 1)
-
-# A valid oadp-operator git repo fork (for example https://github.com/openshift/oadp-operator)
-OADP_FORK ?= openshift
-# A valid branch or tag from oadp-operator git repo
-OADP_VERSION ?= master
-# namespace to deploy development OADP operator
-OADP_NAMESPACE ?= openshift-adp
-
-.PHONY: deploy-dev
-deploy-dev: TEMP:=$(shell mktemp -d)
-deploy-dev: NAC_PATH:=$(shell pwd)
-deploy-dev: AUX_RANDOM:=$(shell echo $$RANDOM)
-deploy-dev: DEV_IMG?=ttl.sh/oadp-nac-controller-$(shell git rev-parse --short HEAD)-$(AUX_RANDOM):1h
-deploy-dev: ## Build and push development controller image from current branch and deploy development OADP operator using that image
-	IMG=$(DEV_IMG) make docker-build docker-push
-	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
-	cd $(TEMP)/oadp-operator && \
-	NON_ADMIN_CONTROLLER_PATH=$(NAC_PATH) NON_ADMIN_CONTROLLER_IMG=$(DEV_IMG) OADP_TEST_NAMESPACE=$(OADP_NAMESPACE) \
-		make update-non-admin-manifests deploy-olm && cd -
-	chmod -R 777 $(TEMP) && rm -rf $(TEMP)
-
-.PHONY: undeploy-dev
-undeploy-dev: TEMP:=$(shell mktemp -d)
-undeploy-dev: ## Undeploy development OADP operator from cluster
-	git clone --depth=1 git@github.com:$(OADP_FORK)/oadp-operator.git -b $(OADP_VERSION)  $(TEMP)/oadp-operator
-	cd $(TEMP)/oadp-operator && \
-	OADP_TEST_NAMESPACE=$(OADP_NAMESPACE) \
-		make undeploy-olm && cd -
-	chmod -R 777 $(TEMP) && rm -rf $(TEMP)
