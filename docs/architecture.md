@@ -6,17 +6,13 @@ Normally, to ship a controller to users, the project would present the file crea
 
 > **NOTE:** If needed, you can test NAC alone by running `make build-installer` and `oc apply -f ./dist/install.yaml`. You may want to customize namespace (`openshift-adp-system`) and container image (`quay.io/konveyor/oadp-non-admin:latest`) in that file prior to deploying it to your cluster.
 
-NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository. To run the command:
-- switch to OADP operator repository branch you want to update
-- clone NAC compatible branch with the OADP operator repository branch you are (to check branches compatibility, see [OADP version compatibility](../README.md#oadp-version-compatibility)). Example:
-    ```sh
-    git clone --depth=1 git@github.com:migtools/oadp-non-admin -b oadp-1.4
-    ```
-- run `make update-non-admin-manifests` command, pointing to previously cloned NAC compatible branch. Example:
+NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository. The workflow for updating NAC objects:
+- create branch in NAC repository and make the necessary changes
+- create branch in OADP operator repository and run `make update-non-admin-manifests` command, pointing to previously created NAC branch. Example:
     ```sh
     NON_ADMIN_CONTROLLER_PATH=/home/user/oadp-non-admin make update-non-admin-manifests
     ```
-- create pull request targeting OADP operator repository branch you want to update
+- create pull requests both in NAC and OADP operator repositories (OADP operator repository pull request must be merged first)
 
 > **NOTE:** Manual steps required in OADP operator repository branch prior to implementation of `make update-non-admin-manifests` command:
 > - `RELATED_IMAGE_NON_ADMIN_CONTROLLER` must be already set in `config/manager/manager.yaml` file
@@ -25,7 +21,7 @@ NAC objects are included in OADP operator through `make update-non-admin-manifes
 
 > **NOTE:** `make update-non-admin-manifests` command does not work for deletion, i.e., if a file that was previously managed by the command is deleted (or renamed), it needs to be manually deleted.
 
-The continuos integration (CI) pipeline of the project verifies if OADP operator repository compatible branches have up to date NAC objects included. OADP version compatibility check configuration in [`.github/workflows/oadp-compatibility-check.yml`](../.github/workflows/oadp-compatibility-check.yml) file.
+The continuos integration (CI) pipeline of the project verifies if OADP operator repository branches have up to date NAC objects included.
 
 ## Kubebuilder
 
