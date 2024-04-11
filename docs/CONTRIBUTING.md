@@ -28,8 +28,6 @@ cd oadp-operator
 NON_ADMIN_CONTROLLER_PATH=$NAC_PATH NON_ADMIN_CONTROLLER_IMG=$DEV_IMG make update-non-admin-manifests deploy-olm
 ```
 
-> **TODO:** If `OADP_TEST_NAMESPACE` is set to a value different than `openshift-adp`, you also need to change the value here https://github.com/migtools/oadp-non-admin/blob/master/internal/controller/nonadminbackup_controller.go#L51
-
 To create a non admin user to test NAC, check [non admin user documentation](non_admin_user.md).
 
 To uninstall the previously installed OADP operator in your cluster, run

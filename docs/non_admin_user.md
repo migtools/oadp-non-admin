@@ -4,87 +4,67 @@ Check your cloud provider documentation for more detailed information.
 
 ## AWS
 
-**Create sample identity file:**
-```sh
-# Using user nacuser with sample pass
-$ htpasswd -c -B -b ./users_file.htpasswd nacuser Mypassw0rd
-```
+### Authentication
 
-**Create secret from the previously created htpasswd file in OpenShift**
-```sh
-$ oc create secret generic htpass-secret --from-file=htpasswd=./users_file.htpasswd -n openshift-config
-```
+Choose one of the authentication method sections to follow.
 
-**Create OAuth file**
-```sh
-$ cat > oauth-nacuser.yaml <<EOF
-apiVersion: config.openshift.io/v1
-kind: OAuth
-metadata:
-  name: cluster
-spec:
-  identityProviders:
-  - name: oadp_nac_test_provider
-    mappingMethod: claim
-    type: HTPasswd
-    htpasswd:
-      fileData:
-        name: htpass-secret
-EOF
-```
-**Apply the OAuth file to the cluster:**
-```sh
-$ oc apply -f oauth-nacuser.yaml
-```
+#### OAuth
 
-### Assigning NAC permissions to a user
+- Create sample identity file
+  ```sh
+  htpasswd -c -B -b ./non_admin_user.htpasswd <non-admin-user> <password>
+  ```
+- Create secret from the previously created identity file in your cluster
+  ```sh
+  oc create secret generic non-admin-user --from-file=htpasswd=./non_admin_user.htpasswd -n openshift-config
+  ```
+- Add new entry to `spec.identityProviders` field from OAuth cluster (`oc get OAuth cluster`)
+  ```yaml
+  ...
+  spec:
+    identityProviders:
+    - name: # non-admin-user
+      mappingMethod: claim
+      type: HTPasswd
+      htpasswd:
+        fileData:
+          name: # non-admin-user
+  ```
+- [Apply permissions to your non admin user](#permissions)
 
-Ensure you have appropriate Cluster Role available in your cluster:
-```shell
-$ oc apply -f config/rbac/nonadminbackup_editor_role.yaml
-```
+## Permissions
 
-**Create Role Binding for our test user within oadp-nac-system namespace:**
-**NOTE:** There could be also a ClusterRoleBinding for the nacuser or one of the groups
-to which nacuser belongs to easy administrative tasks and allow use of NAC for wider audience. Please see next paragraph.
-```sh
-$ cat > nacuser-rolebinding.yaml <<EOF
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: nacuser-nonadminbackup
-  namespace: oadp-nac-system
-subjects:
-- kind: User
-  name: nacuser
-roleRef:
-  kind: ClusterRole
-  name: nonadminbackup-editor-role
-  apiGroup: rbac.authorization.k8s.io
-EOF
-```
-**Apply the Role Binding file to the cluster:**
-```sh
-$ oc apply -f nacuser-rolebinding.yaml
-```
+- Create non admin user namespace
+  ```sh
+  oc create namespace <non-admin-user-namespace>
+  ```
+- Ensure non admin user have appropriate permissions in its namespace, i.e., non admin user have editor roles for the following objects
+  - `nonadminbackups.nac.oadp.openshift.io`
 
-**Alternatively Create Cluster Role Binding for our test user:**
-```sh
-$ cat > nacuser-clusterrolebinding.yaml <<EOF
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: nacuser-nonadminbackup-cluster
-subjects:
-- kind: User
-  name: nacuser
-roleRef:
-  kind: ClusterRole
-  name: nonadminbackup-editor-role
-  apiGroup: rbac.authorization.k8s.io
-EOF
-```
-**Apply the Cluster Role Binding file to the cluster:**
-```sh
-$ oc apply -f nacuser-clusterrolebinding.yaml
-```
+  For example
+  ```yaml
+    # config/rbac/nonadminbackup_editor_role.yaml
+    - apiGroups:
+        - nac.oadp.openshift.io
+      resources:
+        - nonadminbackups
+      verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+    - apiGroups:
+        - nac.oadp.openshift.io
+      resources:
+        - nonadminbackups/status
+      verbs:
+        - get
+  ```
+  For example, make non admin user have `admin` ClusterRole permissions on its namespace
+  ```sh
+  oc create rolebinding <non-admin-user>-namespace-admin --clusterrole=admin --user=<non-admin-user> --namespace=<non-admin-user-namespace>
+  ```
+  <!-- TODO  check what restrictions non admin user permissions must have, for example can not create project or velero/oadp objects -->

@@ -17,6 +17,11 @@ spec:
         readinessProbe:
         resources:
         securityContext:
+        env:
+          - name: WATCH_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
       restartPolicy: Always
       securityContext:
       terminationGracePeriodSeconds:

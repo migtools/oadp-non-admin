@@ -17,10 +17,12 @@ limitations under the License.
 // Package constant contains all common constants used in the project
 package constant
 
+import "os"
+
 // Common labels for objects manipulated by the Non Admin Controller
-// Labels should be used to identify the NAC backup
+// Labels should be used to identify the NAC object
 // Annotations on the other hand should be used to define ownership
-// of the specific Object, such as Backup.
+// of the specific Object, such as Backup/Restore.
 const (
 	OadpLabel                    = "openshift.io/oadp" // TODO import?
 	ManagedByLabel               = "app.kubernetes.io/managed-by"
@@ -29,3 +31,11 @@ const (
 	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
 	NabOriginUUIDAnnotation      = "openshift.io/oadp-nab-origin-uuid"
 )
+
+// Common environment variables for the Non Admin Controller
+const (
+	NamespaceEnvVar = "WATCH_NAMESPACE"
+)
+
+// OadpNamespace is the namespace OADP operator is installed
+var OadpNamespace = os.Getenv(NamespaceEnvVar)
