@@ -40,7 +40,7 @@ make undeploy-olm
 
 ## Code quality and standardization
 
-The quality/standardization checks of the project are reproduced by the continuos integration (CI) pipeline of the project. CI configuration in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) file.
+The quality/standardization checks of the project are reproduced by the continuous integration (CI) pipeline of the project. CI configuration in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) file.
 
 To run all checks locally, run `make ci`.
 

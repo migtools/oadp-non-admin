@@ -21,7 +21,7 @@ NAC objects are included in OADP operator through `make update-non-admin-manifes
 
 > **NOTE:** `make update-non-admin-manifests` command does not work for deletion, i.e., if a file that was previously managed by the command is deleted (or renamed), it needs to be manually deleted.
 
-The continuos integration (CI) pipeline of the project verifies if OADP operator repository branches have up to date NAC objects included.
+The continuous integration (CI) pipeline of the project verifies if OADP operator repository branches have up to date NAC objects included.
 
 ## Kubebuilder
 

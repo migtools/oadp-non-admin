@@ -2,7 +2,7 @@
 
 Non Admin Controller
 
-[![Continuos Integration](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml)
+[![Continuous Integration](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml/badge.svg)](https://github.com/migtools/oadp-non-admin/actions/workflows/ci.yml)
 
 <!-- TODO add Official documentation link once it is created -->
 
