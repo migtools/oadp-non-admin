@@ -19,7 +19,7 @@ package function
 
 import (
 	"context"
-	"crypto/sha1" //nolint:gosec // TODO remove
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -94,27 +94,33 @@ func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup)
 	return nonAdminBackup.Spec.BackupSpec.DeepCopy(), nil
 }
 
-// GenerateVeleroBackupName return generated name for Velero Backup object created from NonAdminBackup
+// GenerateVeleroBackupName generates a Velero backup name based on the provided namespace and NonAdminBackup name.
+// It calculates a hash of the NonAdminBackup name and combines it with the namespace and a prefix to create the Velero backup name.
+// If the resulting name exceeds the maximum Kubernetes name length, it truncates the namespace to fit within the limit.
 func GenerateVeleroBackupName(namespace, nabName string) string {
 	// Calculate a hash of the name
-	hasher := sha1.New() //nolint:gosec // TODO use another tool
-	_, _ = hasher.Write([]byte(nabName))
-	const nameLength = 14
-	nameHash := hex.EncodeToString(hasher.Sum(nil))[:nameLength] // Take first 14 chars
+	const hashLength = 14
+	prefixLength := len(constant.VeleroBackupNamePrefix) + len("--") // Account for two "-"
+
+	hasher := sha256.New()
+	_, err := hasher.Write([]byte(nabName))
+	if err != nil {
+		return ""
+	}
+
+	nameHash := hex.EncodeToString(hasher.Sum(nil))[:hashLength] // Take first 14 chars
 
 	// Generate the Velero backup name created from NAB
-	veleroBackupName := fmt.Sprintf("nab-%s-%s", namespace, nameHash)
+	veleroBackupName := fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
 
-	const characterLimit = 253
-	const occupiedSize = 4
 	// Ensure the name is within the character limit
-	if len(veleroBackupName) > characterLimit {
+	if len(veleroBackupName) > constant.MaxKubernetesNameLength {
 		// Truncate the namespace if necessary
-		maxNamespaceLength := characterLimit - len(nameHash) - occupiedSize // Account for "nab-" and "-" TODO should not be 5?
+		maxNamespaceLength := constant.MaxKubernetesNameLength - len(nameHash) - prefixLength
 		if len(namespace) > maxNamespaceLength {
 			namespace = namespace[:maxNamespaceLength]
 		}
-		veleroBackupName = fmt.Sprintf("nab-%s-%s", namespace, nameHash)
+		veleroBackupName = fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
 	}
 
 	return veleroBackupName
@@ -131,18 +137,14 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 		return false, errors.New("NonAdminBackupPhase cannot be empty")
 	}
 
-	oldPhase := nab.Status.Phase
-	nab.Status.Phase = phase
-
-	logger.V(1).Info(fmt.Sprintf("Setting NonAdminBackup Phase to: %s", phase))
-
-	if oldPhase == nab.Status.Phase {
+	if nab.Status.Phase == phase {
 		// No change, no need to update
 		logger.V(1).Info("NonAdminBackup Phase is already up to date")
 		return false, nil
 	}
 
 	// Update NAB status
+	nab.Status.Phase = phase
 	if err := r.Status().Update(ctx, nab); err != nil {
 		logger.Error(err, "Failed to update NonAdminBackup Phase")
 		return false, err
