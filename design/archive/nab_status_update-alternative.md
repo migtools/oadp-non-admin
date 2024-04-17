@@ -2,7 +2,7 @@
 
 ## Version
 
-This is `ver_1` of the design document. Simplifier approach is described in the [ver_2].
+This is `alternative` of the design document. Simplifier approach is described in the [active design] doc.
 
 ## Overview
 
@@ -84,4 +84,4 @@ class AA,C,D,E,G,F phases;
 ```
 
 
-[ver_2]: ./nab_status_update_ver_2.md
+[active design]: ./nab_status_update.md

@@ -1,9 +1,5 @@
 # Developer Workflow: NonAdminBackup Phase and Conditions within NonAdminBackup Status
 
-## Version
-
-This is `ver_2` of the design document. More complex approach with more states is described in the [ver_1].
-
 ## Overview
 
 This document outlines the design around updating NonAdminBackup objects Phase and Conditions within Status.
@@ -31,7 +27,7 @@ The `conditions` is also a part of the NonAdminBackup's `status` field. One NAB 
 | **Condition** | **Description**                 |
 |-----------|--------------------------------|
 | BackupAccepted | The Backup object was accepted by the reconcile loop, but the Velero Backup may have not yet been created |
-| BackupQueued | The Velero Backup was created succesfully and did not return any known errors. It's in the queue for Backup. At this stage errors may still occur during backup procedure. |
+| BackupQueued | The Velero Backup was created succesfully. At this stage errors may still occur either from the Velero not accepting backup or during backup procedure. |
 
 The `condition` data is also accomapied with the following:
 
@@ -48,43 +44,39 @@ The `condition` data is also accomapied with the following:
 
 `BackupStatus` which is also part of the `NonAdminBackupStatus` object is a `BackupStatus` that is taken directly from the Velero Backup Status and copied over.
 
-### OadpVeleroBackupName
-The `OadpVeleroBackupName` field is a component of the `NonAdminBackupStatus` object. It represents the name of the `VeleroBackup` object, which encompasses the namespace. This `OadpVeleroBackupName` serves as a reference to the Backup responsible for executing the backup task.
+### VeleroBackupName and VeleroBackupNamespace
+The `VeleroBackupName` is a component of the `NonAdminBackupStatus` object. It represents the name of the `VeleroBackup` object. The `VeleroBackupNamespace` represents the namespace in which the `VeleroBackup` object was created.
 
-The format of the `OadpVeleroBackupName` allows to interact with that Backup using `oc` or `velero` commands as follows:
+This `VeleroBackupName` and `VeleroBackupNamespace` serves as a reference to the Backup responsible for executing the backup task.
+
+The format of those fields allows to interact with that Backup using `oc` or `velero` commands as follows:
 
 ```shell
-# <backup-name>.<namespace>
+# Example:
+#   veleroBackupName: nab-nacproject-c3499c2729730a
+#   veleroBackupNamespace: openshift-adp
 
-$ oc describe <backup-name>.<namespace>
+$ oc describe -n openshift-adp nab-nacproject-c3499c2729730a
 
-$ velero backup describe <backup-name>.<namespace>
+$ velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
 
 ## Phase Update scenarios
 
-    *** Questions ***
-
-     - BackupQueued stays true at the end,
-       should we remove that from conditions?
-       I don't think we should set it to false.
-
 ```mermaid
+%%{init: {'theme':'forest'}}%%
 graph
-AA[Phase: New] -->A
-A{BackupAccepted: Unknown\n BackupQueued: False\n}  -- NAC processes --> B[Non Admin Backup Accepted]
-A -- NAC hits an error --> E[Phase: BackingOff]
-B -- Create Velero Backup --> C[Phase: Created]
-B -.-> BA{BackupAccepted: True\nBackupQueued: False\n}
-C -.-> BS{BackupAccepted: True\nBackupQueued: True\n}
-E -.-> EE{BackupAccepted: False\nBackupQueued: False\n}
+START[Phase: New] -- NAC config OK --> ACCEPTED[Non Admin Backup Accepted]
+START -- NAC config NOT OK --> ERROR[Phase: BackingOff]
+ACCEPTED -- Create Velero Backup --> CREATED[Phase: Created]
+ACCEPTED -.-> COND_ACCEPTED{BackupAccepted: True\n}
+CREATED -.-> COND_QUEUED{BackupAccepted: True\nBackupQueued: True\n}
+ERROR -.-> COND_ERROR{BackupAccepted: False}
 
 classDef conditions fill:#ccc,stroke:#ccc,stroke-width:2px;
-class A,BA,BS,EE conditions;
+class COND_ACCEPTED,COND_QUEUED,COND_ERROR conditions;
 classDef phases fill:#777,stroke:#ccc,stroke-width:2px;
-class AA,C,E phases;
+class START,CREATED,ERROR phases;
 
 ```
-
-[ver_1]: ./nab_status_update_ver_1.md
