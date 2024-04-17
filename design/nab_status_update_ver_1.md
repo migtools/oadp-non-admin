@@ -61,6 +61,7 @@ The `condition` data is also accomapied with the following:
        I don't think we should set it to false.
 
 ```mermaid
+%%{init: {'theme':'forest'}}%%
 graph
 AA[Phase: New] -->A
 A{BackupAccepted: Unknown\n BackupQueued: False\n BackupCompleted: False}  -- NAC processes --> B[Non Admin Backup Accepted]
