@@ -26,8 +26,8 @@ The `conditions` is also a part of the NonAdminBackup's `status` field. One NAB 
 
 | **Condition** | **Description**                 |
 |-----------|--------------------------------|
-| BackupAccepted | The Backup object was accepted by the reconcile loop, but the Velero Backup may have not yet been created |
-| BackupQueued | The Velero Backup was created succesfully. At this stage errors may still occur either from the Velero not accepting backup or during backup procedure. |
+| Accepted | The Backup object was accepted by the reconcile loop, but the Velero Backup may have not yet been created |
+| Queued | The Velero Backup was created succesfully. At this stage errors may still occur either from the Velero not accepting backup or during backup procedure. |
 
 The `condition` data is also accomapied with the following:
 
@@ -35,17 +35,46 @@ The `condition` data is also accomapied with the following:
 |-----------|--------------------------------|
 | type | The `Type` of the condition |
 | status | represents the state of individual condition. The resulting `phase` value should report `Success` only when all of the conditions are met and the backup succeded. One of `True`, `False` or `Unknown`. |
-| lastProbeTime | Timestamp of when the NonAdminBackup condition was last probed. |
 | lastTransitionTime | Timestamp for when the NonAdminBackup last transitioned from one status to another. |
 | reason | Machine-readable, UpperCamelCase text indicating the reason for the condition's last transition. |
 | message | Human-readable message indicating details about the last status transition. |
 
-### BackupStatus
+### VeleroBackupStatus
 
-`BackupStatus` which is also part of the `NonAdminBackupStatus` object is a `BackupStatus` that is taken directly from the Velero Backup Status and copied over.
+The `VeleroBackupStatus` that is part of `NonAdminBackup.Status` is a copy of the `VeleroBackup.Status`.
+
+
+> Sample `VeleroBackupStatus` with `Conditions` of a `NonAdminBackup` object that allowed to create `VeleroBackup` object, but there was an error while performing backup itself:
+
+```yaml
+status:
+  veleroBackupStatus:
+    expiration: '2024-05-16T08:12:11Z'
+    failureReason: >-
+      unable to get credentials: unable to get key for secret: Secret
+      "cloud-credentials" not found
+    formatVersion: 1.1.0
+    phase: Failed
+    startTimestamp: '2024-04-16T08:12:11Z'
+    version: 1
+  conditions:
+    - lastTransitionTime: '2024-04-15T20:27:35Z'
+      message: Backup was accepted by the NAC controller
+      reason: backup_accepted
+      status: 'True'
+      type: Accepted
+    - lastTransitionTime: '2024-04-15T20:27:45Z'
+      message: Created Velero Backup object
+      reason: backup_scheduled
+      status: 'True'
+      type: Queued
+  veleroBackupName: nab-nacproject-83fc04a2fd253d
+  veleroBackupNamespace: openshift-adp
+  phase: Created
+```
 
 ### VeleroBackupName and VeleroBackupNamespace
-The `VeleroBackupName` is a component of the `NonAdminBackupStatus` object. It represents the name of the `VeleroBackup` object. The `VeleroBackupNamespace` represents the namespace in which the `VeleroBackup` object was created.
+The `VeleroBackupName` is a component of the `NonAdminBackup.Status` object. It represents the name of the `VeleroBackup` object. The `VeleroBackupNamespace` represents the namespace in which the `VeleroBackup` object was created.
 
 This `VeleroBackupName` and `VeleroBackupNamespace` serves as a reference to the Backup responsible for executing the backup task.
 
@@ -70,9 +99,9 @@ graph
 START[Phase: New] -- NAC config OK --> ACCEPTED[Non Admin Backup Accepted]
 START -- NAC config NOT OK --> ERROR[Phase: BackingOff]
 ACCEPTED -- Create Velero Backup --> CREATED[Phase: Created]
-ACCEPTED -.-> COND_ACCEPTED{BackupAccepted: True\n}
-CREATED -.-> COND_QUEUED{BackupAccepted: True\nBackupQueued: True\n}
-ERROR -.-> COND_ERROR{BackupAccepted: False}
+ACCEPTED -.-> COND_ACCEPTED{Conditions:\nAccepted: True\n}
+CREATED -.-> COND_QUEUED{Conditions:\nAccepted: True\nQueued: True\n}
+ERROR -.-> COND_ERROR{Conditions:\nAccepted: False}
 
 classDef conditions fill:#ccc,stroke:#ccc,stroke-width:2px;
 class COND_ACCEPTED,COND_QUEUED,COND_ERROR conditions;
