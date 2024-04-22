@@ -18,7 +18,7 @@ Those are are the possible values for phase:
 |-----------|--------------------------------|
 | New | *NonAdminBackup resource was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController* |
 | BackingOff | Velero *Backup* object was not created due to NonAdminBackup error (configuration or similar) |
-| Created | Velero *Backup* was created. The Phase will not have additional informations about the |
+| Created | Velero *Backup* was created. The Phase will not have additional informations about the *Backup* run |
 
 ### Conditions
 
@@ -60,12 +60,12 @@ status:
   conditions:
     - lastTransitionTime: '2024-04-15T20:27:35Z'
       message: Backup was accepted by the NAC controller
-      reason: backup_accepted
+      reason: BackupAccepted
       status: 'True'
       type: Accepted
     - lastTransitionTime: '2024-04-15T20:27:45Z'
       message: Created Velero Backup object
-      reason: backup_scheduled
+      reason: BackupScheduled
       status: 'True'
       type: Queued
   veleroBackupName: nab-nacproject-83fc04a2fd253d
