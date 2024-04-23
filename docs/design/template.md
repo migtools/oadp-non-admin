@@ -4,9 +4,6 @@ _Note_: The preferred style for design documents is one sentence per line.
 *Do not wrap lines*.
 This aids in review of the document as changes to a line are not obscured by the reflowing those changes caused and has a side effect of avoiding debate about one or two space after a period.
 
-_Note_: The name of the file should follow the name pattern `<short meaningful words joined by '-'>_design.md`, e.g:
-`listener-design.md`.
-
 ## Abstract
 One to two sentences that describes the goal of this proposal and the problem being solved by the proposed change.
 The reader should be able to tell by the title, and the opening paragraph, if this document is relevant to them.
