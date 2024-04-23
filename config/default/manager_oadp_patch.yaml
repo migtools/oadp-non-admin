@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: non-admin-controller
+  namespace: system
+spec:
+  template:
+    metadata:
+      annotations:
+    spec:
+      containers:
+      - name: non-admin-controller
+        imagePullPolicy: Always
+        args:
+        command:
+        livenessProbe:
+        readinessProbe:
+        resources:
+        securityContext:
+        env:
+          - name: WATCH_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+      restartPolicy: Always
+      securityContext:
+      terminationGracePeriodSeconds:

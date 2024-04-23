@@ -1,14 +1,16 @@
-name: Continuos Integration
+name: Continuous Integration
 
 on:
   push:
     branches:
       - master
+      # add release branches
   pull_request:
     branches:
       - master
+      # add release branches
   schedule:
-    - cron:  '0 0 * * 1' # Every Monday at 00:00 UTC
+    - cron: '0 0 * * 1' # Every Monday at 00:00 UTC
 
 jobs:
   golang-check:
@@ -25,15 +27,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-            go-version: ${{ matrix.go-version }}
+          go-version: ${{ matrix.go-version }}
 
       - name: Install Go dependencies
         run: go mod download
 
       - name: Go unit and integration tests
         run: make simulation-test
-
-    # TODO coverage report
 
       - name: Go linters
         if: ${{ matrix.go-version == '1.21' }}
@@ -68,3 +68,29 @@ jobs:
 
       - name: Check all files format
         run: make ec
+
+      - name: Check if images are the same in Makefile and config/manager/kustomization.yaml
+        run: make check-images
+
+  oadp-compatibility-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout OADP operator
+        uses: actions/checkout@v4
+        with:
+          repository: openshift/oadp-operator
+          ref: ${{ github.base_ref || github.ref_name }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.20" # OADP Go version
+
+      - name: Checkout Non Admin Controller (NAC)
+        uses: actions/checkout@v4
+        with:
+          path: oadp-non-admin
+
+      - name: Check Non Admin Controller (NAC) manifests
+        run: |
+          NON_ADMIN_CONTROLLER_PATH=./oadp-non-admin make update-non-admin-manifests
+          test -z "$(git status --short -- ':!oadp-non-admin')" || (echo "run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests" && exit 1)

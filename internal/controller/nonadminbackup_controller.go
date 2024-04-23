@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"github.com/migtools/oadp-non-admin/internal/handler"
 	"github.com/migtools/oadp-non-admin/internal/predicate"
@@ -47,8 +48,7 @@ type NonAdminBackupReconciler struct {
 }
 
 const (
-	nameField     = "Name"
-	oadpNamespace = "openshift-adp" // TODO user input
+	nameField = "Name"
 )
 
 // +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
@@ -103,7 +103,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
 
 	veleroBackup := velerov1api.Backup{}
-	err = r.Get(ctx, client.ObjectKey{Namespace: oadpNamespace, Name: veleroBackupName}, &veleroBackup)
+	err = r.Get(ctx, client.ObjectKey{Namespace: constant.OadpNamespace, Name: veleroBackupName}, &veleroBackup)
 
 	if err != nil && errors.IsNotFound(err) {
 		// Create backup
@@ -111,7 +111,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		veleroBackup = velerov1api.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
-				Namespace: oadpNamespace,
+				Namespace: constant.OadpNamespace,
 			},
 			Spec: *backupSpec,
 		}
@@ -159,7 +159,7 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
-				OadpVeleroNamespace: "openshift-adp",
+				OadpVeleroNamespace: constant.OadpNamespace,
 			},
 			Context: r.Context,
 		}).

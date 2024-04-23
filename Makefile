@@ -1,8 +1,9 @@
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= quay.io/konveyor/oadp-non-admin:latest
+# Kubernetes version from OpenShift 4.15.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.28
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -46,7 +47,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=non-admin-controller-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -204,7 +205,11 @@ endef
 
 ##@ oadp-nac specifics
 
+## Tool Binaries
+OC_CLI ?= $(shell which oc)
 EC ?= $(LOCALBIN)/ec-$(EC_VERSION)
+
+## Tool Versions
 EC_VERSION ?= 2.8.0
 
 .PHONY: editorconfig
@@ -219,12 +224,28 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
 	}
 
+# TODO increase!!!
+COVERAGE_THRESHOLD=24
+
 .PHONY: ci
-ci: simulation-test lint docker-build hadolint check-generate check-manifests ec ## Run all checks run by the project continuous integration (CI) locally.
+ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.
 
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	@make check-coverage
+
+.PHONY: check-coverage
+check-coverage: ## Check if test coverage threshold was reached.
+	@{ \
+	set -e ;\
+	current_coverage=$(shell go tool cover -func=cover.out | grep total | grep -Eo "[0-9]+\.[0-9]+") ;\
+	if  [ "$$(echo "$$current_coverage < $(COVERAGE_THRESHOLD)" | bc -l)" -eq 1 ];then \
+		echo "Current coverage ($$current_coverage%) is below project threshold of $(COVERAGE_THRESHOLD)%" ;\
+		exit 1 ;\
+	fi ;\
+	echo "Coverage threshold of $(COVERAGE_THRESHOLD)% reached: $$current_coverage%" ;\
+	}
 
 .PHONY: hadolint
 hadolint: ## Run container file linter.
@@ -241,3 +262,11 @@ check-manifests: manifests ## Check if 'make manifests' was run.
 .PHONY: ec
 ec: editorconfig ## Run file formatter checks against all project's files.
 	$(EC)
+
+.PHONY: check-images
+check-images: MANAGER_IMAGE:=$(shell grep -I 'newName: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
+check-images: MANAGER_TAG:=$(shell grep -I 'newTag: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
+check-images: ## Check if images are the same in Makefile and config/manager/kustomization.yaml
+	@if [ "$(MANAGER_IMAGE)" == "" ];then echo "No manager image found" && exit 1;fi
+	@if [ "$(MANAGER_TAG)" == "" ];then echo "No manager tag found" && exit 1;fi
+	@grep -Iq "IMG ?= $(MANAGER_IMAGE):$(MANAGER_TAG)" ./Makefile || (echo "Images differ" && exit 1)
