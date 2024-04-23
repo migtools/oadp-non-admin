@@ -24,17 +24,6 @@ objects:
       resources:
         requests:
           storage: 1Gi
-  # - kind: SecurityContextConstraints
-  #   apiVersion: security.openshift.io/v1
-  #   metadata:
-  #     name: ${NAMESPACE}-scc
-  #   allowPrivilegeEscalation: false
-  #   allowPrivilegedContainer: false
-  #   volumes:
-  #   - '*'
-  #   users:
-  #   - system:${USER}
-  #   - system:serviceaccount:${NAMESPACE}:${NAMESPACE}-sa
   - kind: Service
     apiVersion: v1
     metadata:
@@ -74,20 +63,10 @@ objects:
             app: mysql
             curl-tool: "true"
         spec:
-          # securityContext:
-          #   runAsNonRoot: true
           serviceAccountName: ${NAMESPACE}-sa
           containers:
           - image: registry.redhat.io/rhel8/mariadb-105:latest
             name: mysql
-            # securityContext:
-            #   privileged: false
-            #   allowPrivilegeEscalation: false
-            #   capabilities:
-            #     drop:
-            #     - ALL
-            #   seccompProfile:
-            #     type: RuntimeDefault
             env:
               - name: MYSQL_USER
                 value: changeme
@@ -200,9 +179,6 @@ objects:
         kind: Service
         name: todolist
 parameters:
-  # - description: Non admin user username
-  #   name: USER
-  #   value: nacuser
   - description: Non admin user namespace
     name: NAMESPACE
     value: mysql-persistent
