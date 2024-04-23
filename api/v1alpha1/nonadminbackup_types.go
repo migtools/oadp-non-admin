@@ -35,7 +35,7 @@ const (
 )
 
 // NonAdminCondition are used for more detailed information supporing NonAdminBackupPhase state.
-// +kubebuilder:validation:Enum=BackupAccepted;BackupQueued
+// +kubebuilder:validation:Enum=Accepted;Queued
 type NonAdminCondition string
 
 // Predefined conditions for NonAdminBackup.
@@ -43,8 +43,8 @@ type NonAdminCondition string
 // It is more granular knowledge of the NonAdminBackup object and represents the
 // array of the conditions through which the NonAdminBackup has or has not passed
 const (
-	NonAdminBackupConditionAccepted NonAdminCondition = "BackupAccepted"
-	NonAdminBackupConditionQueued   NonAdminCondition = "BackupQueued"
+	NonAdminConditionAccepted NonAdminCondition = "Accepted"
+	NonAdminConditionQueued   NonAdminCondition = "Queued"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -60,13 +60,18 @@ type NonAdminBackupSpec struct {
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
-	// OadpVeleroBackup references the VeleroBackup object. Format: <name>.<namespace>
+	// VeleroBackupName references the VeleroBackup object by it's name.
 	// +optional
-	OadpVeleroBackup string `json:"oadpVeleroBackup,omitempty"`
+	VeleroBackupName string `json:"veleroBackupName,omitempty"`
 
-	// BackupStatus captures the current status of a Velero backup.
+	// VeleroBackupNamespace references the Namespace
+	// in which VeleroBackupName object exists.
 	// +optional
-	BackupStatus *velerov1api.BackupStatus `json:"backupStatus,omitempty"`
+	VeleroBackupNamespace string `json:"veleroBackupNamespace,omitempty"`
+
+	// VeleroBackupStatus captures the current status of a Velero backup.
+	// +optional
+	VeleroBackupStatus *velerov1api.BackupStatus `json:"veleroBackupStatus,omitempty"`
 
 	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
 	Conditions []metav1.Condition  `json:"conditions,omitempty"`

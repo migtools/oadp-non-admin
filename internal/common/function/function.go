@@ -216,18 +216,19 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 
 // UpdateNonAdminBackupFromVeleroBackup update, if necessary, NonAdminBackup object fields related to referenced Velero Backup object, if no error occurs
 func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) (bool, error) {
-	logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - request to update")
+	logger.V(1).Info("NonAdminBackup BackupSpec and VeleroBackupStatus - request to update")
 
-	if reflect.DeepEqual(nab.Status.BackupStatus, &veleroBackup.Status) && reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
+	if reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) && reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
 		// No change, no need to update
 		logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - nothing to update")
 		return false, nil
 	}
 
 	// Check if BackupStatus needs to be updated
-	if !reflect.DeepEqual(nab.Status.BackupStatus, &veleroBackup.Status) || nab.Status.OadpVeleroBackup != veleroBackup.Name {
-		nab.Status.BackupStatus = veleroBackup.Status.DeepCopy()
-		nab.Status.OadpVeleroBackup = veleroBackup.Name
+	if !reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) || nab.Status.VeleroBackupName != veleroBackup.Name || nab.Status.VeleroBackupNamespace != veleroBackup.Namespace {
+		nab.Status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
+		nab.Status.VeleroBackupName = veleroBackup.Name
+		nab.Status.VeleroBackupNamespace = veleroBackup.Namespace
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, "NonAdminBackup BackupStatus - Failed to update")
 			return false, err
@@ -261,6 +262,7 @@ func CheckVeleroBackupLabels(backup *velerov1api.Backup) bool {
 	return exists && value == constant.ManagedByLabelValue
 }
 
+// TODO not used
 // GetNonAdminBackupFromVeleroBackup return referenced NonAdminBackup object from Velero Backup object, if no error occurs
 func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1api.Backup) (*nacv1alpha1.NonAdminBackup, error) {
 	// Check if the backup has the required annotations to identify the associated NonAdminBackup object

@@ -126,7 +126,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			return ctrl.Result{}, nil
 		}
 
-		updatedStatus, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupConditionAccepted, metav1.ConditionFalse, "invalid_backupspec", errMsg)
+		updatedStatus, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
 		if updatedStatus {
 			return ctrl.Result{}, nil
 		}
@@ -141,7 +141,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Phase: New               # already set
 	// BackupAccepted: True
 	// BackupQueued: False   # already set
-	updatedStatus, errUpdate := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupConditionAccepted, metav1.ConditionTrue, "backup_accepted", "backup accepted")
+	updatedStatus, errUpdate := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
 	if updatedStatus {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, nil
 	}
@@ -221,12 +221,12 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: Created", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupConditionAccepted, metav1.ConditionTrue, "validated", "Valid Backup config")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "Validated", "Valid Backup config")
 	if errUpdate != nil {
 		logger.Error(errUpdate, "Unable to set BackupAccepted Condition: True", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupConditionQueued, metav1.ConditionTrue, "backup_scheduled", "Created Velero Backup object")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionQueued, metav1.ConditionTrue, "BackupScheduled", "Created Velero Backup object")
 	if errUpdate != nil {
 		logger.Error(errUpdate, "Unable to set BackupQueued Condition: True", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, errUpdate

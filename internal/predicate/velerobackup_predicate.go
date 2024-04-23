@@ -36,6 +36,7 @@ type VeleroBackupPredicate struct {
 	Logger              logr.Logger
 }
 
+// TODO try to remove calls to get logger functions, try to initialize it
 func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("VeleroBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
 }
