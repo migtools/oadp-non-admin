@@ -263,6 +263,7 @@ func CheckVeleroBackupLabels(backup *velerov1api.Backup) bool {
 }
 
 // TODO not used
+
 // GetNonAdminBackupFromVeleroBackup return referenced NonAdminBackup object from Velero Backup object, if no error occurs
 func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1api.Backup) (*nacv1alpha1.NonAdminBackup, error) {
 	// Check if the backup has the required annotations to identify the associated NonAdminBackup object

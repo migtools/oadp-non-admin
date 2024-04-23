@@ -34,19 +34,6 @@ const (
 	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
 )
 
-// NonAdminCondition are used for more detailed information supporing NonAdminBackupPhase state.
-// +kubebuilder:validation:Enum=Accepted;Queued
-type NonAdminCondition string
-
-// Predefined conditions for NonAdminBackup.
-// One NonAdminBackup object may have multiple conditions.
-// It is more granular knowledge of the NonAdminBackup object and represents the
-// array of the conditions through which the NonAdminBackup has or has not passed
-const (
-	NonAdminConditionAccepted NonAdminCondition = "Accepted"
-	NonAdminConditionQueued   NonAdminCondition = "Queued"
-)
-
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
