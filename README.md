@@ -55,7 +55,7 @@ Please check our [contributing documentation](docs/CONTRIBUTING.md) to propose c
 
 ## Architecture
 
-For a better understanding of the project, check our [architecture documentation](docs/architecture.md).
+For a better understanding of the project, check our [architecture documentation](docs/architecture.md) and [designs documentation](docs/design/).
 
 ## License
 
