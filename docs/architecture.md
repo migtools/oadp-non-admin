@@ -6,13 +6,7 @@ Normally, to ship a controller to users, the project would present the file crea
 
 > **NOTE:** If needed, you can test NAC alone by running `make build-installer` and `oc apply -f ./dist/install.yaml`. You may want to customize namespace (`openshift-adp-system`) and container image (`quay.io/konveyor/oadp-non-admin:latest`) in that file prior to deploying it to your cluster.
 
-NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository. The workflow for updating NAC objects:
-- create branch in NAC repository and make the necessary changes
-- create branch in OADP operator repository and run `make update-non-admin-manifests` command, pointing to previously created NAC branch. Example:
-    ```sh
-    NON_ADMIN_CONTROLLER_PATH=/home/user/oadp-non-admin make update-non-admin-manifests
-    ```
-- create pull requests both in NAC and OADP operator repositories (OADP operator repository pull request must be merged first)
+NAC objects are included in OADP operator through `make update-non-admin-manifests` command, which is run in OADP operator repository.
 
 > **NOTE:** Manual steps required in OADP operator repository branch prior to implementation of `make update-non-admin-manifests` command:
 > - `RELATED_IMAGE_NON_ADMIN_CONTROLLER` must be already set in `config/manager/manager.yaml` file

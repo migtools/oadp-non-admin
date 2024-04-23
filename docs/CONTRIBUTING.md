@@ -6,6 +6,8 @@ If your changes involve controller logic, please test it prior to submitting, by
 
 If your changes involve code, please check [code quality and standardization section](#code-quality-and-standardization).
 
+If your changes involve Kubernetes objects (`config/` folder), please follow [Kubernetes objects changes section](#kubernetes-objects-changes).
+
 If you are upgrading project's kubebuilder version, please follow [upgrade kubebuilder version section](#upgrade-kubebuilder-version).
 
 > **NOTE:** Run `make help` for more information on all potential `make` targets
@@ -93,6 +95,18 @@ To check if project code was generated, run
 make check-generate
 make check-manifests
 ```
+
+## Kubernetes objects changes
+
+If NAC Kubernetes objects are changed, like CRDs, RBACs, etc, follow this workflow:
+- create branch in NAC repository and make the necessary changes
+- create branch in OADP operator repository and run `make update-non-admin-manifests` command, pointing to previously created NAC branch. Example:
+    ```sh
+    NON_ADMIN_CONTROLLER_PATH=/home/user/oadp-non-admin make update-non-admin-manifests
+    ```
+- create pull requests both in NAC and OADP operator repositories (OADP operator repository pull request must be merged first)
+
+[More information](architecture.md#oadp-integration).
 
 ## Upgrade kubebuilder version
 
