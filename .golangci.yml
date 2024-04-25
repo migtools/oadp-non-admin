@@ -63,6 +63,8 @@ linters-settings:
         disabled: true
       - name: function-length
         disabled: true
+      - name: max-public-structs
+        disabled: true
       # TODO remove
       - name: cyclomatic
         disabled: true

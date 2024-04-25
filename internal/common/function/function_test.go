@@ -207,9 +207,12 @@ func TestGenerateVeleroBackupName(t *testing.T) {
 	}
 
 	truncatedString := ""
-	// 253 - len(nameHash) - 4
-	// 253 - 14 - 4 = 235
-	const truncatedStringSize = 235
+	// constant.MaxKubernetesNameLength = 253
+	// deduct -3: constant.VeleroBackupNamePrefix = "nab"
+	// deduct -2: there are two additional separators "-" in the name
+	// 253 - len(nameHash) - 3 - 2
+	// 253 - 14 - 3 - 2 = 234
+	const truncatedStringSize = 234
 	for i := 0; i < truncatedStringSize; i++ {
 		truncatedString += "m"
 	}
@@ -222,12 +225,12 @@ func TestGenerateVeleroBackupName(t *testing.T) {
 		{
 			namespace: "example-namespace",
 			name:      "example-name",
-			expected:  "nab-example-namespace-daf3757ac468f9",
+			expected:  "nab-example-namespace-1cdadb729eaac1",
 		},
 		{
 			namespace: longString,
 			name:      "example-name",
-			expected:  fmt.Sprintf("nab-%s-daf3757ac468f9", truncatedString),
+			expected:  fmt.Sprintf("nab-%s-1cdadb729eaac1", truncatedString),
 		},
 	}
 

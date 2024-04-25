@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
@@ -38,49 +39,67 @@ func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace strin
 
 // Create event filter
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		nameSpace := evt.Object.GetNamespace()
-		name := evt.Object.GetName()
-		logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("Received Create NonAdminBackupPredicate")
-		return true
+	nameSpace := evt.Object.GetNamespace()
+	name := evt.Object.GetName()
+	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
+	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
+		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
+			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
+			return true
+		}
 	}
-
+	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Create event")
 	return false
 }
 
 // Update event filter
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	if _, ok := evt.ObjectNew.(*nacv1alpha1.NonAdminBackup); ok {
-		nameSpace := evt.ObjectNew.GetNamespace()
-		name := evt.ObjectNew.GetName()
-		logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("Received Update NonAdminBackupPredicate")
+	// Do not reconcile on Status update
+	nameSpace := evt.ObjectNew.GetNamespace()
+	name := evt.ObjectNew.GetName()
+	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
+
+	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
+		logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - generation change")
 		return true
 	}
+
+	if nonAdminBackupOld, ok := evt.ObjectOld.(*nacv1alpha1.NonAdminBackup); ok {
+		if nonAdminBackupNew, ok := evt.ObjectNew.(*nacv1alpha1.NonAdminBackup); ok {
+			oldPhase := nonAdminBackupOld.Status.Phase
+			newPhase := nonAdminBackupNew.Status.Phase
+
+			// New phase set, reconcile
+			if oldPhase == constant.EmptyString && newPhase != constant.EmptyString {
+				logger.V(1).Info("NonAdminBsackupPredicate: Accepted Update event - phase change")
+				return true
+			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
+				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
+				return true
+			}
+		}
+	}
+	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Update event")
+
 	return false
 }
 
 // Delete event filter
 func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
-	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		nameSpace := evt.Object.GetNamespace()
-		name := evt.Object.GetName()
-		logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("Received Delete NonAdminBackupPredicate")
-		return true
-	}
-	return false
+	nameSpace := evt.Object.GetNamespace()
+	name := evt.Object.GetName()
+	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("NonAdminBackupPredicate: Accepted Delete event")
+	return true
 }
 
 // Generic event filter
 func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEvent) bool {
-	if _, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		nameSpace := evt.Object.GetNamespace()
-		name := evt.Object.GetName()
-		logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("Received Generic NonAdminBackupPredicate")
-		return true
-	}
-	return false
+	nameSpace := evt.Object.GetNamespace()
+	name := evt.Object.GetName()
+	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("NonAdminBackupPredicate: Accepted Generic event")
+	return true
 }
