@@ -98,7 +98,8 @@ func main() {
 		TLSOpts: tlsOpts,
 	})
 
-	if len(constant.OadpNamespace) == 0 {
+	// TODO create get function in common :question:
+	if len(os.Getenv(constant.NamespaceEnvVar)) == 0 {
 		setupLog.Error(fmt.Errorf("%v environment variable is empty", constant.NamespaceEnvVar), "environment variable must be set")
 		os.Exit(1)
 	}

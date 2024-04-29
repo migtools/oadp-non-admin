@@ -40,28 +40,48 @@ Choose one of the authentication method sections to follow.
   ```
 - Ensure non admin user have appropriate permissions in its namespace, i.e., non admin user have editor roles for the following objects
   - `nonadminbackups.nac.oadp.openshift.io`
+  - `nonadminrestores.nac.oadp.openshift.io`
 
   For example
   ```yaml
-    # config/rbac/nonadminbackup_editor_role.yaml
-    - apiGroups:
-        - nac.oadp.openshift.io
-      resources:
-        - nonadminbackups
-      verbs:
-        - create
-        - delete
-        - get
-        - list
-        - patch
-        - update
-        - watch
-    - apiGroups:
-        - nac.oadp.openshift.io
-      resources:
-        - nonadminbackups/status
-      verbs:
-        - get
+  # config/rbac/nonadminbackup_editor_role.yaml
+  - apiGroups:
+    - nac.oadp.openshift.io
+    resources:
+    - nonadminbackups
+    verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - nac.oadp.openshift.io
+    resources:
+    - nonadminbackups/status
+    verbs:
+    - get
+  # config/rbac/nonadminrestore_editor_role.yaml
+  - apiGroups:
+    - nac.oadp.openshift.io
+    resources:
+    - nonadminrestores
+    verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups:
+    - nac.oadp.openshift.io
+    resources:
+    - nonadminrestores/status
+    verbs:
+    - get
   ```
   For example, make non admin user have `admin` ClusterRole permissions on its namespace
   ```sh

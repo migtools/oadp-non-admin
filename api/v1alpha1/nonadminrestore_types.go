@@ -17,23 +17,30 @@ limitations under the License.
 package v1alpha1
 
 import (
+	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NonAdminRestoreSpec defines the desired state of NonAdminRestore
 type NonAdminRestoreSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Specification for a Velero restore.
+	// +kubebuilder:validation:Required
+	RestoreSpec *velerov1api.RestoreSpec `json:"restoreSpec,omitempty"`
+	// TODO add test that NAR can not be created without restoreSpec or restoreSpec.backupName
+	// TODO need to investigate restoreSpec.namespaceMapping, depends on how NAC tracks the namespace access per user
 
-	// Foo is an example field of NonAdminRestore. Edit nonadminrestore_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// TODO NonAdminRestore log level, by default TODO.
+	// +optional
+	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
+	LogLevel string `json:"logLevel,omitempty"`
+	// TODO ALSO ADD TEST FOR DIFFERENT LOG LEVELS
 }
 
 // NonAdminRestoreStatus defines the observed state of NonAdminRestore
 type NonAdminRestoreStatus struct {
+	// TODO https://github.com/migtools/oadp-non-admin/pull/23
+	// TODO https://github.com/migtools/oadp-non-admin/pull/13
+
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
