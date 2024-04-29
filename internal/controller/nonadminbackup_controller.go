@@ -82,30 +82,25 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Run Reconcile Batch as we have the NonAdminBackup object
-	reconcileExit, reconcileRequeue, reconcileErr := ReconcileBatch(
+	_, reconcileRequeue, reconcileErr := ReconcileBatch(
 		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.InitNonAdminBackup(ctx, rLog, &nab) // Phase: New
+			return r.InitNonAdminBackup(ctx, rLog, &nab)
 		}),
 		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.ValidateVeleroBackupSpec(ctx, rLog, &nab) // Phase: New
+			return r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
 		}),
 		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.CreateVeleroBackupSpec(ctx, rLog, &nab) // Phase: New
+			return r.CreateVeleroBackupSpec(ctx, rLog, &nab)
 		}),
 	)
 
 	// Return vars from the ReconcileBatch
-	if reconcileExit {
-		return ctrl.Result{}, reconcileErr
-	} else if reconcileRequeue {
+	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
-	} else if reconcileErr != nil {
-		return ctrl.Result{}, reconcileErr
-	} // No error and both reconcileExit and reconcileRequeue false, continue...
+	}
 
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, reconcileErr
 }
 
 // SetupWithManager sets up the controller with the Manager.
