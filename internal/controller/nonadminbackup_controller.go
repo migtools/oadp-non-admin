@@ -72,12 +72,11 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Bail out when the Non Admin Backup reconcile was triggered, when the NAB got deleted
 	// Reconcile loop was triggered when Velero Backup object got updated and NAB isn't there
-	if err != nil && apierrors.IsNotFound(err) {
-		logger.V(1).Info("Non existing NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, nil
-	}
-
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.V(1).Info("Non existing NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
+			return ctrl.Result{}, nil
+		}
 		logger.Error(err, "Unable to fetch NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, err
 	}
