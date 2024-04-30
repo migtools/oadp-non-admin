@@ -41,7 +41,7 @@ import (
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition to "InvalidBackupSpec".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition to "BackupAccepted".
 func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context, log logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
-	logger := log.WithValues("NonAdminBackup", nab.Namespace)
+	logger := log.WithValues("ValidateVeleroBackupSpec", nab.Namespace)
 
 	// Main Validation point for the VeleroBackup included in NonAdminBackup spec
 	_, err := function.GetBackupSpecFromNonAdminBackup(nab)
@@ -61,29 +61,26 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 
 		// Continue. VeleroBackup looks fine, setting Accepted condition
 		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
-		if updatedCondition {
-			// We do not requeue - this was only Condition update
-			return true, false, nil
-		}
 
 		if errUpdateCondition != nil {
 			logger.Error(errUpdateCondition, "Unable to set BackupAccepted Condition: False", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 			return true, false, errUpdateCondition
+		} else if updatedCondition {
+			return true, false, nil
 		}
-		// We do not requeue - this was error from getting Spec from NAB
+
+		// We do not requeue - this was an error from getting Spec from NAB
 		return true, false, err
 	}
 
 	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
-	if updatedStatus {
-		// We do requeue - The VeleroBackup got accepted and next reconcile loop will continue
-		// with further work on the VeleroBackup such as creating it
-		return false, true, nil
-	}
-
 	if errUpdateStatus != nil {
 		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdateStatus
+	} else if updatedStatus {
+		// We do requeue - The VeleroBackup got accepted and next reconcile loop will continue
+		// with further work on the VeleroBackup such as creating it
+		return false, true, nil
 	}
 
 	return false, false, nil

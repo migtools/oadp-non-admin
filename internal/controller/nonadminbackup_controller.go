@@ -81,26 +81,29 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	// Run Reconcile Batch as we have the NonAdminBackup object
-	_, reconcileRequeue, reconcileErr := ReconcileBatch(
-		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.InitNonAdminBackup(ctx, rLog, &nab)
-		}),
-		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
-		}),
-		ReconcileFunc(func(...any) (bool, bool, error) {
-			return r.CreateVeleroBackupSpec(ctx, rLog, &nab)
-		}),
-	)
-
-	// Return vars from the ReconcileBatch
+	reconcileExit, reconcileRequeue, reconcileErr := r.InitNonAdminBackup(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+
+	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
+	if reconcileRequeue {
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+
+	reconcileExit, reconcileRequeue, reconcileErr = r.CreateVeleroBackupSpec(ctx, rLog, &nab)
+	if reconcileRequeue {
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
 	}
 
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
-	return ctrl.Result{}, reconcileErr
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

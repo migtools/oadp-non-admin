@@ -44,7 +44,7 @@ import (
 // It then checks if a Velero Backup object with that name already exists. If it does not exist, it creates a new one.
 // The function returns boolean values indicating whether the reconciliation loop should exit or requeue
 func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, log logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
-	logger := log.WithValues("NonAdminBackup", nab.Namespace)
+	logger := log.WithValues("CreateVeleroBackupSpec", nab.Namespace)
 
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
 

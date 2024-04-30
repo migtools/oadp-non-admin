@@ -26,7 +26,7 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
-// InitNonAdminBackup Initsets the New Phase on a NonAdminBackup object if it is not already set.
+// InitNonAdminBackup sets the New Phase on a NonAdminBackup object if it is not already set.
 //
 // Parameters:
 //
@@ -39,18 +39,20 @@ import (
 // It then returns boolean values indicating whether the reconciliation loop should requeue
 // and whether the status was updated.
 func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, log logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
-	logger := log.WithValues("NonAdminBackup", nab.Namespace)
+	logger := log.WithValues("InitNonAdminBackup", nab.Namespace)
 	// Set initial Phase
 	if nab.Status.Phase == constant.EmptyString {
 		// Phase: New
 		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseNew)
-		if updatedStatus {
-			logger.V(1).Info("NonAdminBackup CR - Rqueue after Phase Update")
-			return false, true, nil
-		}
+
 		if errUpdate != nil {
 			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 			return true, false, errUpdate
+		}
+
+		if updatedStatus {
+			logger.V(1).Info("NonAdminBackup CR - Requeue after Phase Update")
+			return false, true, nil
 		}
 	}
 
