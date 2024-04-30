@@ -44,7 +44,7 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
 	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
+		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminPhaseNew {
 			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
 			return true
 		}
@@ -75,7 +75,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 			if oldPhase == constant.EmptyString && newPhase != constant.EmptyString {
 				logger.V(1).Info("NonAdminBsackupPredicate: Accepted Update event - phase change")
 				return true
-			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
+			} else if oldPhase == nacv1alpha1.NonAdminPhaseNew && newPhase == nacv1alpha1.NonAdminPhaseCreated {
 				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
 				return true
 			}

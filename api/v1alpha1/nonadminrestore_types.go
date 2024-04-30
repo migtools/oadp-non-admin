@@ -38,9 +38,15 @@ type NonAdminRestoreSpec struct {
 
 // NonAdminRestoreStatus defines the observed state of NonAdminRestore
 type NonAdminRestoreStatus struct {
-	// TODO https://github.com/migtools/oadp-non-admin/pull/23
-	// TODO https://github.com/migtools/oadp-non-admin/pull/13
+	// Related Velero Restore name.
+	// +optional
+	VeleroRestoreName string `json:"veleroRestoreName,omitempty"`
 
+	// Related Velero Restore status.
+	// +optional
+	VeleroRestoreStatus *velerov1api.RestoreStatus `json:"veleroRestoreStatus,omitempty"`
+
+	Phase      NonAdminPhase      `json:"phase,omitempty"`
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 

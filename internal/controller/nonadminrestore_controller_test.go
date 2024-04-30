@@ -199,7 +199,6 @@ var _ = ginkgo.Describe("Test NonAdminRestore Reconcile function", func() {
 				BackupName: "do-not-exist",
 			},
 		}),
-		// TODO Should NOT accept NonAdminBackup that is not in complete state :question:
 		// TODO Should NOT accept non existing related Velero Backup
 	)
 })

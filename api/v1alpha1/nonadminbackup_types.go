@@ -21,17 +21,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NonAdminBackupPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
+// NonAdminPhase is a simple one high-level summary of the lifecycle of a non admin object.
 // +kubebuilder:validation:Enum=New;BackingOff;Created
-type NonAdminBackupPhase string
+type NonAdminPhase string
 
 const (
-	// NonAdminBackupPhaseNew - NonAdminBackup resource was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController
-	NonAdminBackupPhaseNew NonAdminBackupPhase = "New"
-	// NonAdminBackupPhaseBackingOff - Velero Backup object was not created due to NonAdminBackup error (configuration or similar)
-	NonAdminBackupPhaseBackingOff NonAdminBackupPhase = "BackingOff"
-	// NonAdminBackupPhaseCreated - Velero Backup was created. The Phase will not have additional informations about the Backup.
-	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
+	// NonAdminPhaseNew - non admin resource was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController
+	NonAdminPhaseNew NonAdminPhase = "New"
+	// NonAdminPhaseBackingOff - Velero object was not created due to error in non admin object (configuration or similar)
+	NonAdminPhaseBackingOff NonAdminPhase = "BackingOff"
+	// NonAdminPhaseCreated - Velero object was created. The Phase will not have additional information about the Velero object.
+	NonAdminPhaseCreated NonAdminPhase = "Created"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -60,8 +60,8 @@ type NonAdminBackupStatus struct {
 	// +optional
 	VeleroBackupStatus *velerov1api.BackupStatus `json:"veleroBackupStatus,omitempty"`
 
-	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
-	Conditions []metav1.Condition  `json:"conditions,omitempty"`
+	Phase      NonAdminPhase      `json:"phase,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

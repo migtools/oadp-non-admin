@@ -128,7 +128,7 @@ func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, logrL
 	// Set initial Phase
 	if nab.Status.Phase == constant.EmptyString {
 		// Phase: New
-		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseNew)
+		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminPhaseNew)
 
 		if errUpdate != nil {
 			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
@@ -171,7 +171,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		}
 		logger.Error(err, errMsg)
 
-		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
+		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminPhaseBackingOff)
 		if errUpdateStatus != nil {
 			logger.Error(errUpdateStatus, "Unable to set NonAdminBackup Phase: BackingOff", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 			return true, false, errUpdateStatus
@@ -181,7 +181,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		}
 
 		// Continue. VeleroBackup looks fine, setting Accepted condition
-		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
+		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, constant.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
 
 		if errUpdateCondition != nil {
 			logger.Error(errUpdateCondition, "Unable to set BackupAccepted Condition: False", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
@@ -194,7 +194,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		return true, false, err
 	}
 
-	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
+	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, constant.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
 	if errUpdateStatus != nil {
 		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdateStatus
@@ -291,17 +291,17 @@ func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, l
 	}
 	logger.Info("VeleroBackup successfully created", nameField, veleroBackupName)
 
-	_, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseCreated)
+	_, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminPhaseCreated)
 	if errUpdate != nil {
 		logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: Created", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "Validated", "Valid Backup config")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, constant.NonAdminConditionAccepted, metav1.ConditionTrue, "Validated", "Valid Backup config")
 	if errUpdate != nil {
 		logger.Error(errUpdate, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionQueued, metav1.ConditionTrue, "BackupScheduled", "Created Velero Backup object")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, constant.NonAdminConditionQueued, metav1.ConditionTrue, "BackupScheduled", "Created Velero Backup object")
 	if errUpdate != nil {
 		logger.Error(errUpdate, "Unable to set BackupQueued Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdate

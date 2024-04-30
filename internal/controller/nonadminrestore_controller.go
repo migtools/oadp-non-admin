@@ -68,6 +68,8 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// TODO try to create Velero Restore
 
+	// TODO update status of NonAdminRestore as Velero Restore progresses
+
 	return ctrl.Result{}, nil
 }
 
@@ -77,7 +79,7 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, req ctrl.R
 		return fmt.Errorf("spec.restoreSpec.scheduleName field is not allowed in NonAdminRestore")
 	}
 
-	// TODO nonAdminBackup respect restricted fields
+	// TODO nonAdminRestore respect restricted fields
 
 	nonAdminBackupName := objectSpec.RestoreSpec.BackupName
 	nonAdminBackup := &nacv1alpha1.NonAdminBackup{}
@@ -89,18 +91,22 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, req ctrl.R
 		}
 		return err
 	}
-	// TODO nonAdminBackup has necessary labels (NAB controller job :question:)
-	// TODO nonAdminBackup is in complete state :question:!!!!
 
+	// TODO move this following to another function, it does not check spec
 	// TODO create get function in common :question:
 	oadpNamespace := os.Getenv(constant.NamespaceEnvVar)
 
-	veleroBackupName := nonAdminBackup.Labels["naoSei"]
+	veleroBackupName := nonAdminBackup.Status.VeleroBackupName
+	if len(veleroBackupName) == 0 {
+		return fmt.Errorf("NonAdminBackup '%s' does not reference Velero Backup name", nonAdminBackupName)
+	}
 	veleroBackup := &velerov1api.Backup{}
 	err = r.Get(ctx, types.NamespacedName{Namespace: oadpNamespace, Name: veleroBackupName}, veleroBackup)
 	if err != nil {
-		// TODO test error messages, THEY MUST BE INFORMATIVE
-		return err
+		if errors.IsNotFound(err) {
+			// TODO add this error message to NonAdminRestore status
+			return fmt.Errorf("related Velero backup '%s' for NonAdminBackup '%s' does not exist in OADP namespace %s", veleroBackupName, nonAdminBackupName, oadpNamespace)
+		}
 	}
 
 	return nil
