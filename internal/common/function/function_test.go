@@ -177,17 +177,19 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
-	assert.Equal(t, "BackupSpec is nil", err.Error())
+	assert.Equal(t, "BackupSpec is not defined", err.Error())
 
 	// Test case: NonAdminBackup with valid BackupSpec
 	backupSpecInput := &velerov1api.BackupSpec{
-		IncludedNamespaces:      []string{"namespace1", "namespace2"},
-		ExcludedNamespaces:      []string{"namespace3"},
+		IncludedNamespaces:      []string{"namespace1"},
 		StorageLocation:         "s3://bucket-name/path/to/backup",
 		VolumeSnapshotLocations: []string{"volume-snapshot-location"},
 	}
 
 	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "namespace1", // Set the namespace of NonAdminBackup
+		},
 		Spec: nacv1alpha1.NonAdminBackupSpec{
 			BackupSpec: backupSpecInput,
 		},
@@ -196,7 +198,46 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, backupSpec)
-	assert.Equal(t, backupSpecInput, backupSpec)
+	assert.Equal(t, []string{"namespace1"}, backupSpec.IncludedNamespaces) // Check that only the namespace from NonAdminBackup is included
+	assert.Equal(t, backupSpecInput.ExcludedNamespaces, backupSpec.ExcludedNamespaces)
+	assert.Equal(t, backupSpecInput.StorageLocation, backupSpec.StorageLocation)
+	assert.Equal(t, backupSpecInput.VolumeSnapshotLocations, backupSpec.VolumeSnapshotLocations)
+
+	backupSpecInput = &velerov1api.BackupSpec{
+		IncludedNamespaces: []string{"namespace2", "namespace3"},
+	}
+
+	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "namespace2", // Set the namespace of NonAdminBackup
+		},
+		Spec: nacv1alpha1.NonAdminBackupSpec{
+			BackupSpec: backupSpecInput,
+		},
+	}
+	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
+
+	assert.Error(t, err)
+	assert.Nil(t, backupSpec)
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace2", err.Error())
+
+	backupSpecInput = &velerov1api.BackupSpec{
+		IncludedNamespaces: []string{"namespace3"},
+	}
+
+	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "namespace4", // Set the namespace of NonAdminBackup
+		},
+		Spec: nacv1alpha1.NonAdminBackupSpec{
+			BackupSpec: backupSpecInput,
+		},
+	}
+	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
+
+	assert.Error(t, err)
+	assert.Nil(t, backupSpec)
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace4", err.Error())
 }
 
 func TestGenerateVeleroBackupName(t *testing.T) {
