@@ -164,7 +164,11 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 	_, err := function.GetBackupSpecFromNonAdminBackup(nab)
 
 	if err != nil {
+		// Use errMsg if errMsgFromErr is not available, otherwise use errMsgFromErr
 		errMsg := "NonAdminBackup CR does not contain valid BackupSpec"
+		if errMsgFromErr := err.Error(); errMsgFromErr != "" {
+			errMsg = errMsgFromErr
+		}
 		logger.Error(err, errMsg)
 
 		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
@@ -248,7 +252,7 @@ func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, l
 			},
 			Spec: *backupSpec,
 		}
-	} else if err != nil && !apierrors.IsNotFound(err) {
+	} else if err != nil {
 		logger.Error(err, "Unable to fetch VeleroBackup")
 		return true, false, err
 	} else {

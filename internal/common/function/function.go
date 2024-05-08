@@ -77,21 +77,39 @@ func AddNonAdminBackupAnnotations(ownerNamespace string, ownerName string, owner
 	return mergedAnnotations
 }
 
+// containsOnlyNamespace checks if the given namespaces slice contains only the specified namespace
+func containsOnlyNamespace(namespaces []string, namespace string) bool {
+	for _, ns := range namespaces {
+		if ns != namespace {
+			return false
+		}
+	}
+	return true
+}
+
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
 func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
 	if nonAdminBackup == nil {
 		return nil, fmt.Errorf("nonAdminBackup is nil")
 	}
 
-	// TODO check spec?
-
 	if nonAdminBackup.Spec.BackupSpec == nil {
-		return nil, fmt.Errorf("BackupSpec is nil")
+		return nil, fmt.Errorf("BackupSpec is not defined")
 	}
+
+	veleroBackupSpec := nonAdminBackup.Spec.BackupSpec.DeepCopy()
 
 	// TODO: Additional validations, before continuing
 
-	return nonAdminBackup.Spec.BackupSpec.DeepCopy(), nil
+	if veleroBackupSpec.IncludedNamespaces == nil {
+		veleroBackupSpec.IncludedNamespaces = []string{nonAdminBackup.Namespace}
+	} else {
+		if !containsOnlyNamespace(veleroBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
+			return nil, fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other then: %s", nonAdminBackup.Namespace)
+		}
+	}
+
+	return veleroBackupSpec, nil
 }
 
 // GenerateVeleroBackupName generates a Velero backup name based on the provided namespace and NonAdminBackup name.
@@ -185,7 +203,7 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 
 	// Check if the condition is already set to the desired status
 	currentCondition := apimeta.FindStatusCondition(nab.Status.Conditions, string(condition))
-	if currentCondition != nil && currentCondition.Status == conditionStatus {
+	if currentCondition != nil && currentCondition.Status == conditionStatus && currentCondition.Reason == reason && currentCondition.Message == message {
 		// Condition is already set to the desired status, no need to update
 		logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition is already set to: %s", condition))
 		return false, nil
