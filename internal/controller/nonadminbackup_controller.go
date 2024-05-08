@@ -27,7 +27,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -43,10 +42,8 @@ import (
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
 type NonAdminBackupReconciler struct {
 	client.Client
-	Scheme         *runtime.Scheme
-	Log            logr.Logger
-	Context        context.Context
-	NamespacedName types.NamespacedName
+	Scheme  *runtime.Scheme
+	Context context.Context
 }
 
 const (
@@ -70,101 +67,180 @@ const (
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
 func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log = log.FromContext(ctx)
-	logger := r.Log.WithValues("NonAdminBackup", req.NamespacedName)
+	rLog := log.FromContext(ctx)
+	logger := rLog.WithValues("NonAdminBackup", req.NamespacedName)
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop start")
 
-	// Resource version
-	// Generation version - metadata - only one is updated...
-	r.Context = ctx
-	r.NamespacedName = req.NamespacedName
-
-	// Get the Non Admin Backup object
+	// Get the NonAdminBackup object
 	nab := nacv1alpha1.NonAdminBackup{}
 	err := r.Get(ctx, req.NamespacedName, &nab)
 
 	// Bail out when the Non Admin Backup reconcile was triggered, when the NAB got deleted
 	// Reconcile loop was triggered when Velero Backup object got updated and NAB isn't there
-	if err != nil && apierrors.IsNotFound(err) {
-		logger.V(1).Info("Deleted NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, nil
-	}
-
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logger.V(1).Info("Non existing NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
+			return ctrl.Result{}, nil
+		}
 		logger.Error(err, "Unable to fetch NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, err
 	}
 
+	reconcileExit, reconcileRequeue, reconcileErr := r.InitNonAdminBackup(ctx, rLog, &nab)
+	if reconcileRequeue {
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+
+	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
+	if reconcileRequeue {
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+
+	reconcileExit, reconcileRequeue, reconcileErr = r.CreateVeleroBackupSpec(ctx, rLog, &nab)
+	if reconcileRequeue {
+		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
+	} else if reconcileExit || reconcileErr != nil {
+		return ctrl.Result{}, reconcileErr
+	}
+
+	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
+	return ctrl.Result{}, nil
+}
+
+// InitNonAdminBackup sets the New Phase on a NonAdminBackup object if it is not already set.
+//
+// Parameters:
+//
+//	ctx: Context for the request.
+//	logrLogger: Logger instance for logging messages.
+//	nab: Pointer to the NonAdminBackup object.
+//
+// The function checks if the Phase of the NonAdminBackup object is empty.
+// If it is empty, it sets the Phase to "New".
+// It then returns boolean values indicating whether the reconciliation loop should requeue
+// and whether the status was updated.
+func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	logger := logrLogger.WithValues("InitNonAdminBackup", nab.Namespace)
+	// Set initial Phase
 	if nab.Status.Phase == constant.EmptyString {
 		// Phase: New
-		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupPhaseNew)
-		if updatedStatus {
-			logger.V(1).Info("NonAdminBackup CR - Rqueue after Phase Update")
-			return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, nil
-		}
+		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseNew)
+
 		if errUpdate != nil {
-			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-			return ctrl.Result{}, errUpdate
+			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+			return true, false, errUpdate
+		}
+
+		if updatedStatus {
+			logger.V(1).Info("NonAdminBackup CR - Requeue after Phase Update")
+			return false, true, nil
 		}
 	}
 
-	backupSpec, err := function.GetBackupSpecFromNonAdminBackup(&nab)
+	return false, false, nil
+}
+
+// ValidateVeleroBackupSpec validates the VeleroBackup Spec from the NonAdminBackup.
+//
+// Parameters:
+//
+//	ctx: Context for the request.
+//	logrLogger: Logger instance for logging messages.
+//	nab: Pointer to the NonAdminBackup object.
+//
+// The function attempts to get the BackupSpec from the NonAdminBackup object.
+// If an error occurs during this process, the function sets the NonAdminBackup status to "BackingOff"
+// and updates the corresponding condition accordingly.
+// If the BackupSpec is invalid, the function sets the NonAdminBackup condition to "InvalidBackupSpec".
+// If the BackupSpec is valid, the function sets the NonAdminBackup condition to "BackupAccepted".
+func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	logger := logrLogger.WithValues("ValidateVeleroBackupSpec", nab.Namespace)
+
+	// Main Validation point for the VeleroBackup included in NonAdminBackup spec
+	_, err := function.GetBackupSpecFromNonAdminBackup(nab)
 
 	if err != nil {
 		errMsg := "NonAdminBackup CR does not contain valid BackupSpec"
 		logger.Error(err, errMsg)
 
-		// Phase: BackingOff
-		// BackupAccepted: False
-		// BackupQueued: False   # already set
-		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
-		if errUpdate != nil {
-			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: BackingOff", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-			return ctrl.Result{}, errUpdate
+		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
+		if errUpdateStatus != nil {
+			logger.Error(errUpdateStatus, "Unable to set NonAdminBackup Phase: BackingOff", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+			return true, false, errUpdateStatus
 		} else if updatedStatus {
-			// We do not requeue as the State is BackingOff
-			return ctrl.Result{}, nil
+			// We do not requeue - the State was set to BackingOff
+			return true, false, nil
 		}
 
-		updatedStatus, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
-		if updatedStatus {
-			return ctrl.Result{}, nil
+		// Continue. VeleroBackup looks fine, setting Accepted condition
+		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
+
+		if errUpdateCondition != nil {
+			logger.Error(errUpdateCondition, "Unable to set BackupAccepted Condition: False", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+			return true, false, errUpdateCondition
+		} else if updatedCondition {
+			return true, false, nil
 		}
 
-		if errUpdate != nil {
-			logger.Error(errUpdate, "Unable to set BackupAccepted Condition: False", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-			return ctrl.Result{}, errUpdate
-		}
-		return ctrl.Result{}, err
+		// We do not requeue - this was an error from getting Spec from NAB
+		return true, false, err
 	}
 
-	// Phase: New               # already set
-	// BackupAccepted: True
-	// BackupQueued: False   # already set
-	updatedStatus, errUpdate := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
-	if updatedStatus {
-		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, nil
+	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
+	if errUpdateStatus != nil {
+		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		return true, false, errUpdateStatus
+	} else if updatedStatus {
+		// We do requeue - The VeleroBackup got accepted and next reconcile loop will continue
+		// with further work on the VeleroBackup such as creating it
+		return false, true, nil
 	}
 
-	if errUpdate != nil {
-		logger.Error(errUpdate, "Unable to set BackupAccepted Condition: True", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, errUpdate
-	}
+	return false, false, nil
+}
+
+// CreateVeleroBackupSpec creates or updates a Velero Backup object based on the provided NonAdminBackup object.
+//
+// Parameters:
+//
+//	ctx: Context for the request.
+//	log: Logger instance for logging messages.
+//	nab: Pointer to the NonAdminBackup object.
+//
+// The function generates a name for the Velero Backup object based on the provided namespace and name.
+// It then checks if a Velero Backup object with that name already exists. If it does not exist, it creates a new one.
+// The function returns boolean values indicating whether the reconciliation loop should exit or requeue
+func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	logger := logrLogger.WithValues("CreateVeleroBackupSpec", nab.Namespace)
 
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
 
 	if veleroBackupName == constant.EmptyString {
-		return ctrl.Result{}, errors.New("unable to generate Velero Backup name")
+		return true, false, errors.New("unable to generate Velero Backup name")
 	}
 
 	veleroBackup := velerov1api.Backup{}
-	err = r.Get(ctx, client.ObjectKey{Namespace: constant.OadpNamespace, Name: veleroBackupName}, &veleroBackup)
+	err := r.Get(ctx, client.ObjectKey{Namespace: constant.OadpNamespace, Name: veleroBackupName}, &veleroBackup)
 
 	if err != nil && apierrors.IsNotFound(err) {
-		// Create backup
+		// Create VeleroBackup
 		// Don't update phase nor conditions yet.
 		// Those will be updated when then Reconcile loop is triggered by the VeleroBackup object
 		logger.Info("No backup found", nameField, veleroBackupName)
+
+		// We don't validate error here.
+		// This was already validated in the ValidateVeleroBackupSpec
+		backupSpec, errBackup := function.GetBackupSpecFromNonAdminBackup(nab)
+
+		if errBackup != nil {
+			// Should never happen as it was already checked
+			return true, false, errBackup
+		}
+
 		veleroBackup = velerov1api.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
@@ -174,25 +250,23 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	} else if err != nil && !apierrors.IsNotFound(err) {
 		logger.Error(err, "Unable to fetch VeleroBackup")
-		return ctrl.Result{}, err
+		return true, false, err
 	} else {
-		// TODO: Currently when one updates VeleroBackup spec inside the NonAdminBackup
-		//       We do not update already created VeleroBackup object.
-		//       Should we update the previously created VeleroBackup object and reflect what was
-		//       updated? In the current situation the VeleroBackup within NonAdminBackup will
-		//       be reverted back to the previous state - the state which created VeleroBackup
-		//       in a first place.
+		// We should not update already created VeleroBackup object.
+		// The VeleroBackup within NonAdminBackup will
+		// be reverted back to the previous state - the state which created VeleroBackup
+		// in a first place, so they will be in sync.
 		logger.Info("Backup already exists, updating NonAdminBackup status", nameField, veleroBackupName)
-		updatedNab, errBackupUpdate := function.UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, logger, &nab, &veleroBackup)
+		updatedNab, errBackupUpdate := function.UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, logger, nab, &veleroBackup)
 		// Regardless if the status was updated or not, we should not
 		// requeue here as it was only status update.
 		if errBackupUpdate != nil {
-			return ctrl.Result{}, errBackupUpdate
+			return true, false, errBackupUpdate
 		} else if updatedNab {
 			logger.V(1).Info("NonAdminBackup CR - Rqueue after Status Update")
-			return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, nil
+			return false, true, nil
 		}
-		return ctrl.Result{}, nil
+		return true, false, nil
 	}
 
 	// Ensure labels are set for the Backup object
@@ -209,32 +283,27 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, &veleroBackup, nil)
 	if err != nil {
 		logger.Error(err, "Failed to create backup", nameField, veleroBackupName)
-		return ctrl.Result{}, err
+		return true, false, err
 	}
 	logger.Info("VeleroBackup successfully created", nameField, veleroBackupName)
 
-	// Phase: Created
-	// BackupAccepted: True # do not update
-	// BackupQueued: True
-	_, errUpdate = function.UpdateNonAdminPhase(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupPhaseCreated)
+	_, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseCreated)
 	if errUpdate != nil {
-		logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: Created", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, errUpdate
+		logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: Created", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		return true, false, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "Validated", "Valid Backup config")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "Validated", "Valid Backup config")
 	if errUpdate != nil {
-		logger.Error(errUpdate, "Unable to set BackupAccepted Condition: True", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, errUpdate
+		logger.Error(errUpdate, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		return true, false, errUpdate
 	}
-	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionQueued, metav1.ConditionTrue, "BackupScheduled", "Created Velero Backup object")
+	_, errUpdate = function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionQueued, metav1.ConditionTrue, "BackupScheduled", "Created Velero Backup object")
 	if errUpdate != nil {
-		logger.Error(errUpdate, "Unable to set BackupQueued Condition: True", nameField, req.Name, constant.NameSpaceString, req.Namespace)
-		return ctrl.Result{}, errUpdate
+		logger.Error(errUpdate, "Unable to set BackupQueued Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		return true, false, errUpdate
 	}
 
-	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
-
-	return ctrl.Result{}, nil
+	return false, false, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
