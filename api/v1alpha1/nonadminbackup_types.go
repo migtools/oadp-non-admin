@@ -66,6 +66,7 @@ type NonAdminBackupStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:path=nonadminbackups,shortName=nab
 
 // NonAdminBackup is the Schema for the nonadminbackups API
 type NonAdminBackup struct {
