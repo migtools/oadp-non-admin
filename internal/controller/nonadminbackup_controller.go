@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -87,6 +88,13 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
+	reconcileExit, reconcileErr := r.DeleteVeleroBackup(ctx, rLog, &nab)
+	if reconcileExit && reconcileErr != nil {
+		return ctrl.Result{}, reconcile.TerminalError(reconcileErr)
+	} else if reconcileExit {
+		return ctrl.Result{}, nil
+	}
+
 	reconcileExit, reconcileRequeue, reconcileErr := r.InitNonAdminBackup(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
@@ -116,6 +124,52 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
 	return ctrl.Result{}, nil
+}
+
+// DeleteVeleroBackup deletes original Velero Backup object when the deleteVeleroBackup Spec is set to true
+//
+// Parameters:
+//
+//	ctx: Context for the request.
+//	logrLogger: Logger instance for logging messages.
+//	nab: Pointer to the NonAdminBackup object.
+func (r *NonAdminBackupReconciler) DeleteVeleroBackup(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, errorReconcile error) {
+	rLog := log.FromContext(ctx)
+	logger := logrLogger.WithValues("DeleteVeleroBackup", nab.Namespace)
+
+	// Delete Velero Backup if the deleteVeleroBackup was set to true
+	if nab.Spec.DeleteVeleroBackup != nil && *nab.Spec.DeleteVeleroBackup {
+		deleted, deleteErr := function.DeleteVeleroBackup(ctx, r.Client, rLog, nab)
+		if !deleted {
+			// The Velero Object was not found
+			// Remove NonAdminBackup
+			// There is potential that Velero Sync controller will recreate Velero Backup
+			// if one exists in the s3 storage, and this will as well cause NonAdminBackup
+			// to be recreated by the NAC sync controller, but at this stage we have current
+			// proper state reflected.
+			logger.V(1).Info(fmt.Sprintf("Velero Backup not deleted for NAB: %s", nab.Name))
+		}
+
+		if deleteErr == nil {
+			// Delete NonAdminBackup object
+			deleteErrNab := function.DeleteNonAdminBackup(ctx, r.Client, rLog, nab)
+			return true, deleteErrNab
+		}
+		// There was an error while trying to delete Velero Backup
+		// Set the Phase to BackingOff and Deletion condition to False
+		_, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionDeletion, metav1.ConditionFalse, "BackupDeleted", "Unable to delete origin Velero Backup")
+		if errUpdateCondition != nil {
+			logger.Error(errUpdateCondition, "Unable to set Deletion Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		}
+		_, errUpdatePhase := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
+
+		if errUpdatePhase != nil {
+			logger.Error(errUpdatePhase, "Unable to set NonAdminBackup Phase: BackingOff", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
+		}
+		return true, deleteErr
+	}
+
+	return false, nil
 }
 
 // InitNonAdminBackup sets the New Phase on a NonAdminBackup object if it is not already set.
@@ -201,7 +255,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		return true, false, err
 	}
 
-	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
+	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "Backup accepted")
 	if errUpdateStatus != nil {
 		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdateStatus

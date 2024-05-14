@@ -505,6 +505,10 @@ spec:
                       type: string
                     type: array
                 type: object
+              deleteVeleroBackup:
+                description: DeleteVeleroBackup tells the controller to remove created
+                  Velero Backup.
+                type: boolean
               logLevel:
                 description: NonAdminBackup log level (use debug for the most logging,
                   leave unset for default)

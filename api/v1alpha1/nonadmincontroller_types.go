@@ -27,4 +27,5 @@ type NonAdminCondition string
 const (
 	NonAdminConditionAccepted NonAdminCondition = "Accepted"
 	NonAdminConditionQueued   NonAdminCondition = "Queued"
+	NonAdminConditionDeletion NonAdminCondition = "Deletion"
 )

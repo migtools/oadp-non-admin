@@ -27,6 +27,7 @@ import (
 
 	"github.com/go-logr/logr"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -278,6 +279,41 @@ func CheckVeleroBackupLabels(backup *velerov1api.Backup) bool {
 	labels := backup.GetLabels()
 	value, exists := labels[constant.ManagedByLabel]
 	return exists && value == constant.ManagedByLabelValue
+}
+
+// DeleteVeleroBackup deletes Velero Backup object based on the NonAdminBackup object name and namespace
+func DeleteVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	veleroBackupName := GenerateVeleroBackupName(nab.Namespace, nab.Name)
+
+	logger.V(1).Info(fmt.Sprintf("Attempting to delete VeleroBackup: %s", veleroBackupName))
+	veleroBackup := velerov1api.Backup{}
+
+	err := r.Get(ctx, types.NamespacedName{Name: veleroBackupName, Namespace: constant.OadpNamespace}, &veleroBackup)
+
+	if err == nil {
+		err = r.Delete(ctx, &veleroBackup)
+		if err != nil {
+			logger.V(1).Info(fmt.Sprintf("Error deleting VeleroBackup: %s", veleroBackupName))
+			return false, err
+		}
+	} else if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+
+	logger.V(1).Info(fmt.Sprintf("Deleted VeleroBackup: %s", veleroBackupName))
+	return true, nil
+}
+
+// DeleteNonAdminBackup deletes Non Admin Backup object
+func DeleteNonAdminBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) error {
+	err := r.Delete(ctx, nab)
+	if err != nil {
+		logger.V(1).Info(fmt.Sprintf("Error deleting NonAdminBackup: %s", nab.Name))
+		return err
+	}
+
+	logger.V(1).Info(fmt.Sprintf("Deleted NonAdminBackup: %s", nab.Name))
+	return nil
 }
 
 // TODO not used
