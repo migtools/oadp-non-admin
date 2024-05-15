@@ -445,6 +445,8 @@ spec:
                 required:
                 - backupName
                 type: object
+            required:
+            - restoreSpec
             type: object
           status:
             description: NonAdminRestoreStatus defines the observed state of NonAdminRestore

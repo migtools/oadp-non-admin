@@ -24,9 +24,7 @@ import (
 // NonAdminRestoreSpec defines the desired state of NonAdminRestore
 type NonAdminRestoreSpec struct {
 	// Specification for a Velero restore.
-	// +kubebuilder:validation:Required
-	RestoreSpec *velerov1api.RestoreSpec `json:"restoreSpec,omitempty"`
-	// TODO add test that NAR can not be created without restoreSpec or restoreSpec.backupName
+	RestoreSpec *velerov1api.RestoreSpec `json:"restoreSpec"`
 	// TODO need to investigate restoreSpec.namespaceMapping, depends on how NAC tracks the namespace access per user
 
 	// TODO NonAdminRestore log level, by default TODO.

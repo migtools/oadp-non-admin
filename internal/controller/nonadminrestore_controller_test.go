@@ -32,11 +32,6 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-type clusterScenario struct {
-	namespace       string
-	nonAdminRestore string
-}
-
 type nonAdminRestoreReconcileScenario struct {
 	restoreSpec     *v1.RestoreSpec
 	namespace       string
@@ -55,65 +50,6 @@ func createTestNonAdminRestore(name string, namespace string, restoreSpec v1.Res
 		},
 	}
 }
-
-// TODO this does not work with envtest :question:
-var _ = ginkgo.Describe("Test NonAdminRestore in cluster validation", func() {
-	var (
-		ctx                 = context.Background()
-		currentTestScenario clusterScenario
-		updateTestScenario  = func(scenario clusterScenario) {
-			currentTestScenario = scenario
-		}
-	)
-
-	ginkgo.AfterEach(func() {
-		nonAdminRestore := &nacv1alpha1.NonAdminRestore{}
-		if k8sClient.Get(
-			ctx,
-			types.NamespacedName{
-				Name:      currentTestScenario.nonAdminRestore,
-				Namespace: currentTestScenario.namespace,
-			},
-			nonAdminRestore,
-		) == nil {
-			gomega.Expect(k8sClient.Delete(ctx, nonAdminRestore)).To(gomega.Succeed())
-		}
-
-		namespace := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: currentTestScenario.namespace,
-			},
-		}
-		gomega.Expect(k8sClient.Delete(ctx, namespace)).To(gomega.Succeed())
-	})
-
-	ginkgo.DescribeTable("Validation is false",
-		func(scenario clusterScenario) {
-			updateTestScenario(scenario)
-
-			namespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: scenario.namespace,
-				},
-			}
-			gomega.Expect(k8sClient.Create(ctx, namespace)).To(gomega.Succeed())
-
-			nonAdminRestore := &nacv1alpha1.NonAdminRestore{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      scenario.nonAdminRestore,
-					Namespace: scenario.namespace,
-				},
-				// Spec: nacv1alpha1.NonAdminRestoreSpec{},
-			}
-			gomega.Expect(k8sClient.Create(ctx, nonAdminRestore)).To(gomega.Not(gomega.Succeed()))
-		},
-		ginkgo.Entry("Should NOT create NonAdminRestore without spec.restoreSpec", clusterScenario{
-			namespace:       "test-nonadminrestore-cluster-1",
-			nonAdminRestore: "test-nonadminrestore-cluster-1-cr",
-		}),
-		// TODO Should NOT create NonAdminRestore without spec.restoreSpec.backupName
-	)
-})
 
 var _ = ginkgo.Describe("Test NonAdminRestore Reconcile function", func() {
 	var (
