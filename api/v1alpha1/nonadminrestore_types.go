@@ -52,6 +52,7 @@ type NonAdminRestoreStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:path=nonadminrestores,shortName=nar
 
 // NonAdminRestore is the Schema for the nonadminrestores API
 type NonAdminRestore struct {
