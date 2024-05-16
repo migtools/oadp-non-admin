@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
@@ -89,22 +90,28 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	reconcileExit, reconcileRequeue, reconcileErr := r.InitNonAdminBackup(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
-	} else if reconcileExit || reconcileErr != nil {
-		return ctrl.Result{}, reconcileErr
+	} else if reconcileExit && reconcileErr != nil {
+		return ctrl.Result{}, reconcile.TerminalError(reconcileErr)
+	} else if reconcileExit {
+		return ctrl.Result{}, nil
 	}
 
 	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
-	} else if reconcileExit || reconcileErr != nil {
-		return ctrl.Result{}, reconcileErr
+	} else if reconcileExit && reconcileErr != nil {
+		return ctrl.Result{}, reconcile.TerminalError(reconcileErr)
+	} else if reconcileExit {
+		return ctrl.Result{}, nil
 	}
 
 	reconcileExit, reconcileRequeue, reconcileErr = r.CreateVeleroBackupSpec(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
-	} else if reconcileExit || reconcileErr != nil {
-		return ctrl.Result{}, reconcileErr
+	} else if reconcileExit && reconcileErr != nil {
+		return ctrl.Result{}, reconcile.TerminalError(reconcileErr)
+	} else if reconcileExit {
+		return ctrl.Result{}, nil
 	}
 
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop end")
