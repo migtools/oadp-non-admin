@@ -337,9 +337,15 @@ func updateNonAdminPhase(phase *nacv1alpha1.NonAdminBackupPhase, newPhase nacv1a
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup reference fields in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
 func updateNonAdminBackupVeleroBackupReference(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
-	if status.VeleroBackupName != veleroBackup.Name || status.VeleroBackupNamespace != veleroBackup.Namespace {
-		status.VeleroBackupName = veleroBackup.Name
-		status.VeleroBackupNamespace = veleroBackup.Namespace
+	if status.VeleroBackup == nil {
+		status.VeleroBackup = &nacv1alpha1.VeleroBackup{
+			Name:      veleroBackup.Name,
+			Namespace: veleroBackup.Namespace,
+		}
+		return true
+	} else if status.VeleroBackup.Name != veleroBackup.Name || status.VeleroBackup.Namespace != veleroBackup.Namespace {
+		status.VeleroBackup.Name = veleroBackup.Name
+		status.VeleroBackup.Namespace = veleroBackup.Namespace
 		return true
 	}
 	return false
@@ -348,8 +354,8 @@ func updateNonAdminBackupVeleroBackupReference(status *nacv1alpha1.NonAdminBacku
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup status field in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
 func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
-	if !reflect.DeepEqual(status.VeleroBackupStatus, &veleroBackup.Status) {
-		status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
+	if !reflect.DeepEqual(status.VeleroBackup.Status, &veleroBackup.Status) {
+		status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
 		return true
 	}
 	return false

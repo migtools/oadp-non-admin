@@ -45,20 +45,25 @@ type NonAdminBackupSpec struct {
 	LogLevel string `json:"logLevel,omitempty"`
 }
 
+// VeleroBackup contains information of the related Velero backup object.
+type VeleroBackup struct {
+	// status captures the current status of the Velero backup.
+	// +optional
+	Status *velerov1.BackupStatus `json:"status,omitempty"`
+
+	// name references the Velero backup by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero backup exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
-	// VeleroBackupName references the VeleroBackup object by it's name.
 	// +optional
-	VeleroBackupName string `json:"veleroBackupName,omitempty"`
-
-	// VeleroBackupNamespace references the Namespace
-	// in which VeleroBackupName object exists.
-	// +optional
-	VeleroBackupNamespace string `json:"veleroBackupNamespace,omitempty"`
-
-	// VeleroBackupStatus captures the current status of a Velero backup.
-	// +optional
-	VeleroBackupStatus *velerov1.BackupStatus `json:"veleroBackupStatus,omitempty"`
+	VeleroBackup *VeleroBackup `json:"veleroBackup,omitempty"`
 
 	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
 	Conditions []metav1.Condition  `json:"conditions,omitempty"`
