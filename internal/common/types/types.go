@@ -14,17 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+// Package types contains all common types used in the project
+package types
 
-// NonAdminCondition are used for more detailed information supporing NonAdminBackupPhase state.
-// +kubebuilder:validation:Enum=Accepted;Queued
+// NonAdminCondition are used for more detailed information supporting NonAdminBackupPhase state.
 type NonAdminCondition string
-
-// Predefined conditions for NonAdminBackup.
-// One NonAdminBackup object may have multiple conditions.
-// It is more granular knowledge of the NonAdminBackup object and represents the
-// array of the conditions through which the NonAdminBackup has or has not passed
-const (
-	NonAdminConditionAccepted NonAdminCondition = "Accepted"
-	NonAdminConditionQueued   NonAdminCondition = "Queued"
-)
