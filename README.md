@@ -17,9 +17,9 @@ This open source controller adds the non admin feature to [OADP operator](https:
 ### Prerequisites
 - oc
 - Access to a OpenShift cluster
-- [OADP operator](https://github.com/openshift/oadp-operator) version `1.4+` installed in the cluster
+- [OADP operator](https://github.com/openshift/oadp-operator) version `1.5+` installed in the cluster
 
-> **NOTE:** Before OADP operator version 1.4.0 is released, you need to [install OADP operator from source](docs/CONTRIBUTING.md#install-from-source) to use NAC.
+> **NOTE:** Before OADP operator version 1.5.0 is released, you need to [install OADP operator from source](docs/CONTRIBUTING.md#install-from-source) to use NAC.
 
 ### Using NAC
 
