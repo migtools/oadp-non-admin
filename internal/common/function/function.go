@@ -298,6 +298,9 @@ func DeleteVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger
 		}
 	} else if apierrors.IsNotFound(err) {
 		return false, nil
+	} else {
+		logger.V(1).Info(fmt.Sprintf("Error while requeting VeleroBackup: %s from Namespace: %s", veleroBackupName, constant.OadpNamespace))
+		return false, err
 	}
 
 	logger.V(1).Info(fmt.Sprintf("Deleted VeleroBackup: %s", veleroBackupName))
