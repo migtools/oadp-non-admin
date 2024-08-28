@@ -58,6 +58,11 @@ To see the html report, run
 go tool cover -html=cover.out
 ```
 
+To run just controllers integration tests (which gives more verbose output), run
+```sh
+ginkgo run -mod=mod internal/controller -- --ginkgo.vv
+```
+
 TODO end to end tests
 
 ### Linters and code formatters

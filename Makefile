@@ -224,8 +224,8 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
 	}
 
-# TODO increase!!!
-COVERAGE_THRESHOLD=10
+# TODO increase to 60?
+COVERAGE_THRESHOLD=30
 
 .PHONY: ci
 ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.

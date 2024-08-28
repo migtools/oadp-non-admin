@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -38,6 +39,11 @@ import (
 )
 
 const requiredAnnotationError = "backup does not have the required annotation '%s'"
+
+// GetOADPNamespace get the namespace OADP operator is installed
+func GetOADPNamespace() string {
+	return os.Getenv(constant.NamespaceEnvVar)
+}
 
 // AddNonAdminLabels return a map with both the object labels and with the default Non Admin labels.
 // If error occurs, a map with only the default Non Admin labels is returned
@@ -172,7 +178,6 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 	}
 
 	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Phase set to: %s", phase))
-
 	return true, nil
 }
 

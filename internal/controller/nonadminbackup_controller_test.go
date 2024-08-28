@@ -212,8 +212,8 @@ var _ = ginkgo.Describe("Test NonAdminBackup Reconcile function", func() {
 					{
 						Type:    "Accepted",
 						Status:  metav1.ConditionTrue,
-						Reason:  "Validated",
-						Message: "Valid Backup config",
+						Reason:  "BackupAccepted",
+						Message: "Backup accepted",
 					},
 					{
 						Type:    "Queued",
@@ -226,5 +226,7 @@ var _ = ginkgo.Describe("Test NonAdminBackup Reconcile function", func() {
 		}),
 		// TODO should not have loop start again and again in logs
 		// TODO 3 condition logs, only 2 in CR status?
+
+		// TODO create tests for single reconciles, so we can test https://github.com/migtools/oadp-non-admin/blob/master/docs/design/nab_status_update.md
 	)
 })
