@@ -89,6 +89,8 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
 func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
+	// TODO https://github.com/migtools/oadp-non-admin/issues/60
+	// unnecessary?
 	if nonAdminBackup == nil {
 		return nil, fmt.Errorf("nonAdminBackup is nil")
 	}
@@ -146,6 +148,7 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 
 // UpdateNonAdminPhase updates the phase of a NonAdminBackup object with the provided phase.
 func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, phase nacv1alpha1.NonAdminBackupPhase) (bool, error) {
+	// unnecessary?
 	if nab == nil {
 		return false, errors.New("NonAdminBackup object is nil")
 	}
@@ -178,6 +181,7 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 // that the condition is set to the desired status only if it differs from the current status.
 // If the condition is already set to the desired status, no update is performed.
 func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition nacv1alpha1.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
+	// unnecessary?
 	if nab == nil {
 		return false, errors.New("NonAdminBackup object is nil")
 	}
@@ -219,6 +223,7 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 		},
 	)
 
+	// TODO ... Condition *set* to... ?
 	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition to: %s", condition))
 	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason to: %s", reason))
 	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message to: %s", message))

@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -59,17 +60,12 @@ const (
 // +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NonAdminBackup object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.0/pkg/reconcile
+// move the current state of the NonAdminBackup to the desired state.
 func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	rLog := log.FromContext(ctx)
 	logger := rLog.WithValues("NonAdminBackup", req.NamespacedName)
+	// TODO remove duplication in logs
+	// remove >>>?
 	logger.V(1).Info(">>> Reconcile NonAdminBackup - loop start")
 
 	// Get the NonAdminBackup object
@@ -80,8 +76,10 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// Reconcile loop was triggered when Velero Backup object got updated and NAB isn't there
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			// k/v's are noise?
 			logger.V(1).Info("Non existing NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 			return ctrl.Result{}, nil
+			// should not error?
 		}
 		logger.Error(err, "Unable to fetch NonAdminBackup CR", nameField, req.Name, constant.NameSpaceString, req.Namespace)
 		return ctrl.Result{}, err
@@ -96,6 +94,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
+	// would not be better to validate first?
 	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
@@ -131,6 +130,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 // It then returns boolean values indicating whether the reconciliation loop should requeue
 // and whether the status was updated.
 func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	// TODO
 	logger := logrLogger.WithValues("InitNonAdminBackup", nab.Namespace)
 	// Set initial Phase
 	if nab.Status.Phase == constant.EmptyString {
@@ -165,6 +165,7 @@ func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, logrL
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition to "InvalidBackupSpec".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition to "BackupAccepted".
 func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	// TODO
 	logger := logrLogger.WithValues("ValidateVeleroBackupSpec", nab.Namespace)
 
 	// Main Validation point for the VeleroBackup included in NonAdminBackup spec
@@ -176,6 +177,8 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		if errMsgFromErr := err.Error(); errMsgFromErr != "" {
 			errMsg = errMsgFromErr
 		}
+		// TODO logs noise to user
+		// every logger error logs a stacktrace
 		logger.Error(err, errMsg)
 
 		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
@@ -235,7 +238,8 @@ func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, l
 	}
 
 	veleroBackup := velerov1api.Backup{}
-	err := r.Get(ctx, client.ObjectKey{Namespace: constant.OadpNamespace, Name: veleroBackupName}, &veleroBackup)
+	// TODO how to best refactor for be easy to test and maintain?
+	err := r.Get(ctx, client.ObjectKey{Namespace: os.Getenv(constant.NamespaceEnvVar), Name: veleroBackupName}, &veleroBackup)
 
 	if err != nil && apierrors.IsNotFound(err) {
 		// Create VeleroBackup
@@ -255,7 +259,7 @@ func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, l
 		veleroBackup = velerov1api.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
-				Namespace: constant.OadpNamespace,
+				Namespace: os.Getenv(constant.NamespaceEnvVar),
 			},
 			Spec: *backupSpec,
 		}

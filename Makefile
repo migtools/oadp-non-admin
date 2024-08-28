@@ -1,9 +1,9 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/konveyor/oadp-non-admin:latest
-# Kubernetes version from OpenShift 4.15.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
+# Kubernetes version from OpenShift 4.16.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.28
+ENVTEST_K8S_VERSION = 1.29
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
