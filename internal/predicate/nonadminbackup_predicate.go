@@ -76,6 +76,9 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase change")
 				return true
 			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
+				// This is HARD to understand and TEST
+				// even though reconcile will reach Reconcile loop end
+				// this will trigger a new reconcile
 				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
 				return true
 			}

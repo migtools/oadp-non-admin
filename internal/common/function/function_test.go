@@ -219,7 +219,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
-	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace2", err.Error())
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: namespace2", err.Error())
 
 	backupSpecInput = &velerov1api.BackupSpec{
 		IncludedNamespaces: []string{"namespace3"},
@@ -237,7 +237,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
-	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace4", err.Error())
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: namespace4", err.Error())
 }
 
 func TestGenerateVeleroBackupName(t *testing.T) {

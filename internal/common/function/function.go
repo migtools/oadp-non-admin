@@ -113,7 +113,7 @@ func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup)
 		veleroBackupSpec.IncludedNamespaces = []string{nonAdminBackup.Namespace}
 	} else {
 		if !containsOnlyNamespace(veleroBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return nil, fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other then: %s", nonAdminBackup.Namespace)
+			return nil, fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
 		}
 	}
 
@@ -228,10 +228,10 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 		},
 	)
 
-	// TODO ... Condition *set* to... ?
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition to: %s", condition))
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason to: %s", reason))
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message to: %s", message))
+	// TODO these logs should be after err check, no?
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition set to: %s", condition))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason set to: %s", reason))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message set to: %s", message))
 
 	// Update NAB status
 	if err := r.Status().Update(ctx, nab); err != nil {

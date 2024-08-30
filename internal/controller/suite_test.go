@@ -22,7 +22,7 @@ import (
 	"runtime"
 	"testing"
 
-	ginkgov2 "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -43,15 +43,15 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 
 func TestControllers(t *testing.T) {
-	gomega.RegisterFailHandler(ginkgov2.Fail)
+	gomega.RegisterFailHandler(ginkgo.Fail)
 
-	ginkgov2.RunSpecs(t, "Controller Suite")
+	ginkgo.RunSpecs(t, "Controller Suite")
 }
 
-var _ = ginkgov2.BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(ginkgov2.GinkgoWriter), zap.UseDevMode(true)))
+var _ = ginkgo.BeforeSuite(func() {
+	logf.SetLogger(zap.New(zap.WriteTo(ginkgo.GinkgoWriter), zap.UseDevMode(true)))
 
-	ginkgov2.By("bootstrapping test environment")
+	ginkgo.By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "config", "crd", "bases"),
@@ -86,8 +86,8 @@ var _ = ginkgov2.BeforeSuite(func() {
 	gomega.Expect(k8sClient).NotTo(gomega.BeNil())
 })
 
-var _ = ginkgov2.AfterSuite(func() {
-	ginkgov2.By("tearing down the test environment")
+var _ = ginkgo.AfterSuite(func() {
+	ginkgo.By("tearing down the test environment")
 	err := testEnv.Stop()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })

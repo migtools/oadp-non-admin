@@ -135,6 +135,8 @@ func main() {
 	if err = (&controller.NonAdminBackupReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		// TODO context does not need to be set here???
+		// add env var here?? so it is only called once still and is easy to test
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
 		os.Exit(1)
