@@ -37,13 +37,11 @@ type CompositePredicate struct {
 func (p CompositePredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
-		// Apply NonAdminBackupPredicate
 		return p.NonAdminBackupPredicate.Create(p.Context, evt)
 	case *velerov1api.Backup:
-		// Apply VeleroBackupPredicate
 		return p.VeleroBackupPredicate.Create(p.Context, evt)
+		// return false? as we will always create ourselves
 	default:
-		// Unknown object type, return false
 		return false
 	}
 }
@@ -67,6 +65,7 @@ func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
 		return p.NonAdminBackupPredicate.Delete(p.Context, evt)
 	case *velerov1api.Backup:
 		return p.VeleroBackupPredicate.Delete(p.Context, evt)
+		// return false
 	default:
 		return false
 	}
@@ -74,6 +73,7 @@ func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
 
 // Generic event filter
 func (p CompositePredicate) Generic(evt event.GenericEvent) bool {
+	// TODO Is this necessary? could not be a simple return false function?
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Generic(p.Context, evt)

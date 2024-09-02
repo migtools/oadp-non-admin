@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,8 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
+
+var _ = ginkgo.Describe("PLACEHOLDER", func() {})
 
 func TestMergeMaps(t *testing.T) {
 	const (
@@ -330,7 +333,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			},
 		},
 	}
-	assert.True(t, CheckVeleroBackupLabels(backupWithLabel), "Expected backup to have required label")
+	assert.True(t, CheckVeleroBackupLabels(backupWithLabel.GetLabels()), "Expected backup to have required label")
 
 	// Backup does not have the required label
 	backupWithoutLabel := &velerov1api.Backup{
@@ -338,7 +341,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			Labels: map[string]string{},
 		},
 	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel), "Expected backup to not have required label")
+	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel.GetLabels()), "Expected backup to not have required label")
 
 	// Backup has the required label with incorrect value
 	backupWithIncorrectValue := &velerov1api.Backup{
@@ -348,5 +351,5 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			},
 		},
 	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithIncorrectValue), "Expected backup to not have required label")
+	assert.False(t, CheckVeleroBackupLabels(backupWithIncorrectValue.GetLabels()), "Expected backup to not have required label")
 }

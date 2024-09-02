@@ -44,7 +44,8 @@ import (
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
 type NonAdminBackupReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	OADPNamespace string
 	// needed???
 	Context context.Context
 }
@@ -70,8 +71,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	err := r.Get(ctx, req.NamespacedName, &nab)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// Delete event triggered this reconcile
-			logger.V(1).Info("Non existing NonAdminBackup")
+			logger.V(1).Info("NonAdminBackup was deleted")
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Unable to fetch NonAdminBackup")
@@ -148,7 +148,9 @@ func (r *NonAdminBackupReconciler) Init(ctx context.Context, logrLogger logr.Log
 	logger := logrLogger.WithValues("Init NonAdminBackup", types.NamespacedName{Name: nab.Name, Namespace: nab.Namespace})
 
 	if nab.Status.Phase == constant.EmptyString {
-		// // Set initial Phase to New
+		// Set initial Phase to New
+		// can this function be simplified to return just an error?
+		// can it return false, nil?
 		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseNew)
 		if errUpdate != nil {
 			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New")
@@ -243,15 +245,13 @@ func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLog
 	logger := logrLogger.WithValues("UpdateSpecStatus NonAdminBackup", types.NamespacedName{Name: nab.Name, Namespace: nab.Namespace})
 
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
-
 	if veleroBackupName == constant.EmptyString {
 		return true, false, errors.New("unable to generate Velero Backup name")
 	}
 
-	oadpNamespace := function.GetOADPNamespace()
 	veleroBackup := velerov1api.Backup{}
-	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupName, Namespace: oadpNamespace})
-	err := r.Get(ctx, client.ObjectKey{Namespace: oadpNamespace, Name: veleroBackupName}, &veleroBackup)
+	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupName, Namespace: r.OADPNamespace})
+	err := r.Get(ctx, client.ObjectKey{Namespace: r.OADPNamespace, Name: veleroBackupName}, &veleroBackup)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			veleroBackupLogger.Error(err, "Unable to fetch VeleroBackup")
@@ -274,7 +274,7 @@ func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLog
 		veleroBackup = velerov1api.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
-				Namespace: oadpNamespace,
+				Namespace: r.OADPNamespace,
 			},
 			Spec: *backupSpec,
 		}
@@ -322,7 +322,7 @@ func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLog
 	veleroBackupLogger.Info("VeleroBackup already exists, updating NonAdminBackup status")
 	updatedNab, errBackupUpdate := function.UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, logger, nab, &veleroBackup)
 	// Regardless if the status was updated or not, we should not
-	// requeue here as it was only status update.
+	// requeue here as it was only status update. AND SPEC???
 	if errBackupUpdate != nil {
 		return true, false, errBackupUpdate
 	} else if updatedNab {
@@ -342,7 +342,7 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
-				OadpVeleroNamespace: function.GetOADPNamespace(),
+				OadpVeleroNamespace: r.OADPNamespace,
 			},
 			Context: r.Context,
 		}).

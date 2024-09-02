@@ -225,14 +225,15 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	}
 
 # TODO increase to 60?
-COVERAGE_THRESHOLD=40
+COVERAGE_THRESHOLD=50
 
 .PHONY: ci
 ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.
 
 .PHONY: simulation-test
+# TODO coverage is not in sync in what is being actually done...
 simulation-test: envtest ## Run unit and integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(shell go list ./... | grep -v oadp-non-admin/test) -test.coverprofile cover.out -test.v -ginkgo.vv
 	@make check-coverage
 
 .PHONY: check-coverage

@@ -43,6 +43,7 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 	name := evt.Object.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
+	// DO we need all this logic? should not just be return true here?
 	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
 		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
 			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
@@ -104,5 +105,6 @@ func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEve
 	name := evt.Object.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("NonAdminBackupPredicate: Accepted Generic event")
+	// refactor: all functions start the same way, move this initialization to a separate function
 	return true
 }

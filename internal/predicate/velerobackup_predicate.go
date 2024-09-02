@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -43,19 +42,16 @@ func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.
 
 // Create event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	if backup, ok := evt.Object.(*velerov1api.Backup); ok {
-		nameSpace := evt.Object.GetNamespace()
-		if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
-			return false
-		}
-
-		name := evt.Object.GetName()
-		logger := getBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("VeleroBackupPredicate: Received Create event")
-
-		return function.CheckVeleroBackupLabels(backup)
+	nameSpace := evt.Object.GetNamespace()
+	name := evt.Object.GetName()
+	logger := getBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("VeleroBackupPredicate: Received Create event")
+	// TODO log accepted or not
+	if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
+		return false
 	}
-	return false
+	return function.CheckVeleroBackupLabels(evt.Object.GetLabels())
+	// refactor idea, move all validation to a function, predicate functions would just need to call it and log info
 }
 
 // Update event filter
@@ -64,11 +60,14 @@ func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, e
 	name := evt.ObjectNew.GetName()
 	logger := getBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
+	// TODO log accepted or not
+	// should not check labels?
 	return nameSpace == veleroBackupPredicate.OadpVeleroNamespace
 }
 
 // Delete event filter
 func (VeleroBackupPredicate) Delete(_ context.Context, _ event.DeleteEvent) bool {
+	// only create function when needed? changing in composite to simply return false
 	return false
 }
 

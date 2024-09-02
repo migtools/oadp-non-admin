@@ -32,7 +32,8 @@ import (
 
 // VeleroBackupHandler contains event handlers for Velero Backup objects
 type VeleroBackupHandler struct {
-	Logger logr.Logger
+	// why this?
+	// Logger logr.Logger
 }
 
 func getVeleroBackupHandlerLogger(ctx context.Context, name, namespace string) logr.Logger {
@@ -45,6 +46,7 @@ func (*VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, _
 	name := evt.Object.GetName()
 	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
 	logger.V(1).Info("Received Create VeleroBackupHandler")
+	// is this func necessary?
 }
 
 // Update event handler
@@ -55,7 +57,6 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 	logger.V(1).Info("Received Update VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
-
 	if annotations == nil {
 		logger.V(1).Info("Backup annotations not found")
 		return
@@ -73,6 +74,7 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 		return
 	}
 
+	// TODO AddRateLimited?
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 		Name:      nabOriginName,
 		Namespace: nabOriginNamespace,

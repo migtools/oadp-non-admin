@@ -102,6 +102,7 @@ func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup)
 	}
 
 	if nonAdminBackup.Spec.BackupSpec == nil {
+		// this should be Kubernetes API validation
 		return nil, fmt.Errorf("BackupSpec is not defined")
 	}
 
@@ -267,6 +268,7 @@ func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, 
 	}
 
 	// Check if BackupSpec needs to be updated
+	// avoid spec change?
 	if !reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
 		nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
 		if err := r.Update(ctx, nab); err != nil {
@@ -283,9 +285,8 @@ func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, 
 }
 
 // CheckVeleroBackupLabels return true if Velero Backup object has required Non Admin labels, false otherwise
-func CheckVeleroBackupLabels(backup *velerov1api.Backup) bool {
+func CheckVeleroBackupLabels(labels map[string]string) bool {
 	// TODO also need to check for constant.OadpLabel label?
-	labels := backup.GetLabels()
 	value, exists := labels[constant.ManagedByLabel]
 	return exists && value == constant.ManagedByLabelValue
 }

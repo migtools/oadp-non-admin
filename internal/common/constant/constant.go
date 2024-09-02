@@ -38,9 +38,6 @@ const (
 // EmptyString defines a constant for the empty string
 const EmptyString = ""
 
-// NameSpaceString k8s Namespace string
-const NameSpaceString = "Namespace"
-
 // MaxKubernetesNameLength represents maximum length of the name in k8s
 const MaxKubernetesNameLength = 253
 
