@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 const testNonAdminBackupName = "test-non-admin-backup"
@@ -70,15 +71,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 	)
 
 	ginkgo.AfterEach(func() {
-		if len(currentTestScenario.oadpNamespace) > 0 {
-			oadpNamespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: currentTestScenario.oadpNamespace,
-				},
-			}
-			gomega.Expect(k8sClient.Delete(ctx, oadpNamespace)).To(gomega.Succeed())
-		}
-
 		nonAdminBackup := &nacv1alpha1.NonAdminBackup{}
 		if k8sClient.Get(
 			ctx,
@@ -89,6 +81,15 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			nonAdminBackup,
 		) == nil {
 			gomega.Expect(k8sClient.Delete(ctx, nonAdminBackup)).To(gomega.Succeed())
+		}
+
+		if len(currentTestScenario.oadpNamespace) > 0 {
+			oadpNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: currentTestScenario.oadpNamespace,
+				},
+			}
+			gomega.Expect(k8sClient.Delete(ctx, oadpNamespace)).To(gomega.Succeed())
 		}
 
 		namespace := &corev1.Namespace{
@@ -141,14 +142,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			}
 			gomega.Expect(k8sClient.Create(ctx, namespace)).To(gomega.Succeed())
 
-			nonAdminBackup := createTestNonAdminBackup(scenario.namespace, scenario.spec)
-			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
-
-			if scenario.priorStatus != nil {
-				nonAdminBackup.Status = *scenario.priorStatus
-				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
-			}
-
 			if len(scenario.oadpNamespace) > 0 {
 				oadpNamespace := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
@@ -157,6 +150,16 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				}
 				gomega.Expect(k8sClient.Create(ctx, oadpNamespace)).To(gomega.Succeed())
 			}
+
+			nonAdminBackup := createTestNonAdminBackup(scenario.namespace, scenario.spec)
+			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
+
+			if scenario.priorStatus != nil {
+				nonAdminBackup.Status = *scenario.priorStatus
+				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
+			}
+			priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
 			result, err := (&NonAdminBackupReconciler{
 				Client:        k8sClient,
@@ -194,6 +197,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Reason).To(gomega.Equal(scenario.status.Conditions[index].Reason))
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Message).To(gomega.Equal(scenario.status.Conditions[index].Message))
 			}
+
+			currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
+			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+			gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
 		ginkgo.Entry("Should accept creation of NonAdminBackup", nonAdminBackupReconcileScenario{
 			namespace: "test-nonadminbackup-reconcile-1",
@@ -365,6 +372,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
+			// I am seeing test overlap...
 			// TODO Be CAREFUL about FLAKES with this approach?
 			// study ref https://book.kubebuilder.io/cronjob-tutorial/writing-tests
 			go func() {
@@ -402,7 +410,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(nonAdminBackup.Status.Phase).To(gomega.Equal(scenario.status.Phase))
 			gomega.Expect(nonAdminBackup.Status.VeleroBackupName).To(gomega.Equal(scenario.status.VeleroBackupName))
 			gomega.Expect(nonAdminBackup.Status.VeleroBackupNamespace).To(gomega.Equal(scenario.status.VeleroBackupNamespace))
-			gomega.Expect(nonAdminBackup.Status.VeleroBackupStatus).To(gomega.Equal(scenario.status.VeleroBackupStatus))
+			gomega.Expect(nonAdminBackup.Status.VeleroBackupStatus.Phase).To(gomega.Equal(v1.BackupPhase(constant.EmptyString)))
 
 			for index := range nonAdminBackup.Status.Conditions {
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Type).To(gomega.Equal(scenario.status.Conditions[index].Type))
@@ -424,8 +432,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			veleroBackup.Status.Phase = v1.BackupPhaseNew
 			// TODO I can not call .Status().Update() for veleroBackup object: backups.velero.io "name..." not found
 			gomega.Expect(k8sClient.Update(currentTestScenario.ctx, veleroBackup)).To(gomega.Succeed())
-			// every update produces to reconciles: VeleroBackupPredicate on update -> reconcile start -> update nab status -> requeue -> reconcile start
+			// every update produces 2 reconciles: VeleroBackupPredicate on update -> reconcile start -> update nab status -> requeue -> reconcile start
 
+			// only one mock update should be enough, right?
 			gomega.Eventually(func() (bool, error) {
 				err := k8sClient.Get(
 					currentTestScenario.ctx,
@@ -500,9 +509,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			// wait reconcile of delete event
 			time.Sleep(1 * time.Second)
 		},
-		// TODO logs for these tests are HUGE!!!!
-		// example:
-		// DEBUG	NonAdminBackup Reconcile start	{"controller": "nonadminbackup", "controllerGroup": "nac.oadp.openshift.io", "controllerKind": "NonAdminBackup", "NonAdminBackup": {"name":"test-non-admin-backup","namespace":"test-nonadminbackup-reconcile-full-1"}, "namespace": "test-nonadminbackup-reconcile-full-1", "name": "test-non-admin-backup", "reconcileID": "19f8b405-5db8-4bf4-b4a0-24ecdd0ae187", "NonAdminBackup": {"name":"test-non-admin-backup","namespace":"test-nonadminbackup-reconcile-full-1"}}
 		ginkgo.Entry("Should create, update and delete NonAdminBackup", nonAdminBackupReconcileScenario{
 			namespace:     "test-nonadminbackup-reconcile-full-1",
 			oadpNamespace: "test-nonadminbackup-reconcile-full-1-oadp",
@@ -513,27 +519,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
 				VeleroBackupName:      "nab-test-nonadminbackup-reconcile-full-1-c9dd6af01e2e2a",
 				VeleroBackupNamespace: "test-nonadminbackup-reconcile-full-1-oadp",
-				VeleroBackupStatus: &v1.BackupStatus{
-					Version:                       0,
-					FormatVersion:                 "",
-					Expiration:                    nil,
-					Phase:                         "",
-					ValidationErrors:              nil,
-					StartTimestamp:                nil,
-					CompletionTimestamp:           nil,
-					VolumeSnapshotsAttempted:      0,
-					VolumeSnapshotsCompleted:      0,
-					FailureReason:                 "",
-					Warnings:                      0,
-					Errors:                        0,
-					Progress:                      nil,
-					CSIVolumeSnapshotsAttempted:   0,
-					CSIVolumeSnapshotsCompleted:   0,
-					BackupItemOperationsAttempted: 0,
-					BackupItemOperationsCompleted: 0,
-					BackupItemOperationsFailed:    0,
-				},
 				Conditions: []metav1.Condition{
+					// Is this a valid Condition???
 					{
 						Type:    "Accepted",
 						Status:  metav1.ConditionTrue,
@@ -554,6 +541,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 		// events 10: 2 creates (1 nab, 1 velero), 8 update event (all nab, 5 rejected)
 		// 6 reconcile starts
 		// time: 30s-20s
+		//
 		// TODO saw this flake!!
 		// 2024-09-02T10:58:31-03:00	ERROR	NonAdminBackup Condition - Failed to update	{"controller": "nonadminbackup", "controllerGroup": "nac.oadp.openshift.io", "controllerKind": "NonAdminBackup", "NonAdminBackup": {"name":"test-non-admin-backup","namespace":"test-nonadminbackup-reconcile-full-1"}, "namespace": "test-nonadminbackup-reconcile-full-1", "name": "test-non-admin-backup", "reconcileID": "fd1db7a8-6ed5-40ea-b5f6-03c4b1b88dd1", "ValidateSpec NonAdminBackup": {"name":"test-non-admin-backup","namespace":"test-nonadminbackup-reconcile-full-1"}, "error": "Operation cannot be fulfilled on nonadminbackups.nac.oadp.openshift.io \"test-non-admin-backup\": the object has been modified; please apply your changes to the latest version and try again"}
 		// stacktrace...

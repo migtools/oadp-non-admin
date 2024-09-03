@@ -32,7 +32,7 @@ type VeleroBackupPredicate struct {
 	// We are watching only Velero Backup objects within
 	// namespace where OADP is.
 	OadpVeleroNamespace string
-	Logger              logr.Logger
+	// Logger              logr.Logger
 }
 
 // TODO try to remove calls to get logger functions, try to initialize it

@@ -30,7 +30,7 @@ import (
 
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
 type NonAdminBackupPredicate struct {
-	Logger logr.Logger
+	// Logger logr.Logger
 }
 
 func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
@@ -62,6 +62,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
 
+	// resourceVersion?
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
 		logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - generation change")
 		return true

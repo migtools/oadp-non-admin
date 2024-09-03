@@ -187,40 +187,20 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 // that the condition is set to the desired status only if it differs from the current status.
 // If the condition is already set to the desired status, no update is performed.
 func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition nacv1alpha1.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
+	// log should be parent responsibility?
 	// unnecessary?
 	if nab == nil {
 		return false, errors.New("NonAdminBackup object is nil")
 	}
 
-	// Ensure phase and condition are valid
-	if condition == constant.EmptyString {
-		return false, errors.New("NonAdminBackup Condition cannot be empty")
-	}
-
-	if conditionStatus == constant.EmptyString {
-		return false, errors.New("NonAdminBackup Condition Status cannot be empty")
-	} else if conditionStatus != metav1.ConditionTrue && conditionStatus != metav1.ConditionFalse && conditionStatus != metav1.ConditionUnknown {
-		return false, errors.New("NonAdminBackup Condition Status must be valid metav1.ConditionStatus")
-	}
-
-	if reason == constant.EmptyString {
-		return false, errors.New("NonAdminBackup Condition Reason cannot be empty")
-	}
-
+	// is not this metav1 responsibility?
 	if message == constant.EmptyString {
 		return false, errors.New("NonAdminBackup Condition Message cannot be empty")
 	}
 
-	// Check if the condition is already set to the desired status
-	currentCondition := apimeta.FindStatusCondition(nab.Status.Conditions, string(condition))
-	if currentCondition != nil && currentCondition.Status == conditionStatus && currentCondition.Reason == reason && currentCondition.Message == message {
-		// Condition is already set to the desired status, no need to update
-		logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition is already set to: %s", condition))
-		return false, nil
-	}
-
+	// move this if outside func?
 	// Update NAB status condition
-	apimeta.SetStatusCondition(&nab.Status.Conditions,
+	update := apimeta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
 			Type:    string(condition),
 			Status:  conditionStatus,
@@ -228,6 +208,11 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 			Message: message,
 		},
 	)
+	if !update {
+		// would remove log
+		logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition is already set to: %s", condition))
+		return false, nil
+	}
 
 	// TODO these logs should be after err check, no?
 	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition set to: %s", condition))
