@@ -31,22 +31,15 @@ import (
 )
 
 // VeleroBackupHandler contains event handlers for Velero Backup objects
-type VeleroBackupHandler struct {
-	// why this?
-	// Logger logr.Logger
-}
+type VeleroBackupHandler struct{}
 
 func getVeleroBackupHandlerLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("VeleroBackupHandler", types.NamespacedName{Name: name, Namespace: namespace})
 }
 
 // Create event handler
-func (*VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, _ workqueue.RateLimitingInterface) {
-	nameSpace := evt.Object.GetNamespace()
-	name := evt.Object.GetName()
-	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
-	logger.V(1).Info("Received Create VeleroBackupHandler")
-	// is this func necessary?
+func (*VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+	// Create event handler for the Backup object
 }
 
 // Update event handler
@@ -74,7 +67,9 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 		return
 	}
 
-	// TODO AddRateLimited?
+	// TODO use GetNonAdminBackupFromVeleroBackup here
+	// check if I need more log here or in velero predicate
+
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 		Name:      nabOriginName,
 		Namespace: nabOriginNamespace,

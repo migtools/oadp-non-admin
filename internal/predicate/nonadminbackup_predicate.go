@@ -29,9 +29,7 @@ import (
 )
 
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
-type NonAdminBackupPredicate struct {
-	// Logger logr.Logger
-}
+type NonAdminBackupPredicate struct{}
 
 func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("NonAdminBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
@@ -42,27 +40,16 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 	nameSpace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
-	// DO we need all this logic? should not just be return true here?
-	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
-			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
-			return true
-		}
-	}
-	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Create event")
-	return false
+	logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
+	return true
 }
 
 // Update event filter
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	// Do not reconcile on Status update
 	nameSpace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
 
-	// resourceVersion?
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
 		logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - generation change")
 		return true
@@ -87,7 +74,6 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 		}
 	}
 	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Update event")
-
 	return false
 }
 

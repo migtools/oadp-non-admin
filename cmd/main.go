@@ -137,7 +137,6 @@ func main() {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		OADPNamespace: oadpNamespace,
-		// TODO context does not need to be set here???
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
 		os.Exit(1)

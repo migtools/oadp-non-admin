@@ -76,5 +76,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-// need update?
 replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20231024175012-d8101a298016
