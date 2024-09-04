@@ -164,20 +164,13 @@ func TestAddNonAdminBackupAnnotations(t *testing.T) {
 }
 
 func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
-	// Test case: nonAdminBackup is nil
-	nonAdminBackup := (*nacv1alpha1.NonAdminBackup)(nil)
-	backupSpec, err := GetBackupSpecFromNonAdminBackup(nonAdminBackup)
-	assert.Error(t, err)
-	assert.Nil(t, backupSpec)
-	assert.Equal(t, "nonAdminBackup is nil", err.Error())
-
 	// Test case: BackupSpec is nil
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup := &nacv1alpha1.NonAdminBackup{
 		Spec: nacv1alpha1.NonAdminBackupSpec{
 			BackupSpec: nil,
 		},
 	}
-	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
+	backupSpec, err := GetBackupSpecFromNonAdminBackup(nonAdminBackup)
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
 	assert.Equal(t, "BackupSpec is not defined", err.Error())

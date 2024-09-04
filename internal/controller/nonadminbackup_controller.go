@@ -80,20 +80,20 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 		logger.Error(err, "Unable to fetch NonAdminBackup")
 		return ctrl.Result{}, err
+		// how to avoid this being reconciled forever?
 	}
 
 	// requeue on every change is the correct pattern! document this
 	// TODO refactor idea: do not enter on sub functions again
 	// TODO refactor idea: sub functions can not exit clean, that should be main func responsibility. Remove reconcileExit return param
+	// TODO refactor idea: sub functions can not requeue, that should be predicate responsibility. Remove requeueReconcile return param
 	// TODO refactor idea:
-	// requeue, err := r.Init(ctx, rLog, &nab)
+	// err := r.Init(ctx, logger, &nab) // Init calls ValidateSpec, that calls UpdateSpecStatus, and etc...
 	// if err != nil {
 	// 	// handle err smart way to retry when wanted?
 	// 	return ctrl.Result{}, reconcile.TerminalError(err)
 	// }
-	// if requeue {
-	// 	return ctrl.Result{Requeue: true}, nil
-	// }
+	//
 	// SOURCE https://github.com/kubernetes-sigs/controller-runtime/blob/e6c3d139d2b6c286b1dbba6b6a95919159cfe655/pkg/internal/controller/controller.go#L286
 	// Alright, after studies, I believe there are only 2 possibilities (DEV eyes):
 	// - re trigger reconcile
@@ -133,6 +133,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
+	logger.V(1).Info("NonAdminBackup Reconcile exit")
 	return ctrl.Result{}, nil
 }
 
@@ -154,8 +155,21 @@ func (r *NonAdminBackupReconciler) Init(ctx context.Context, logrLogger logr.Log
 
 	if nab.Status.Phase == constant.EmptyString {
 		// Set initial Phase to New
-		// can this function be simplified to return just an error?
-		// can it return false, nil?
+		// TODO refactor idea: this function should return just a bool, like apimeta.SetStatusCondition()
+		// TODO refactor idea: logger calls should all be done in this file, so it is easier to control what is being logged
+		// TODO refactor idea: r.Status().Update() calls should all be done in this file, so it is easier to control number of updates per reconcile
+		// TODO refactor idea:
+		// updated := function.UpdateNonAdminPhase(nab, nacv1alpha1.NonAdminBackupPhaseNew)
+		// if updated {
+		// 	if err := r.Status().Update(ctx, nab); err != nil {
+		// 		logger.Error(err, "Failed to update NonAdminBackup Phase")
+		// 		return err
+		// 	}
+
+		// 	logger.V(1).Info("NonAdminBackup Phase updated")
+		// 	return nil
+		// }
+		// TODO refactor idea: remove outer if
 		updatedStatus, errUpdate := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseNew)
 		if errUpdate != nil {
 			logger.Error(errUpdate, "Unable to set NonAdminBackup Phase: New")
@@ -169,6 +183,7 @@ func (r *NonAdminBackupReconciler) Init(ctx context.Context, logrLogger logr.Log
 
 	logger.V(1).Info("NonAdminBackup Status.Phase already initialized")
 	return false, false, nil
+	// return ValidateSpec
 }
 
 // ValidateSpec validates the Spec from the NonAdminBackup.
@@ -200,11 +215,10 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 			logger.Error(errUpdateStatus, "Unable to set NonAdminBackup Phase: BackingOff")
 			return true, false, errUpdateStatus
 		} else if updatedStatus {
-			// We do not requeue - the State was set to BackingOff
+			// We do not requeue - the State was set to BackingOff - BUG
 			return true, false, nil
 		}
 
-		// Continue. VeleroBackup looks fine, setting Accepted condition to false
 		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", "NonAdminBackup does not contain valid BackupSpec")
 		if errUpdateCondition != nil {
 			logger.Error(errUpdateCondition, "Unable to set BackupAccepted Condition: Accepted False")
@@ -212,8 +226,27 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 		} else if updatedCondition {
 			return true, false, nil
 		}
+		// TODO refactor idea: this function should be deleted, use apimeta.SetStatusCondition()
+		// TODO refactor idea:
+		// updatedPhase := function.UpdateNonAdminPhase(nab, nacv1alpha1.NonAdminBackupPhaseNew)
+		// updatedCondition := apimeta.SetStatusCondition(&nab.Status.Conditions,
+		// 	metav1.Condition{
+		// 		Type:    nacv1alpha1.NonAdminConditionAccepted,
+		// 		Status:  metav1.ConditionFalse,
+		// 		Reason:  "InvalidBackupSpec",
+		// 		Message: "NonAdminBackup does not contain valid BackupSpec",
+		// 	},
+		// )
+		// if updatedPhase || updatedCondition {
+		// 	if err := r.Status().Update(ctx, nab); err != nil {
+		// 		logger.Error(err, "Failed to update NonAdminBackup Phase")
+		// 		return err
+		// 	}
 
-		// We do not requeue - this was an error from getting Spec from NAB
+		// 	logger.V(1).Info("NonAdminBackup Status updated")
+		// 	return nil
+		// }
+
 		return true, false, err
 	}
 
@@ -225,13 +258,13 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: Accepted True")
 		return true, false, errUpdateStatus
 	} else if updatedStatus {
-		// We do requeue - The VeleroBackup got validated and next reconcile loop will continue
-		// with further work on the VeleroBackup such as creating it
+		logger.V(1).Info("NonAdminBackup - Requeue after Phase Update")
 		return false, true, nil
 	}
 
 	logger.V(1).Info("NonAdminBackup Spec already validated")
 	return false, false, nil
+	// return UpdateSpecStatus
 }
 
 // UpdateSpecStatus updates the Spec and Status from the NonAdminBackup.
@@ -326,7 +359,7 @@ func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLog
 	// The VeleroBackup within NonAdminBackup will
 	// be reverted back to the previous state - the state which created VeleroBackup
 	// in a first place, so they will be in sync.
-	veleroBackupLogger.Info("VeleroBackup already exists, updating NonAdminBackup status")
+	veleroBackupLogger.Info("VeleroBackup already exists, updating NonAdminBackup Status")
 	updatedNab, errBackupUpdate := function.UpdateNonAdminBackupFromVeleroBackup(ctx, r.Client, logger, nab, &veleroBackup)
 	// Regardless if the status was updated or not, we should not
 	// requeue here as it was only status update. AND SPEC???

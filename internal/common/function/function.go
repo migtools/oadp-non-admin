@@ -96,11 +96,6 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
 func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
 	// TODO https://github.com/migtools/oadp-non-admin/issues/60
-	// unnecessary?
-	if nonAdminBackup == nil {
-		return nil, fmt.Errorf("nonAdminBackup is nil")
-	}
-
 	if nonAdminBackup.Spec.BackupSpec == nil {
 		// this should be Kubernetes API validation
 		return nil, fmt.Errorf("BackupSpec is not defined")
@@ -155,18 +150,12 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 
 // UpdateNonAdminPhase updates the phase of a NonAdminBackup object with the provided phase.
 func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, phase nacv1alpha1.NonAdminBackupPhase) (bool, error) {
-	// unnecessary?
-	if nab == nil {
-		return false, errors.New("NonAdminBackup object is nil")
-	}
-
 	// Ensure phase is valid
 	if phase == constant.EmptyString {
 		return false, errors.New("NonAdminBackupPhase cannot be empty")
 	}
 
 	if nab.Status.Phase == phase {
-		// No change, no need to update
 		logger.V(1).Info("NonAdminBackup Phase is already up to date")
 		return false, nil
 	}
@@ -188,19 +177,13 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 // If the condition is already set to the desired status, no update is performed.
 func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition nacv1alpha1.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
 	// log should be parent responsibility?
-	// unnecessary?
-	if nab == nil {
-		return false, errors.New("NonAdminBackup object is nil")
-	}
-
 	// is not this metav1 responsibility?
 	if message == constant.EmptyString {
 		return false, errors.New("NonAdminBackup Condition Message cannot be empty")
 	}
 
 	// move this if outside func?
-	// Update NAB status condition
-	update := apimeta.SetStatusCondition(&nab.Status.Conditions,
+	updated := apimeta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
 			Type:    string(condition),
 			Status:  conditionStatus,
@@ -208,23 +191,21 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 			Message: message,
 		},
 	)
-	if !update {
+	if !updated {
 		// would remove log
 		logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition is already set to: %s", condition))
 		return false, nil
 	}
 
-	// TODO these logs should be after err check, no?
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition set to: %s", condition))
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason set to: %s", reason))
-	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message set to: %s", message))
-
-	// Update NAB status
+	// Update NAB status in cluster
 	if err := r.Status().Update(ctx, nab); err != nil {
 		logger.Error(err, "NonAdminBackup Condition - Failed to update")
 		return false, err
 	}
 
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition set to: %s", condition))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Reason set to: %s", reason))
+	logger.V(1).Info(fmt.Sprintf("NonAdminBackup Condition Message set to: %s", message))
 	return true, nil
 }
 
