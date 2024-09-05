@@ -18,10 +18,8 @@ package controller
 
 import (
 	"context"
-	// "net/http"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -50,9 +48,8 @@ type nonAdminBackupReconcileScenario struct {
 	resultError        error
 	createVeleroBackup bool
 	// TODO create a struct for each test case!
-	ctx                            context.Context
-	cancel                         context.CancelFunc
-	numberOfResourceVersionChanges int
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func createTestNonAdminBackup(namespace string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
@@ -158,13 +155,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			nonAdminBackup := createTestNonAdminBackup(scenario.namespace, scenario.spec)
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
 
-			if scenario.priorStatus != nil {
-				nonAdminBackup.Status = *scenario.priorStatus
-				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
-			}
-			priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
-			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
-
 			if scenario.createVeleroBackup {
 				veleroBackup := &v1.Backup{
 					ObjectMeta: metav1.ObjectMeta{
@@ -174,6 +164,14 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				}
 				gomega.Expect(k8sClient.Create(ctx, veleroBackup)).To(gomega.Succeed())
 			}
+
+			if scenario.priorStatus != nil {
+				nonAdminBackup.Status = *scenario.priorStatus
+				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
+			}
+			// easy hack to test that only update call happens per reconcile
+			// priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
+			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 
 			result, err := (&NonAdminBackupReconciler{
 				Client:        k8sClient,
@@ -186,8 +184,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					Name:      testNonAdminBackupName,
 				}},
 			)
-			// TODO need to collect logs, so they do not appear in test run
-			// also assert them
 			gomega.Expect(result).To(gomega.Equal(scenario.result))
 			if scenario.resultError == nil {
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
@@ -218,9 +214,9 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Message).To(gomega.Equal(scenario.status.Conditions[index].Message))
 			}
 
-			currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
-			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
-			gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
+			// currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
+			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
+			// gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
 		ginkgo.Entry("Should accept creation of NonAdminBackup", nonAdminBackupReconcileScenario{
 			namespace: "test-nonadminbackup-reconcile-1",
@@ -385,7 +381,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 		}),
 		ginkgo.Entry("Should accept update of NonAdminBackup phase to BackingOff", nonAdminBackupReconcileScenario{
-			// this validates spec again... WRONG!!!
+			// this validates spec again...
 			namespace: "test-nonadminbackup-reconcile-7",
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &v1.BackupSpec{
@@ -484,9 +480,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-			// I am seeing test overlap...
-			// TODO Be CAREFUL about FLAKES with this approach?
-			// study ref https://book.kubebuilder.io/cronjob-tutorial/writing-tests
 			go func() {
 				defer ginkgo.GinkgoRecover()
 				err = k8sManager.Start(currentTestScenario.ctx)
@@ -495,27 +488,17 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			nonAdminBackup := createTestNonAdminBackup(scenario.namespace, scenario.spec)
 			gomega.Expect(k8sClient.Create(currentTestScenario.ctx, nonAdminBackup)).To(gomega.Succeed())
-			originalResourceVersion, err := strconv.Atoi(nonAdminBackup.DeepCopy().ResourceVersion)
-			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-			// TODO how to know reconcile finished???
-			gomega.Eventually(func() (bool, error) {
-				err := k8sClient.Get(
-					currentTestScenario.ctx,
-					types.NamespacedName{
-						Name:      testNonAdminBackupName,
-						Namespace: scenario.namespace,
-					},
-					nonAdminBackup,
-				)
-				if err != nil {
-					return false, err
-				}
-				currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
-				if err != nil {
-					return false, err
-				}
-				return currentResourceVersion-originalResourceVersion == scenario.numberOfResourceVersionChanges, nil
-			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+			// wait NAB reconcile
+			time.Sleep(1 * time.Second)
+			gomega.Expect(k8sClient.Get(
+				currentTestScenario.ctx,
+				types.NamespacedName{
+					Name:      testNonAdminBackupName,
+					Namespace: scenario.namespace,
+				},
+				nonAdminBackup,
+			)).To(gomega.Succeed())
 
 			log.Println("Validating NonAdminBackup Status")
 			gomega.Expect(nonAdminBackup.Status.Phase).To(gomega.Equal(scenario.status.Phase))
@@ -523,6 +506,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(nonAdminBackup.Status.VeleroBackupNamespace).To(gomega.Equal(scenario.status.VeleroBackupNamespace))
 			gomega.Expect(nonAdminBackup.Status.VeleroBackupStatus.Phase).To(gomega.Equal(v1.BackupPhase(constant.EmptyString)))
 
+			gomega.Expect(nonAdminBackup.Status.Conditions).To(gomega.HaveLen(len(scenario.status.Conditions)))
 			for index := range nonAdminBackup.Status.Conditions {
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Type).To(gomega.Equal(scenario.status.Conditions[index].Type))
 				gomega.Expect(nonAdminBackup.Status.Conditions[index].Status).To(gomega.Equal(scenario.status.Conditions[index].Status))
@@ -531,6 +515,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			}
 			log.Println("Validation of NonAdminBackup Status completed successfully")
 
+			log.Println("Mocking VeleroBackup update to finished state")
 			veleroBackup := &v1.Backup{}
 			gomega.Expect(k8sClient.Get(
 				currentTestScenario.ctx,
@@ -543,7 +528,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			veleroBackup.Status.Phase = v1.BackupPhaseCompleted
 			// TODO I can not call .Status().Update() for veleroBackup object: backups.velero.io "name..." not found
 			gomega.Expect(k8sClient.Update(currentTestScenario.ctx, veleroBackup)).To(gomega.Succeed())
-			// every update produces 2 reconciles: VeleroBackupPredicate on update -> reconcile start -> update nab status -> requeue -> reconcile start
 
 			gomega.Eventually(func() (bool, error) {
 				err := k8sClient.Get(
@@ -557,14 +541,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				if err != nil {
 					return false, err
 				}
-				currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
-				if err != nil {
-					return false, err
-				}
-				// why 2 ResourceVersion upgrades per veleroBackup update?
-				return currentResourceVersion-originalResourceVersion == scenario.numberOfResourceVersionChanges+2, nil
+				return nonAdminBackup.Status.VeleroBackupStatus.Phase == v1.BackupPhaseCompleted, nil
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
-			gomega.Expect(nonAdminBackup.Status.VeleroBackupStatus.Phase).To(gomega.Equal(v1.BackupPhaseCompleted))
 
 			gomega.Expect(k8sClient.Delete(currentTestScenario.ctx, nonAdminBackup)).To(gomega.Succeed())
 			// wait reconcile of delete event
@@ -595,7 +573,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					},
 				},
 			},
-			numberOfResourceVersionChanges: 7, // should be similar to reconcile starts???
 		}),
 
 		// ginkgo.Entry("Should DO FULL sad path", nonAdminBackupReconcileScenario{

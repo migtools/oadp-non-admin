@@ -23,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
 // VeleroBackupPredicate contains event filters for Velero Backup objects
@@ -30,6 +32,7 @@ type VeleroBackupPredicate struct {
 	// We are watching only Velero Backup objects within
 	// namespace where OADP is.
 	OadpVeleroNamespace string
+	Logger              logr.Logger
 }
 
 // TODO try to remove calls to get logger functions, try to initialize it
@@ -38,8 +41,17 @@ func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.
 }
 
 // Create event filter
-func (VeleroBackupPredicate) Create(_ context.Context, _ event.CreateEvent) bool {
-	return false
+func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
+	nameSpace := evt.Object.GetNamespace()
+	if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
+		return false
+	}
+
+	name := evt.Object.GetName()
+	logger := getBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("VeleroBackupPredicate: Received Create event")
+
+	return function.CheckVeleroBackupLabels(evt.Object.GetLabels())
 }
 
 // Update event filter
@@ -48,10 +60,7 @@ func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, e
 	name := evt.ObjectNew.GetName()
 	logger := getBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
-	// TODO log accepted or not
-	// should not check labels?
 	return nameSpace == veleroBackupPredicate.OadpVeleroNamespace
-	// refactor idea, move all validation to a function, predicate functions would just need to call it and log info
 }
 
 // Delete event filter

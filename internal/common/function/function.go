@@ -170,7 +170,6 @@ func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, 
 	logger.V(1).Info("NonAdminBackup BackupStatus - up to date")
 
 	// Check if BackupSpec needs to be updated
-	// avoid spec change?
 	if !reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
 		nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
 		if err := r.Update(ctx, nab); err != nil {
@@ -185,8 +184,6 @@ func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, 
 	return false, nil
 }
 
-// TODO not used
-
 // CheckVeleroBackupLabels return true if Velero Backup object has required Non Admin labels, false otherwise
 func CheckVeleroBackupLabels(labels map[string]string) bool {
 	// TODO also need to check for constant.OadpLabel label?
@@ -200,8 +197,6 @@ func CheckVeleroBackupLabels(labels map[string]string) bool {
 func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1api.Backup) (*nacv1alpha1.NonAdminBackup, error) {
 	// Check if the backup has the required annotations to identify the associated NonAdminBackup object
 	logger := log.FromContext(ctx)
-
-	// should run CheckVeleroBackupLabels here?
 
 	annotations := backup.GetAnnotations()
 

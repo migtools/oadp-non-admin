@@ -37,10 +37,13 @@ type CompositePredicate struct {
 func (p CompositePredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
+		// Apply NonAdminBackupPredicate
 		return p.NonAdminBackupPredicate.Create(p.Context, evt)
 	case *velerov1api.Backup:
+		// Apply VeleroBackupPredicate
 		return p.VeleroBackupPredicate.Create(p.Context, evt)
 	default:
+		// Unknown object type, return false
 		return false
 	}
 }

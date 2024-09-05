@@ -31,15 +31,20 @@ import (
 )
 
 // VeleroBackupHandler contains event handlers for Velero Backup objects
-type VeleroBackupHandler struct{}
+type VeleroBackupHandler struct {
+	Logger logr.Logger
+}
 
 func getVeleroBackupHandlerLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("VeleroBackupHandler", types.NamespacedName{Name: name, Namespace: namespace})
 }
 
 // Create event handler
-func (*VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
-	// Create event handler for the Backup object
+func (*VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, _ workqueue.RateLimitingInterface) {
+	nameSpace := evt.Object.GetNamespace()
+	name := evt.Object.GetName()
+	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
+	logger.V(1).Info("Received Create VeleroBackupHandler")
 }
 
 // Update event handler
@@ -50,6 +55,7 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 	logger.V(1).Info("Received Update VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
+
 	if annotations == nil {
 		logger.V(1).Info("Backup annotations not found")
 		return
@@ -66,9 +72,6 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 		logger.V(1).Info("Backup NonAdminBackup origin name annotation not found")
 		return
 	}
-
-	// TODO use GetNonAdminBackupFromVeleroBackup here
-	// check if I need more log here or in velero predicate
 
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 		Name:      nabOriginName,

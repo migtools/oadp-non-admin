@@ -29,7 +29,9 @@ import (
 )
 
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
-type NonAdminBackupPredicate struct{}
+type NonAdminBackupPredicate struct {
+	Logger logr.Logger
+}
 
 func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
 	return log.FromContext(ctx).WithValues("NonAdminBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
@@ -40,8 +42,15 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 	nameSpace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
-	logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
-	return true
+	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
+	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
+		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
+			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
+			return true
+		}
+	}
+	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Create event")
+	return false
 }
 
 // Update event filter
@@ -49,6 +58,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	nameSpace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
 
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
 		logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - generation change")
@@ -62,18 +72,16 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 
 			// New phase set, reconcile
 			if oldPhase == constant.EmptyString && newPhase != constant.EmptyString {
-				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase change")
+				logger.V(1).Info("NonAdminBsackupPredicate: Accepted Update event - phase change")
 				return true
 			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
-				// This is HARD to understand and TEST
-				// even though reconcile will reach Reconcile loop end
-				// this will trigger a new reconcile
 				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
 				return true
 			}
 		}
 	}
 	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Update event")
+
 	return false
 }
 
@@ -92,6 +100,5 @@ func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEve
 	name := evt.Object.GetName()
 	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
 	logger.V(1).Info("NonAdminBackupPredicate: Accepted Generic event")
-	// refactor: all functions start the same way, move this initialization to a separate function
 	return true
 }
