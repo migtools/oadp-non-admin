@@ -17,7 +17,11 @@ limitations under the License.
 // Package constant contains all common constants used in the project
 package constant
 
-import "os"
+import (
+	"os"
+
+	"github.com/migtools/oadp-non-admin/internal/common/types"
+)
 
 // Common labels for objects manipulated by the Non Admin Controller
 // Labels should be used to identify the NAC object
@@ -35,6 +39,15 @@ const (
 // Common environment variables for the Non Admin Controller
 const (
 	NamespaceEnvVar = "WATCH_NAMESPACE"
+)
+
+// Predefined conditions for NonAdminBackup.
+// One NonAdminBackup object may have multiple conditions.
+// It is more granular knowledge of the NonAdminBackup object and represents the
+// array of the conditions through which the NonAdminBackup has or has not passed
+const (
+	NonAdminConditionAccepted types.NonAdminCondition = "Accepted"
+	NonAdminConditionQueued   types.NonAdminCondition = "Queued"
 )
 
 // OadpNamespace is the namespace OADP operator is installed

@@ -98,7 +98,8 @@ func main() {
 		TLSOpts: tlsOpts,
 	})
 
-	if len(constant.OadpNamespace) == 0 {
+	// TODO create get function in common :question:
+	if len(os.Getenv(constant.NamespaceEnvVar)) == 0 {
 		setupLog.Error(fmt.Errorf("%v environment variable is empty", constant.NamespaceEnvVar), "environment variable must be set")
 		os.Exit(1)
 	}
@@ -136,6 +137,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
+		os.Exit(1)
+	}
+	if err = (&controller.NonAdminRestoreReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NonAdminRestore")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

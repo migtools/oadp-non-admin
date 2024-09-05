@@ -1,0 +1,23 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: sample-nonadminrestore
+objects:
+  - apiVersion: nac.oadp.openshift.io/v1alpha1
+    kind: NonAdminRestore
+    metadata:
+      name: nonadminrestore-sample-${SUFFIX}
+      namespace: ${NAMESPACE}
+    spec:
+      restoreSpec:
+        backupName: ${NAME}
+parameters:
+  - description: NonAdminRestore suffix
+    from: '[a-z0-9]{8}'
+    generate: expression
+    name: SUFFIX
+  - description: NonAdminRestore namespace
+    name: NAMESPACE
+    value: mysql-persistent
+  - description: NonAdminBackup name
+    name: NAME

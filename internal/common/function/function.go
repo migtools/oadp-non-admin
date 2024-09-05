@@ -29,12 +29,13 @@ import (
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/types"
 )
 
 const requiredAnnotationError = "backup does not have the required annotation '%s'"
@@ -145,7 +146,7 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 }
 
 // UpdateNonAdminPhase updates the phase of a NonAdminBackup object with the provided phase.
-func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, phase nacv1alpha1.NonAdminBackupPhase) (bool, error) {
+func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, phase nacv1alpha1.NonAdminPhase) (bool, error) {
 	if nab == nil {
 		return false, errors.New("NonAdminBackup object is nil")
 	}
@@ -177,7 +178,7 @@ func UpdateNonAdminPhase(ctx context.Context, r client.Client, logger logr.Logge
 // based on the provided parameters. It validates the input parameters and ensures
 // that the condition is set to the desired status only if it differs from the current status.
 // If the condition is already set to the desired status, no update is performed.
-func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition nacv1alpha1.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
+func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, condition types.NonAdminCondition, conditionStatus metav1.ConditionStatus, reason string, message string) (bool, error) {
 	if nab == nil {
 		return false, errors.New("NonAdminBackup object is nil")
 	}
@@ -306,7 +307,7 @@ func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance clien
 		return nil, fmt.Errorf(requiredAnnotationError, constant.NabOriginNameAnnotation)
 	}
 
-	nonAdminBackupKey := types.NamespacedName{
+	nonAdminBackupKey := apitypes.NamespacedName{
 		Namespace: nabOriginNamespace,
 		Name:      nabOriginName,
 	}
@@ -322,7 +323,7 @@ func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance clien
 		return nil, fmt.Errorf(requiredAnnotationError, constant.NabOriginUUIDAnnotation)
 	}
 	// Ensure UID matches
-	if nonAdminBackup.ObjectMeta.UID != types.UID(nabOriginUUID) {
+	if nonAdminBackup.ObjectMeta.UID != apitypes.UID(nabOriginUUID) {
 		return nil, fmt.Errorf("UID from annotation does not match UID of fetched NonAdminBackup object")
 	}
 

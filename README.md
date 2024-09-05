@@ -38,6 +38,8 @@ To use NAC functionality:
         ```
 
         Check the application was successful deployed by accessing its route.
+
+        Create and update items in application UI, to later check if application was successfully restored.
     - create NonAdminBackup
 
         For example, use one of the sample NonAdminBackup available in `hack/samples/backups/` folder, by running
@@ -47,7 +49,28 @@ To use NAC functionality:
             | oc create -f -
         ```
         <!-- TODO how to track status -->
-    - TODO NonAdminRestore
+    - delete sample application
+
+        For example, delete one of the sample applications available in `hack/samples/apps/` folder, by running
+        ```sh
+        oc process -f ./hack/samples/apps/<name> \
+            -p NAMESPACE=<non-admin-user-namespace> \
+            | oc delete -f -
+        ```
+
+        Check that application was successful deleted by accessing its route.
+    - create NonAdminRestore
+
+        For example, use one of the sample NonAdminRestore available in `hack/samples/restores/` folder, by running
+        ```sh
+        oc process -f ./hack/samples/restores/<type> \
+            -p NAMESPACE=<non-admin-user-namespace> \
+            -p NAME=<NonAdminBackup-name> \
+            | oc create -f -
+        ```
+        <!-- TODO how to track status -->
+
+        After NonAdminRestore completes, check if the application was successful restored by accessing its route and seeing its items in application UI.
 
 ## Contributing
 
