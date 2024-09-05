@@ -50,9 +50,8 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - **OADP installed**: OADP Operator must be installed and configured to use non-admin controller
 - **Non Admin Controller configured**: Data Protection Application (DPA) instance must configure Non Admin Controller to watch user namespace(s), by default it watches all Namespaces
 - **RBAC privileges for the user**: User must have the appropriate RBAC privileges to create Non Admin objects within the Namespace where Backup will be taken. An example of such ClusterRole, which may be added to the user with `RoleBinding`:
-//TODO: This should be a Role ?
     ```yaml
-    # permissions for end users to edit nonadminbackups.
+    # permissions for end users to edit non-admin custom resources.
     apiVersion: rbac.authorization.k8s.io/v1
     kind: ClusterRole
     metadata:
@@ -96,21 +95,16 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - **OADP Operator:** OADP is the OpenShift API for Data Protection operator. This open source operator sets up and installs Velero on the OpenShift platform, allowing users to backup and restore applications.
 - **Controllers:** The Non-Admin controller will pack the following controllers as part of it:
     - **Non-Admin Backup (NAB) Controller:** The responsibilities of the NAB controller are:
-        - Validate whether the non-admin user has appropriate administrative namespace access
-        - Validate whether the non-admin user has appropriate access to create/view/delete Non-Admin Backup CR
         - Listen to requests pertaining to Non-Admin Backup CRD
         - Process requests pertaining to Non-Admin Backup CRD
         - Update Non-Admin Backup CR status with the status/events from Velero Backup CR
         - Cascade Any actions performed on Non-Admin Backup CR to corresponding Velero backup CR
     - **Non-Admin Restore (NAR) Controller:** The responsibilities of the NAR controller are:
-        - Validate whether the non-admin user has appropriate administrative namespace access
-        - Validate whether the non-admin user has appropriate access to create/view/delete Non-Admin Restore CR
         - Listen to requests pertaining to Non-Admin Restore CRD
         - Process requests pertaining to Non-Admin Restore CRD
         - Update Non-Admin Backup CR status with the status/events from Velero Restore CR
         - Cascade Any actions performed on Non-Admin Restore CR to corresponding Velero restore CR
     - **Non-Admin BackupStorageLocation (NABSL) controller:** The responsibilities of the NABSL controller are:
-        - Validate whether the non-admin user has appropriate access to create/view/delete Non-Admin BSL CR
         - Listen to requests pertaining to Non-Admin BSL CRD
         - Process requests pertaining to Non-Admin BSL CRD
         - The NABSL controller would cascade the BSL request to Velero controller
@@ -158,8 +152,8 @@ This design intends to enable non-admin users the ability to perform Backup and 
     - **Velero runs Backup**: Velero executes the backup operation based on the configuration specified in the Velero Backup object. Velero updates the status of the Velero Backup object to reflect the outcome of the backup process.
     - **Reconcile loop updates NonAdminBackup object Status**: Upon detecting changes in the status of the Velero Backup object, the NonAdminBackup controller's reconciliation loop updates the Status field of the corresponding NonAdminBackup object with the updated status from the Velero Backup object.
 
-![NAB-Backup Workflow Diagram](nab-backup-workflow.jpg)
-![NAB-Controller Backup Details Diagram](Backup-Workflow-Details.jpg)
+![NAB-Backup Workflow Diagram](../images/nab-backup-workflow.jpg)
+![NAB-Controller Backup Details Diagram](../images/Backup-Workflow-Details.jpg)
 
 #### Restore Workflow
 - **Namespace exists:** Hard precondition that the NS exists and non-admin user has the appropriate access
