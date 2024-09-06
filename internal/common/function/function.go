@@ -23,9 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"reflect"
 
-	"github.com/go-logr/logr"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -143,45 +141,6 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 	}
 
 	return veleroBackupName
-}
-
-// UpdateNonAdminBackupFromVeleroBackup update, if necessary, NonAdminBackup object fields related to referenced Velero Backup object, if no error occurs
-func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) (bool, error) {
-	logger.V(1).Info("NonAdminBackup BackupSpec and VeleroBackupStatus - request to update")
-
-	if reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) && reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
-		// No change, no need to update
-		logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - nothing to update")
-		return false, nil
-	}
-
-	// Check if BackupStatus needs to be updated
-	if !reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) || nab.Status.VeleroBackupName != veleroBackup.Name || nab.Status.VeleroBackupNamespace != veleroBackup.Namespace {
-		nab.Status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
-		nab.Status.VeleroBackupName = veleroBackup.Name
-		nab.Status.VeleroBackupNamespace = veleroBackup.Namespace
-		if err := r.Status().Update(ctx, nab); err != nil {
-			logger.Error(err, "NonAdminBackup BackupStatus - Failed to update")
-			return false, err
-		}
-		logger.V(1).Info("NonAdminBackup BackupStatus - updated")
-		return true, nil
-	}
-	logger.V(1).Info("NonAdminBackup BackupStatus - up to date")
-
-	// Check if BackupSpec needs to be updated
-	if !reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
-		nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
-		if err := r.Update(ctx, nab); err != nil {
-			logger.Error(err, "NonAdminBackup BackupSpec - Failed to update")
-			return false, err
-		}
-		logger.V(1).Info("NonAdminBackup BackupSpec - updated")
-		return true, nil
-	}
-	logger.V(1).Info("NonAdminBackup BackupSpec - up to date")
-
-	return false, nil
 }
 
 // CheckVeleroBackupLabels return true if Velero Backup object has required Non Admin labels, false otherwise
