@@ -91,8 +91,8 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
 func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
 	// TODO https://github.com/migtools/oadp-non-admin/issues/60
+	// this should be Kubernetes API validation
 	if nonAdminBackup.Spec.BackupSpec == nil {
-		// this should be Kubernetes API validation
 		return nil, fmt.Errorf("BackupSpec is not defined")
 	}
 
