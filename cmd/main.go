@@ -38,7 +38,6 @@ import (
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
-	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"github.com/migtools/oadp-non-admin/internal/controller"
 )
 
@@ -99,7 +98,7 @@ func main() {
 		TLSOpts: tlsOpts,
 	})
 
-	oadpNamespace := function.GetOADPNamespace()
+	oadpNamespace := os.Getenv(constant.NamespaceEnvVar)
 	if len(oadpNamespace) == 0 {
 		setupLog.Error(fmt.Errorf("%v environment variable is empty", constant.NamespaceEnvVar), "environment variable must be set")
 		os.Exit(1)

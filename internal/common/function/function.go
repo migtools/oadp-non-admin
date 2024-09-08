@@ -22,7 +22,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,11 +33,6 @@ import (
 )
 
 const requiredAnnotationError = "backup does not have the required annotation '%s'"
-
-// GetOADPNamespace get the namespace OADP operator is installed
-func GetOADPNamespace() string {
-	return os.Getenv(constant.NamespaceEnvVar)
-}
 
 // AddNonAdminLabels return a map with both the object labels and with the default Non Admin labels.
 // If error occurs, a map with only the default Non Admin labels is returned

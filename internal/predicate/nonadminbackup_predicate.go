@@ -72,7 +72,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 
 			// New phase set, reconcile
 			if oldPhase == constant.EmptyString && newPhase != constant.EmptyString {
-				logger.V(1).Info("NonAdminBsackupPredicate: Accepted Update event - phase change")
+				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase change")
 				return true
 			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
 				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
