@@ -177,7 +177,7 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 				Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 				Status:  metav1.ConditionFalse,
 				Reason:  "InvalidBackupSpec",
-				Message: "NonAdminBackup does not contain valid Spec",
+				Message: err.Error(),
 			},
 		)
 		if updated {
@@ -196,7 +196,7 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 			Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 			Status:  metav1.ConditionTrue,
 			Reason:  "BackupAccepted",
-			Message: "Backup accepted",
+			Message: "backup accepted",
 		},
 	)
 	if updated {
