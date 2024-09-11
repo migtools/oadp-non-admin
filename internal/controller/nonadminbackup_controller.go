@@ -73,7 +73,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	err := r.Get(ctx, req.NamespacedName, &nab)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.V(1).Info("NonAdminBackup was deleted")
+			logger.V(1).Info(err.Error())
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Unable to fetch NonAdminBackup")
