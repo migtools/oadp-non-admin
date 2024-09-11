@@ -42,13 +42,13 @@ func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.
 
 // Create event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	nameSpace := evt.Object.GetNamespace()
-	if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
+	namespace := evt.Object.GetNamespace()
+	if namespace != veleroBackupPredicate.OadpVeleroNamespace {
 		return false
 	}
 
 	name := evt.Object.GetName()
-	logger := getBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("VeleroBackupPredicate: Received Create event")
 
 	return function.CheckVeleroBackupLabels(evt.Object.GetLabels())
@@ -56,11 +56,11 @@ func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, e
 
 // Update event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	nameSpace := evt.ObjectNew.GetNamespace()
+	namespace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
-	logger := getBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
-	return nameSpace == veleroBackupPredicate.OadpVeleroNamespace
+	return namespace == veleroBackupPredicate.OadpVeleroNamespace
 }
 
 // Delete event filter

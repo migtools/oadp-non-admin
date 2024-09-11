@@ -39,9 +39,9 @@ func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace strin
 
 // Create event filter
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	nameSpace := evt.Object.GetNamespace()
+	namespace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
 	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
 		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
@@ -55,9 +55,9 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 
 // Update event filter
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	nameSpace := evt.ObjectNew.GetNamespace()
+	namespace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
 
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
@@ -87,18 +87,18 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 
 // Delete event filter
 func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
-	nameSpace := evt.Object.GetNamespace()
+	namespace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("NonAdminBackupPredicate: Accepted Delete event")
 	return true
 }
 
 // Generic event filter
 func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEvent) bool {
-	nameSpace := evt.Object.GetNamespace()
+	namespace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("NonAdminBackupPredicate: Accepted Generic event")
 	return true
 }

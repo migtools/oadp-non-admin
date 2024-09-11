@@ -41,17 +41,17 @@ func getVeleroBackupHandlerLogger(ctx context.Context, name, namespace string) l
 
 // Create event handler
 func (*VeleroBackupHandler) Create(ctx context.Context, evt event.CreateEvent, _ workqueue.RateLimitingInterface) {
-	nameSpace := evt.Object.GetNamespace()
+	namespace := evt.Object.GetNamespace()
 	name := evt.Object.GetName()
-	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
+	logger := getVeleroBackupHandlerLogger(ctx, name, namespace)
 	logger.V(1).Info("Received Create VeleroBackupHandler")
 }
 
 // Update event handler
 func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	nameSpace := evt.ObjectNew.GetNamespace()
+	namespace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
-	logger := getVeleroBackupHandlerLogger(ctx, name, nameSpace)
+	logger := getVeleroBackupHandlerLogger(ctx, name, namespace)
 	logger.V(1).Info("Received Update VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
