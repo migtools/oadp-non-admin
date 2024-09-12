@@ -236,15 +236,15 @@ func UpdateNonAdminBackupCondition(ctx context.Context, r client.Client, logger 
 func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup, veleroBackup *velerov1api.Backup) (bool, error) {
 	logger.V(1).Info("NonAdminBackup BackupSpec and VeleroBackupStatus - request to update")
 
-	if reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) && reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
+	if reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
 		// No change, no need to update
 		logger.V(1).Info("NonAdminBackup BackupSpec and BackupStatus - nothing to update")
 		return false, nil
 	}
 
 	// Check if BackupStatus needs to be updated
-	if !reflect.DeepEqual(nab.Status.VeleroBackupStatus, &veleroBackup.Status) || nab.Status.VeleroBackupName != veleroBackup.Name || nab.Status.VeleroBackupNamespace != veleroBackup.Namespace {
-		nab.Status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
+	if !reflect.DeepEqual(nab.Status.VeleroBackupStatus, veleroBackup.Status) || nab.Status.VeleroBackupName != veleroBackup.Name || nab.Status.VeleroBackupNamespace != veleroBackup.Namespace {
+		nab.Status.VeleroBackupStatus = *veleroBackup.Status.DeepCopy()
 		nab.Status.VeleroBackupName = veleroBackup.Name
 		nab.Status.VeleroBackupNamespace = veleroBackup.Namespace
 		if err := r.Status().Update(ctx, nab); err != nil {

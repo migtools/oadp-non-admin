@@ -58,7 +58,7 @@ type NonAdminBackupStatus struct {
 
 	// VeleroBackupStatus captures the current status of a Velero backup.
 	// +optional
-	VeleroBackupStatus *velerov1api.BackupStatus `json:"veleroBackupStatus,omitempty"`
+	VeleroBackupStatus velerov1api.BackupStatus `json:"veleroBackupStatus,omitempty"`
 
 	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
 	Conditions []metav1.Condition  `json:"conditions,omitempty"`
