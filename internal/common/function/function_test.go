@@ -168,19 +168,20 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Nil(t, backupSpec)
 	assert.Equal(t, "nonAdminBackup is nil", err.Error())
 
-	// Test case: BackupSpec is nil
+	// Test case: BackupSpec is undefined
 	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
 		Spec: nacv1alpha1.NonAdminBackupSpec{
-			BackupSpec: nil,
+			BackupSpec: velerov1api.BackupSpec{},
 		},
 	}
 	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
-	assert.Error(t, err)
-	assert.Nil(t, backupSpec)
-	assert.Equal(t, "BackupSpec is not defined", err.Error())
+	assert.Nil(t, err)
+	assert.True(t, reflect.DeepEqual(backupSpec, &velerov1api.BackupSpec{
+		IncludedNamespaces: []string{nonAdminBackup.Namespace},
+	}))
 
 	// Test case: NonAdminBackup with valid BackupSpec
-	backupSpecInput := &velerov1api.BackupSpec{
+	backupSpecInput := velerov1api.BackupSpec{
 		IncludedNamespaces:      []string{"namespace1"},
 		StorageLocation:         "s3://bucket-name/path/to/backup",
 		VolumeSnapshotLocations: []string{"volume-snapshot-location"},
@@ -203,7 +204,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Equal(t, backupSpecInput.StorageLocation, backupSpec.StorageLocation)
 	assert.Equal(t, backupSpecInput.VolumeSnapshotLocations, backupSpec.VolumeSnapshotLocations)
 
-	backupSpecInput = &velerov1api.BackupSpec{
+	backupSpecInput = velerov1api.BackupSpec{
 		IncludedNamespaces: []string{"namespace2", "namespace3"},
 	}
 
@@ -221,7 +222,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Nil(t, backupSpec)
 	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace2", err.Error())
 
-	backupSpecInput = &velerov1api.BackupSpec{
+	backupSpecInput = velerov1api.BackupSpec{
 		IncludedNamespaces: []string{"namespace3"},
 	}
 

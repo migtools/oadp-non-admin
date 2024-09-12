@@ -37,7 +37,7 @@ const (
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
-	BackupSpec *velerov1api.BackupSpec `json:"backupSpec,omitempty"`
+	BackupSpec velerov1api.BackupSpec `json:"backupSpec,omitempty"`
 
 	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
 	// +optional

@@ -93,10 +93,6 @@ func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup)
 		return nil, fmt.Errorf("nonAdminBackup is nil")
 	}
 
-	if nonAdminBackup.Spec.BackupSpec == nil {
-		return nil, fmt.Errorf("BackupSpec is not defined")
-	}
-
 	veleroBackupSpec := nonAdminBackup.Spec.BackupSpec.DeepCopy()
 
 	// TODO: Additional validations, before continuing
@@ -258,7 +254,7 @@ func UpdateNonAdminBackupFromVeleroBackup(ctx context.Context, r client.Client, 
 
 	// Check if BackupSpec needs to be updated
 	if !reflect.DeepEqual(nab.Spec.BackupSpec, &veleroBackup.Spec) {
-		nab.Spec.BackupSpec = veleroBackup.Spec.DeepCopy()
+		nab.Spec.BackupSpec = *veleroBackup.Spec.DeepCopy()
 		if err := r.Update(ctx, nab); err != nil {
 			logger.Error(err, "NonAdminBackup BackupSpec - Failed to update")
 			return false, err
