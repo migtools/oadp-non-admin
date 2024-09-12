@@ -88,11 +88,7 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 }
 
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
-func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
-	if nonAdminBackup == nil {
-		return nil, fmt.Errorf("nonAdminBackup is nil")
-	}
-
+func GetBackupSpecFromNonAdminBackup(nonAdminBackup nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
 	veleroBackupSpec := nonAdminBackup.Spec.BackupSpec.DeepCopy()
 
 	// TODO: Additional validations, before continuing

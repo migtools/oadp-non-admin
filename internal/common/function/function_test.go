@@ -161,15 +161,17 @@ func TestAddNonAdminBackupAnnotations(t *testing.T) {
 }
 
 func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
-	// Test case: nonAdminBackup is nil
-	nonAdminBackup := (*nacv1alpha1.NonAdminBackup)(nil)
+	// Test case: nonAdminBackup is undefined
+	nonAdminBackup := nacv1alpha1.NonAdminBackup{}
 	backupSpec, err := GetBackupSpecFromNonAdminBackup(nonAdminBackup)
-	assert.Error(t, err)
-	assert.Nil(t, backupSpec)
-	assert.Equal(t, "nonAdminBackup is nil", err.Error())
+	assert.Nil(t, err)
+	assert.True(t, reflect.DeepEqual(backupSpec, &velerov1api.BackupSpec{
+		IncludedNamespaces: []string{nonAdminBackup.Namespace},
+	},
+	))
 
 	// Test case: BackupSpec is undefined
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup = nacv1alpha1.NonAdminBackup{
 		Spec: nacv1alpha1.NonAdminBackupSpec{
 			BackupSpec: velerov1api.BackupSpec{},
 		},
@@ -187,7 +189,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 		VolumeSnapshotLocations: []string{"volume-snapshot-location"},
 	}
 
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup = nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "namespace1", // Set the namespace of NonAdminBackup
 		},
@@ -208,7 +210,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 		IncludedNamespaces: []string{"namespace2", "namespace3"},
 	}
 
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup = nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "namespace2", // Set the namespace of NonAdminBackup
 		},
@@ -226,7 +228,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 		IncludedNamespaces: []string{"namespace3"},
 	}
 
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup = nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "namespace4", // Set the namespace of NonAdminBackup
 		},

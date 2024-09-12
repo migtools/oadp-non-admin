@@ -96,7 +96,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, &nab)
+	reconcileExit, reconcileRequeue, reconcileErr = r.ValidateVeleroBackupSpec(ctx, rLog, nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true, RequeueAfter: requeueTimeSeconds * time.Second}, reconcileErr
 	} else if reconcileExit && reconcileErr != nil {
@@ -164,7 +164,7 @@ func (r *NonAdminBackupReconciler) InitNonAdminBackup(ctx context.Context, logrL
 // and updates the corresponding condition accordingly.
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition to "InvalidBackupSpec".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition to "BackupAccepted".
-func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
 	logger := logrLogger.WithValues("ValidateVeleroBackupSpec", nab.Namespace)
 
 	// Main Validation point for the VeleroBackup included in NonAdminBackup spec
@@ -178,7 +178,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		}
 		logger.Error(err, errMsg)
 
-		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
+		updatedStatus, errUpdateStatus := function.UpdateNonAdminPhase(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminBackupPhaseBackingOff)
 		if errUpdateStatus != nil {
 			logger.Error(errUpdateStatus, "Unable to set NonAdminBackup Phase: BackingOff", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 			return true, false, errUpdateStatus
@@ -188,7 +188,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		}
 
 		// Continue. VeleroBackup looks fine, setting Accepted condition
-		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
+		updatedCondition, errUpdateCondition := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionFalse, "InvalidBackupSpec", errMsg)
 
 		if errUpdateCondition != nil {
 			logger.Error(errUpdateCondition, "Unable to set BackupAccepted Condition: False", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
@@ -201,7 +201,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 		return true, false, err
 	}
 
-	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
+	updatedStatus, errUpdateStatus := function.UpdateNonAdminBackupCondition(ctx, r.Client, logger, &nab, nacv1alpha1.NonAdminConditionAccepted, metav1.ConditionTrue, "BackupAccepted", "backup accepted")
 	if errUpdateStatus != nil {
 		logger.Error(errUpdateStatus, "Unable to set BackupAccepted Condition: True", nameField, nab.Name, constant.NameSpaceString, nab.Namespace)
 		return true, false, errUpdateStatus
@@ -215,6 +215,7 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 }
 
 // CreateVeleroBackupSpec creates or updates a Velero Backup object based on the provided NonAdminBackup object.
+// It also updates NonAdminBackup Status
 //
 // Parameters:
 //
@@ -226,6 +227,9 @@ func (r *NonAdminBackupReconciler) ValidateVeleroBackupSpec(ctx context.Context,
 // It then checks if a Velero Backup object with that name already exists. If it does not exist, it creates a new one.
 // The function returns boolean values indicating whether the reconciliation loop should exit or requeue
 func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+	if nab == nil {
+		return true, false, errors.New("unexpected nil nab")
+	}
 	logger := logrLogger.WithValues("CreateVeleroBackupSpec", nab.Namespace)
 
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
@@ -245,7 +249,7 @@ func (r *NonAdminBackupReconciler) CreateVeleroBackupSpec(ctx context.Context, l
 
 		// We don't validate error here.
 		// This was already validated in the ValidateVeleroBackupSpec
-		backupSpec, errBackup := function.GetBackupSpecFromNonAdminBackup(nab)
+		backupSpec, errBackup := function.GetBackupSpecFromNonAdminBackup(*nab)
 
 		if errBackup != nil {
 			// Should never happen as it was already checked
