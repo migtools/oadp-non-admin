@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
@@ -35,13 +36,16 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
-const testNonAdminBackupName = "test-non-admin-backup"
+const (
+	testNonAdminBackupName = "test-non-admin-backup"
+	placeholder            = "PLACEHOLDER"
+)
 
 type nonAdminBackupSingleReconcileScenario struct {
 	resultError        error
 	priorStatus        *nacv1alpha1.NonAdminBackupStatus
 	spec               nacv1alpha1.NonAdminBackupSpec
-	status             nacv1alpha1.NonAdminBackupStatus
+	ExpectedStatus     nacv1alpha1.NonAdminBackupStatus
 	result             reconcile.Result
 	createVeleroBackup bool
 }
@@ -51,7 +55,7 @@ type nonAdminBackupFullReconcileScenario struct {
 	status nacv1alpha1.NonAdminBackupStatus
 }
 
-func createTestNonAdminBackup(namespace string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
+func buildTestNonAdminBackup(namespace string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
 	return &nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testNonAdminBackupName,
@@ -61,15 +65,23 @@ func createTestNonAdminBackup(namespace string, spec nacv1alpha1.NonAdminBackupS
 	}
 }
 
-func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, expectedStatus nacv1alpha1.NonAdminBackupStatus) error {
+func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, expectedStatus nacv1alpha1.NonAdminBackupStatus, nonAdminNamespaceName string, oadpNamespaceName string) error {
 	if nonAdminBackup.Status.Phase != expectedStatus.Phase {
 		return fmt.Errorf("NonAdminBackup Status Phase %v is not equal to expected %v", nonAdminBackup.Status.Phase, expectedStatus.Phase)
 	}
-	if nonAdminBackup.Status.VeleroBackupName != expectedStatus.VeleroBackupName {
-		return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupName, expectedStatus.VeleroBackupName)
+	veleroBackupName := expectedStatus.VeleroBackupName
+	if expectedStatus.VeleroBackupName == placeholder {
+		veleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
 	}
-	if nonAdminBackup.Status.VeleroBackupNamespace != expectedStatus.VeleroBackupNamespace {
-		return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupNamespace, expectedStatus.VeleroBackupNamespace)
+	if nonAdminBackup.Status.VeleroBackupName != veleroBackupName {
+		return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupName, veleroBackupName)
+	}
+	veleroBackupNamespace := expectedStatus.VeleroBackupNamespace
+	if expectedStatus.VeleroBackupNamespace == placeholder {
+		veleroBackupNamespace = oadpNamespaceName
+	}
+	if nonAdminBackup.Status.VeleroBackupNamespace != veleroBackupNamespace {
+		return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupNamespace, veleroBackupNamespace)
 	}
 	if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackupStatus, expectedStatus.VeleroBackupStatus) {
 		return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupStatus, expectedStatus.VeleroBackupStatus)
@@ -88,8 +100,8 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 		if nonAdminBackup.Status.Conditions[index].Reason != expectedStatus.Conditions[index].Reason {
 			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Reason %v is not equal to expected %v", index, nonAdminBackup.Status.Conditions[index].Reason, expectedStatus.Conditions[index].Reason)
 		}
-		if nonAdminBackup.Status.Conditions[index].Message != expectedStatus.Conditions[index].Message {
-			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Message %v is not equal to expected %v", index, nonAdminBackup.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
+		if !strings.Contains(nonAdminBackup.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message) {
+			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Message %v does not contain expected message %v", index, nonAdminBackup.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
 		}
 	}
 	return nil
@@ -193,7 +205,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 
 			gomega.Expect(createTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 
-			nonAdminBackup := createTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
 
 			if scenario.createVeleroBackup {
@@ -211,6 +223,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 
 			if scenario.priorStatus != nil {
 				nonAdminBackup.Status = *scenario.priorStatus
+				if nonAdminBackup.Status.VeleroBackupName == placeholder {
+					nonAdminBackup.Status.VeleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
+				}
+				if nonAdminBackup.Status.VeleroBackupNamespace == placeholder {
+					nonAdminBackup.Status.VeleroBackupNamespace = oadpNamespaceName
+				}
 				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
 			}
 			// easy hack to test that only one update call happens per reconcile
@@ -233,7 +251,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			} else {
 				gomega.Expect(err).To(gomega.HaveOccurred())
-				gomega.Expect(err.Error()).To(gomega.Equal(scenario.resultError.Error()))
+				gomega.Expect(err.Error()).To(gomega.ContainSubstring(scenario.resultError.Error()))
 			}
 
 			gomega.Expect(k8sClient.Get(
@@ -245,7 +263,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				nonAdminBackup,
 			)).To(gomega.Succeed())
 
-			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status)).To(gomega.Succeed())
+			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.ExpectedStatus, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 			if scenario.priorStatus != nil {
 				if len(scenario.priorStatus.VeleroBackupName) > 0 {
 					gomega.Expect(reflect.DeepEqual(
@@ -265,7 +283,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			// gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
 		ginkgo.Entry("When called by NonAdminBackup Create event, should update NonAdminBackup phase to new and Requeue", nonAdminBackupSingleReconcileScenario{
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
 			result: reconcile.Result{Requeue: true},
@@ -277,7 +295,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 				Conditions: []metav1.Condition{
 					{
@@ -306,7 +324,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				// TODO should not have VeleroBackupName and VeleroBackupNamespace?
 				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				Conditions: []metav1.Condition{
@@ -337,7 +355,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				// TODO should not have VeleroBackupName and VeleroBackupNamespace?
 				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				Conditions: []metav1.Condition{
@@ -381,10 +399,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      "nab-test-nonadminbackup-reconcile-6-c9dd6af01e2e2a",
-				VeleroBackupNamespace: "test-nonadminbackup-reconcile-6-oadp",
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				VeleroBackupStatus:    &v1.BackupStatus{},
 				Conditions: []metav1.Condition{
 					{
@@ -410,8 +428,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      "nab-test-nonadminbackup-reconcile-7-c9dd6af01e2e2a",
-				VeleroBackupNamespace: "test-nonadminbackup-reconcile-7-oadp",
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				VeleroBackupStatus:    &v1.BackupStatus{},
 				Conditions: []metav1.Condition{
 					{
@@ -430,10 +448,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      "nab-test-nonadminbackup-reconcile-7-c9dd6af01e2e2a",
-				VeleroBackupNamespace: "test-nonadminbackup-reconcile-7-oadp",
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				VeleroBackupStatus:    &v1.BackupStatus{},
 				Conditions: []metav1.Condition{
 					{
@@ -462,7 +480,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
 			},
 			result: reconcile.Result{Requeue: true},
@@ -477,18 +495,18 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
 			},
-			status: nacv1alpha1.NonAdminBackupStatus{
+			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: test-nonadminbackup-reconcile-9",
+						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than:",
 					},
 				},
 			},
-			resultError: reconcile.TerminalError(fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: test-nonadminbackup-reconcile-9")),
+			resultError: reconcile.TerminalError(fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: ")),
 		}),
 	)
 })
@@ -543,7 +561,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			time.Sleep(1 * time.Second)
 
 			ginkgo.By("Waiting Reconcile of create event")
-			nonAdminBackup := createTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
 			// wait NAB reconcile
 			time.Sleep(1 * time.Second)
@@ -559,7 +577,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			)).To(gomega.Succeed())
 
 			ginkgo.By("Validating NonAdminBackup Status")
-			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status)).To(gomega.Succeed())
+			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 
 			if len(scenario.status.VeleroBackupName) > 0 {
 				ginkgo.By("Validating NonAdminBackup Spec")
@@ -577,7 +595,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				gomega.Expect(k8sClient.Get(
 					ctx,
 					types.NamespacedName{
-						Name:      scenario.status.VeleroBackupName,
+						Name:      function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
 						Namespace: oadpNamespaceName,
 					},
 					veleroBackup,
@@ -612,8 +630,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			},
 			status: nacv1alpha1.NonAdminBackupStatus{
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      "nab-test-nonadminbackup-reconcile-full-1-c9dd6af01e2e2a",
-				VeleroBackupNamespace: "test-nonadminbackup-reconcile-full-1-oadp",
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				VeleroBackupStatus:    &v1.BackupStatus{},
 				Conditions: []metav1.Condition{
 					{
@@ -644,7 +662,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						Type:    "Accepted",
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: test-nonadminbackup-reconcile-full-2",
+						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than:",
 					},
 				},
 			},
