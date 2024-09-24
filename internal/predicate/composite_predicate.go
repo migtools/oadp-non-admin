@@ -37,13 +37,8 @@ type CompositePredicate struct {
 func (p CompositePredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
-		// Apply NonAdminBackupPredicate
 		return p.NonAdminBackupPredicate.Create(p.Context, evt)
-	case *velerov1.Backup:
-		// Apply VeleroBackupPredicate
-		return p.VeleroBackupPredicate.Create(p.Context, evt)
 	default:
-		// Unknown object type, return false
 		return false
 	}
 }
@@ -65,21 +60,12 @@ func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Delete(p.Context, evt)
-	case *velerov1.Backup:
-		return p.VeleroBackupPredicate.Delete(p.Context, evt)
 	default:
 		return false
 	}
 }
 
 // Generic event filter
-func (p CompositePredicate) Generic(evt event.GenericEvent) bool {
-	switch evt.Object.(type) {
-	case *nacv1alpha1.NonAdminBackup:
-		return p.NonAdminBackupPredicate.Generic(p.Context, evt)
-	case *velerov1.Backup:
-		return p.VeleroBackupPredicate.Generic(p.Context, evt)
-	default:
-		return false
-	}
+func (CompositePredicate) Generic(_ event.GenericEvent) bool {
+	return false
 }

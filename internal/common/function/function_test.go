@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -27,6 +28,7 @@ import (
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -37,6 +39,12 @@ import (
 )
 
 var _ = ginkgo.Describe("PLACEHOLDER", func() {})
+
+const (
+	testNonAdminBackupNamespace = "non-admin-backup-namespace"
+	testNonAdminBackupName      = "non-admin-backup-name"
+	testNonAdminBackupUUID      = "12345678-1234-1234-1234-123456789abc"
+)
 
 func TestMergeMaps(t *testing.T) {
 	const (
@@ -294,18 +302,18 @@ func TestGetNonAdminBackupFromVeleroBackup(t *testing.T) {
 			Namespace: "test-namespace",
 			Name:      "test-backup",
 			Annotations: map[string]string{
-				constant.NabOriginNamespaceAnnotation: "non-admin-backup-namespace",
-				constant.NabOriginNameAnnotation:      "non-admin-backup-name",
-				constant.NabOriginUUIDAnnotation:      "12345678-1234-1234-1234-123456789abc",
+				constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
+				constant.NabOriginNameAnnotation:      testNonAdminBackupName,
+				constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
 			},
 		},
 	}
 
 	nonAdminBackup := &nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "non-admin-backup-namespace",
-			Name:      "non-admin-backup-name",
-			UID:       types.UID("12345678-1234-1234-1234-123456789abc"),
+			Namespace: testNonAdminBackupNamespace,
+			Name:      testNonAdminBackupName,
+			UID:       types.UID(testNonAdminBackupUUID),
 		},
 	}
 
@@ -317,32 +325,110 @@ func TestGetNonAdminBackupFromVeleroBackup(t *testing.T) {
 	assert.Equal(t, nonAdminBackup, result, "Returned NonAdminBackup should match expected NonAdminBackup")
 }
 
-func TestCheckVeleroBackupLabels(t *testing.T) {
-	// Backup has the required label
-	backupWithLabel := &velerov1.Backup{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				constant.ManagedByLabel: constant.ManagedByLabelValue,
+func TestCheckVeleroBackupMetadata(t *testing.T) {
+	tests := []struct {
+		backup   *velerov1.Backup
+		name     string
+		expected bool
+	}{
+		{
+			name:     "Velero Backup without required non admin labels and annotations",
+			backup:   &velerov1.Backup{},
+			expected: false,
+		},
+		{
+			name: "Velero Backup without required non admin annotations",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: constant.ManagedByLabelValue,
+					},
+				},
 			},
+			expected: false,
 		},
-	}
-	assert.True(t, CheckVeleroBackupLabels(backupWithLabel.GetLabels()), "Expected backup to have required label")
-
-	// Backup does not have the required label
-	backupWithoutLabel := &velerov1.Backup{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{},
-		},
-	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel.GetLabels()), "Expected backup to not have required label")
-
-	// Backup has the required label with incorrect value
-	backupWithIncorrectValue := &velerov1.Backup{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				constant.ManagedByLabel: "incorrect-value",
+		{
+			name: "Velero Backup with wrong required non admin label",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: "foo",
+					},
+				},
 			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup without required non admin labels",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
+						constant.NabOriginNameAnnotation:      testNonAdminBackupName,
+						constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup with wrong required non admin annotation [empty]",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: constant.ManagedByLabelValue,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: constant.EmptyString,
+						constant.NabOriginNameAnnotation:      testNonAdminBackupName,
+						constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup with wrong required non admin annotation [long]",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: constant.ManagedByLabelValue,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
+						constant.NabOriginNameAnnotation:      strings.Repeat("nn", validation.DNS1123SubdomainMaxLength),
+						constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup with required non admin labels and annotations",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: constant.ManagedByLabelValue,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
+						constant.NabOriginNameAnnotation:      testNonAdminBackupName,
+						constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
+					},
+				},
+			},
+			expected: true,
 		},
 	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithIncorrectValue.GetLabels()), "Expected backup to not have required label")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := CheckVeleroBackupMetadata(test.backup)
+			assert.Equal(t, test.expected, result)
+		})
+	}
 }

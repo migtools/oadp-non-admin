@@ -23,8 +23,10 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -38,7 +40,7 @@ const requiredAnnotationError = "backup does not have the required annotation '%
 // If error occurs, a map with only the default Non Admin labels is returned
 func AddNonAdminLabels(labels map[string]string) map[string]string {
 	defaultLabels := map[string]string{
-		constant.OadpLabel:      "True",
+		constant.OadpLabel:      constant.OadpLabelValue,
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
 
@@ -125,9 +127,9 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 	veleroBackupName := fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
 
 	// Ensure the name is within the character limit
-	if len(veleroBackupName) > constant.MaxKubernetesNameLength {
+	if len(veleroBackupName) > validation.DNS1123SubdomainMaxLength {
 		// Truncate the namespace if necessary
-		maxNamespaceLength := constant.MaxKubernetesNameLength - len(nameHash) - prefixLength
+		maxNamespaceLength := validation.DNS1123SubdomainMaxLength - len(nameHash) - prefixLength
 		if len(namespace) > maxNamespaceLength {
 			namespace = namespace[:maxNamespaceLength]
 		}
@@ -137,11 +139,46 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 	return veleroBackupName
 }
 
-// CheckVeleroBackupLabels return true if Velero Backup object has required Non Admin labels, false otherwise
-func CheckVeleroBackupLabels(labels map[string]string) bool {
-	// TODO also need to check for constant.OadpLabel label?
-	value, exists := labels[constant.ManagedByLabel]
-	return exists && value == constant.ManagedByLabelValue
+// CheckVeleroBackupMetadata return true if Velero Backup object has required Non Admin labels and annotations, false otherwise
+func CheckVeleroBackupMetadata(obj client.Object) bool {
+	labels := obj.GetLabels()
+	if !checkLabelValue(labels, constant.OadpLabel, constant.OadpLabelValue) {
+		return false
+	}
+	if !checkLabelValue(labels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+		return false
+	}
+
+	annotations := obj.GetAnnotations()
+	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
+		return false
+	}
+	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
+		return false
+	}
+	// TODO what is a valid uuid?
+	if !checkAnnotationValueIsValid(annotations, constant.NabOriginUUIDAnnotation) {
+		return false
+	}
+
+	return true
+}
+
+func checkLabelValue(labels map[string]string, key string, value string) bool {
+	got, exists := labels[key]
+	if !exists {
+		return false
+	}
+	return got == value
+}
+
+func checkAnnotationValueIsValid(annotations map[string]string, key string) bool {
+	value, exists := annotations[key]
+	if !exists {
+		return false
+	}
+	length := len(value)
+	return length > 0 && length < validation.DNS1123SubdomainMaxLength
 }
 
 // TODO not used
@@ -216,4 +253,10 @@ func mergeMaps[T comparable](maps ...map[T]T) (map[T]T, error) {
 		}
 	}
 	return merge, nil
+}
+
+// GetLogger return a logger from input ctx, with additional key/value pairs being
+// input key and input obj name and namespace
+func GetLogger(ctx context.Context, obj client.Object, key string) logr.Logger {
+	return log.FromContext(ctx).WithValues(key, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()})
 }
