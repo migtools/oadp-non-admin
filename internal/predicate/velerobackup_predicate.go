@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -43,28 +42,25 @@ func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.
 
 // Create event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	if backup, ok := evt.Object.(*velerov1api.Backup); ok {
-		nameSpace := evt.Object.GetNamespace()
-		if nameSpace != veleroBackupPredicate.OadpVeleroNamespace {
-			return false
-		}
-
-		name := evt.Object.GetName()
-		logger := getBackupPredicateLogger(ctx, name, nameSpace)
-		logger.V(1).Info("VeleroBackupPredicate: Received Create event")
-
-		return function.CheckVeleroBackupLabels(backup)
+	namespace := evt.Object.GetNamespace()
+	if namespace != veleroBackupPredicate.OadpVeleroNamespace {
+		return false
 	}
-	return false
+
+	name := evt.Object.GetName()
+	logger := getBackupPredicateLogger(ctx, name, namespace)
+	logger.V(1).Info("VeleroBackupPredicate: Received Create event")
+
+	return function.CheckVeleroBackupLabels(evt.Object.GetLabels())
 }
 
 // Update event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	nameSpace := evt.ObjectNew.GetNamespace()
+	namespace := evt.ObjectNew.GetNamespace()
 	name := evt.ObjectNew.GetName()
-	logger := getBackupPredicateLogger(ctx, name, nameSpace)
+	logger := getBackupPredicateLogger(ctx, name, namespace)
 	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
-	return nameSpace == veleroBackupPredicate.OadpVeleroNamespace
+	return namespace == veleroBackupPredicate.OadpVeleroNamespace
 }
 
 // Delete event filter

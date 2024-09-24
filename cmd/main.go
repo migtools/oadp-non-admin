@@ -98,7 +98,8 @@ func main() {
 		TLSOpts: tlsOpts,
 	})
 
-	if len(constant.OadpNamespace) == 0 {
+	oadpNamespace := os.Getenv(constant.NamespaceEnvVar)
+	if len(oadpNamespace) == 0 {
 		setupLog.Error(fmt.Errorf("%v environment variable is empty", constant.NamespaceEnvVar), "environment variable must be set")
 		os.Exit(1)
 	}
@@ -132,8 +133,9 @@ func main() {
 	}
 
 	if err = (&controller.NonAdminBackupReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
 		os.Exit(1)

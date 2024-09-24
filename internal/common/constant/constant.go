@@ -17,8 +17,6 @@ limitations under the License.
 // Package constant contains all common constants used in the project
 package constant
 
-import "os"
-
 // Common labels for objects manipulated by the Non Admin Controller
 // Labels should be used to identify the NAC object
 // Annotations on the other hand should be used to define ownership
@@ -37,14 +35,8 @@ const (
 	NamespaceEnvVar = "WATCH_NAMESPACE"
 )
 
-// OadpNamespace is the namespace OADP operator is installed
-var OadpNamespace = os.Getenv(NamespaceEnvVar)
-
 // EmptyString defines a constant for the empty string
 const EmptyString = ""
-
-// NameSpaceString k8s Namespace string
-const NameSpaceString = "Namespace"
 
 // MaxKubernetesNameLength represents maximum length of the name in k8s
 const MaxKubernetesNameLength = 253

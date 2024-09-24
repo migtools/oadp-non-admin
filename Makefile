@@ -1,9 +1,9 @@
 
 # Image URL to use all building/pushing image targets
 IMG ?= quay.io/konveyor/oadp-non-admin:latest
-# Kubernetes version from OpenShift 4.15.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
+# Kubernetes version from OpenShift 4.16.x https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/#4-stable
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.28
+ENVTEST_K8S_VERSION = 1.29
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -224,15 +224,14 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 	mv $(LOCALBIN)/$${ec_binary} $(EC) ;\
 	}
 
-# TODO increase!!!
-COVERAGE_THRESHOLD=10
+COVERAGE_THRESHOLD=60
 
 .PHONY: ci
 ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.
 
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(shell go list ./... | grep -v oadp-non-admin/test) -test.coverprofile cover.out -test.v -ginkgo.vv
 	@make check-coverage
 
 .PHONY: check-coverage

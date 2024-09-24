@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,8 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
+
+var _ = ginkgo.Describe("PLACEHOLDER", func() {})
 
 func TestMergeMaps(t *testing.T) {
 	const (
@@ -161,20 +164,13 @@ func TestAddNonAdminBackupAnnotations(t *testing.T) {
 }
 
 func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
-	// Test case: nonAdminBackup is nil
-	nonAdminBackup := (*nacv1alpha1.NonAdminBackup)(nil)
-	backupSpec, err := GetBackupSpecFromNonAdminBackup(nonAdminBackup)
-	assert.Error(t, err)
-	assert.Nil(t, backupSpec)
-	assert.Equal(t, "nonAdminBackup is nil", err.Error())
-
 	// Test case: BackupSpec is nil
-	nonAdminBackup = &nacv1alpha1.NonAdminBackup{
+	nonAdminBackup := &nacv1alpha1.NonAdminBackup{
 		Spec: nacv1alpha1.NonAdminBackupSpec{
 			BackupSpec: nil,
 		},
 	}
-	backupSpec, err = GetBackupSpecFromNonAdminBackup(nonAdminBackup)
+	backupSpec, err := GetBackupSpecFromNonAdminBackup(nonAdminBackup)
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
 	assert.Equal(t, "BackupSpec is not defined", err.Error())
@@ -219,7 +215,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
-	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace2", err.Error())
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: namespace2", err.Error())
 
 	backupSpecInput = &velerov1api.BackupSpec{
 		IncludedNamespaces: []string{"namespace3"},
@@ -237,7 +233,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, backupSpec)
-	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other then: namespace4", err.Error())
+	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: namespace4", err.Error())
 }
 
 func TestGenerateVeleroBackupName(t *testing.T) {
@@ -330,7 +326,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			},
 		},
 	}
-	assert.True(t, CheckVeleroBackupLabels(backupWithLabel), "Expected backup to have required label")
+	assert.True(t, CheckVeleroBackupLabels(backupWithLabel.GetLabels()), "Expected backup to have required label")
 
 	// Backup does not have the required label
 	backupWithoutLabel := &velerov1api.Backup{
@@ -338,7 +334,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			Labels: map[string]string{},
 		},
 	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel), "Expected backup to not have required label")
+	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel.GetLabels()), "Expected backup to not have required label")
 
 	// Backup has the required label with incorrect value
 	backupWithIncorrectValue := &velerov1api.Backup{
@@ -348,5 +344,5 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 			},
 		},
 	}
-	assert.False(t, CheckVeleroBackupLabels(backupWithIncorrectValue), "Expected backup to not have required label")
+	assert.False(t, CheckVeleroBackupLabels(backupWithIncorrectValue.GetLabels()), "Expected backup to not have required label")
 }
