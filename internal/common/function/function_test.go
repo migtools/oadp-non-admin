@@ -24,7 +24,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -176,7 +176,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Equal(t, "BackupSpec is not defined", err.Error())
 
 	// Test case: NonAdminBackup with valid BackupSpec
-	backupSpecInput := &velerov1api.BackupSpec{
+	backupSpecInput := &velerov1.BackupSpec{
 		IncludedNamespaces:      []string{"namespace1"},
 		StorageLocation:         "s3://bucket-name/path/to/backup",
 		VolumeSnapshotLocations: []string{"volume-snapshot-location"},
@@ -199,7 +199,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Equal(t, backupSpecInput.StorageLocation, backupSpec.StorageLocation)
 	assert.Equal(t, backupSpecInput.VolumeSnapshotLocations, backupSpec.VolumeSnapshotLocations)
 
-	backupSpecInput = &velerov1api.BackupSpec{
+	backupSpecInput = &velerov1.BackupSpec{
 		IncludedNamespaces: []string{"namespace2", "namespace3"},
 	}
 
@@ -217,7 +217,7 @@ func TestGetBackupSpecFromNonAdminBackup(t *testing.T) {
 	assert.Nil(t, backupSpec)
 	assert.Equal(t, "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: namespace2", err.Error())
 
-	backupSpecInput = &velerov1api.BackupSpec{
+	backupSpecInput = &velerov1.BackupSpec{
 		IncludedNamespaces: []string{"namespace3"},
 	}
 
@@ -289,7 +289,7 @@ func TestGetNonAdminBackupFromVeleroBackup(t *testing.T) {
 		t.Fatalf("Failed to register NonAdminBackup type: %v", err)
 	}
 
-	backup := &velerov1api.Backup{
+	backup := &velerov1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "test-namespace",
 			Name:      "test-backup",
@@ -319,7 +319,7 @@ func TestGetNonAdminBackupFromVeleroBackup(t *testing.T) {
 
 func TestCheckVeleroBackupLabels(t *testing.T) {
 	// Backup has the required label
-	backupWithLabel := &velerov1api.Backup{
+	backupWithLabel := &velerov1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				constant.ManagedByLabel: constant.ManagedByLabelValue,
@@ -329,7 +329,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 	assert.True(t, CheckVeleroBackupLabels(backupWithLabel.GetLabels()), "Expected backup to have required label")
 
 	// Backup does not have the required label
-	backupWithoutLabel := &velerov1api.Backup{
+	backupWithoutLabel := &velerov1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{},
 		},
@@ -337,7 +337,7 @@ func TestCheckVeleroBackupLabels(t *testing.T) {
 	assert.False(t, CheckVeleroBackupLabels(backupWithoutLabel.GetLabels()), "Expected backup to not have required label")
 
 	// Backup has the required label with incorrect value
-	backupWithIncorrectValue := &velerov1api.Backup{
+	backupWithIncorrectValue := &velerov1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
 				constant.ManagedByLabel: "incorrect-value",
