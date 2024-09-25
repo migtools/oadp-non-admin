@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,7 +37,7 @@ const (
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
-	BackupSpec *velerov1api.BackupSpec `json:"backupSpec,omitempty"`
+	BackupSpec *velerov1.BackupSpec `json:"backupSpec,omitempty"`
 
 	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
 	// +optional
@@ -58,7 +58,7 @@ type NonAdminBackupStatus struct {
 
 	// VeleroBackupStatus captures the current status of a Velero backup.
 	// +optional
-	VeleroBackupStatus *velerov1api.BackupStatus `json:"veleroBackupStatus,omitempty"`
+	VeleroBackupStatus *velerov1.BackupStatus `json:"veleroBackupStatus,omitempty"`
 
 	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
 	Conditions []metav1.Condition  `json:"conditions,omitempty"`

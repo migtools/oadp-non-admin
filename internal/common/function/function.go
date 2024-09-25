@@ -23,7 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -83,7 +83,7 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 }
 
 // GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
-func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1api.BackupSpec, error) {
+func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1.BackupSpec, error) {
 	// TODO https://github.com/migtools/oadp-non-admin/issues/60
 	// this should be Kubernetes API validation
 	if nonAdminBackup.Spec.BackupSpec == nil {
@@ -147,7 +147,7 @@ func CheckVeleroBackupLabels(labels map[string]string) bool {
 // TODO not used
 
 // GetNonAdminBackupFromVeleroBackup return referenced NonAdminBackup object from Velero Backup object, if no error occurs
-func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1api.Backup) (*nacv1alpha1.NonAdminBackup, error) {
+func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1.Backup) (*nacv1alpha1.NonAdminBackup, error) {
 	// Check if the backup has the required annotations to identify the associated NonAdminBackup object
 	logger := log.FromContext(ctx)
 

@@ -20,7 +20,7 @@ package predicate
 import (
 	"context"
 
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -39,7 +39,7 @@ func (p CompositePredicate) Create(evt event.CreateEvent) bool {
 	case *nacv1alpha1.NonAdminBackup:
 		// Apply NonAdminBackupPredicate
 		return p.NonAdminBackupPredicate.Create(p.Context, evt)
-	case *velerov1api.Backup:
+	case *velerov1.Backup:
 		// Apply VeleroBackupPredicate
 		return p.VeleroBackupPredicate.Create(p.Context, evt)
 	default:
@@ -53,7 +53,7 @@ func (p CompositePredicate) Update(evt event.UpdateEvent) bool {
 	switch evt.ObjectNew.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Update(p.Context, evt)
-	case *velerov1api.Backup:
+	case *velerov1.Backup:
 		return p.VeleroBackupPredicate.Update(p.Context, evt)
 	default:
 		return false
@@ -65,7 +65,7 @@ func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Delete(p.Context, evt)
-	case *velerov1api.Backup:
+	case *velerov1.Backup:
 		return p.VeleroBackupPredicate.Delete(p.Context, evt)
 	default:
 		return false
@@ -77,7 +77,7 @@ func (p CompositePredicate) Generic(evt event.GenericEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Generic(p.Context, evt)
-	case *velerov1api.Backup:
+	case *velerov1.Backup:
 		return p.VeleroBackupPredicate.Generic(p.Context, evt)
 	default:
 		return false

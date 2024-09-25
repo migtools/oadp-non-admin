@@ -419,7 +419,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			result: reconcile.Result{Requeue: true},
+			result: reconcile.Result{Requeue: false},
 		}),
 		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new) [invalid spec], should update NonAdminBackup phase to BackingOff and Requeue", nonAdminBackupSingleReconcileScenario{
 			spec: nacv1alpha1.NonAdminBackupSpec{
@@ -530,10 +530,10 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 
 			if len(scenario.status.VeleroBackupName) > 0 {
-				ginkgo.By("Validating NonAdminBackup Spec")
+				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminBackup.Spec.BackupSpec,
-					&velerov1.BackupSpec{},
+					scenario.spec.BackupSpec,
 				)).To(gomega.BeTrue())
 
 				ginkgo.By("Simulating VeleroBackup update to finished state")

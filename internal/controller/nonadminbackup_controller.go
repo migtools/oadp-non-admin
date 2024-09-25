@@ -23,7 +23,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -231,7 +231,7 @@ func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx contex
 		return true, false, errors.New("unable to generate Velero Backup name")
 	}
 
-	veleroBackup := velerov1api.Backup{}
+	veleroBackup := velerov1.Backup{}
 	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupName, Namespace: r.OADPNamespace})
 	err := r.Get(ctx, client.ObjectKey{Namespace: r.OADPNamespace, Name: veleroBackupName}, &veleroBackup)
 	if err != nil {
@@ -250,7 +250,7 @@ func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx contex
 			return true, false, errBackup
 		}
 
-		veleroBackup = velerov1api.Backup{
+		veleroBackup = velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      veleroBackupName,
 				Namespace: r.OADPNamespace,
@@ -317,11 +317,9 @@ func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx contex
 			return true, false, err
 		}
 
-		logger.V(1).Info("NonAdminBackup Status updated successfully, requeuing")
-		return false, true, nil
+		logger.V(1).Info("NonAdminBackup Status updated successfully")
 	}
 
-	logger.V(1).Info("NonAdminBackup Status is already up to date")
 	return false, false, nil
 }
 
@@ -329,7 +327,7 @@ func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx contex
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
-		Watches(&velerov1api.Backup{}, &handler.VeleroBackupHandler{}).
+		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
@@ -357,7 +355,7 @@ func updateNonAdminPhase(phase *nacv1alpha1.NonAdminBackupPhase, newPhase nacv1a
 
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup fields in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
-func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1api.Backup) bool {
+func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
 	if !reflect.DeepEqual(status.VeleroBackupStatus, &veleroBackup.Status) || status.VeleroBackupName != veleroBackup.Name || status.VeleroBackupNamespace != veleroBackup.Namespace {
 		status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
 		status.VeleroBackupName = veleroBackup.Name
