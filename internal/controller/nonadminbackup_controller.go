@@ -214,7 +214,7 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 }
 
 // SyncVeleroBackupWithNonAdminBackup ensures the VeleroBackup associated with the given NonAdminBackup resource
-// is created, updated, and its status is reconciled. If the VeleroBackup does not exist, it creates a new one.
+// is created, if it does not exist.
 // The function also updates the status and conditions of the NonAdminBackup resource to reflect the state
 // of the VeleroBackup.
 //

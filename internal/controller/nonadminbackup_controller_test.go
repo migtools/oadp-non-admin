@@ -264,18 +264,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			)).To(gomega.Succeed())
 
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.ExpectedStatus, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
-			if scenario.priorStatus != nil {
-				if len(scenario.priorStatus.VeleroBackupName) > 0 {
-					gomega.Expect(reflect.DeepEqual(
-						nonAdminBackup.Spec.BackupSpec,
-						&velerov1.BackupSpec{
-							IncludedNamespaces: []string{
-								nonAdminNamespaceName,
-							},
-						},
-					)).To(gomega.BeTrue())
-				}
-			}
 
 			// easy hack to test that only one update call happens per reconcile
 			// currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
@@ -532,8 +520,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			if len(scenario.status.VeleroBackupName) > 0 {
 				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
-					nonAdminBackup.Spec.BackupSpec,
-					scenario.spec.BackupSpec,
+					nonAdminBackup.Spec,
+					scenario.spec,
 				)).To(gomega.BeTrue())
 
 				ginkgo.By("Simulating VeleroBackup update to finished state")
