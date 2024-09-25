@@ -98,7 +98,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
-	reconcileExit, reconcileRequeue, reconcileErr = r.UpdateSpecStatus(ctx, logger, &nab)
+	reconcileExit, reconcileRequeue, reconcileErr = r.SyncVeleroBackupWithNonAdminBackup(ctx, logger, &nab)
 	if reconcileRequeue {
 		return ctrl.Result{Requeue: true}, reconcileErr
 	} else if reconcileExit && reconcileErr != nil {
@@ -213,19 +213,17 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 	return false, false, nil
 }
 
-// UpdateSpecStatus updates the Spec and Status from the NonAdminBackup.
+// SyncVeleroBackupWithNonAdminBackup ensures the VeleroBackup associated with the given NonAdminBackup resource
+// is created, updated, and its status is reconciled. If the VeleroBackup does not exist, it creates a new one.
+// The function also updates the status and conditions of the NonAdminBackup resource to reflect the state
+// of the VeleroBackup.
 //
 // Parameters:
 //
 //	ctx: Context for the request.
-//	log: Logger instance for logging messages.
+//	logrLogger: Logger instance for logging messages.
 //	nab: Pointer to the NonAdminBackup object.
-//
-// The function generates the name for the Velero Backup object based on the provided namespace and name.
-// It then checks if a Velero Backup object with that name already exists. If it does not exist, it creates a new one
-// and updates NonAdminBackup Status. Otherwise, updates NonAdminBackup VeleroBackup Spec and Status based on Velero Backup object Spec and Status.
-// The function returns boolean values indicating whether the reconciliation loop should exit or requeue
-func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
+func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx context.Context, logrLogger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (exitReconcile bool, requeueReconcile bool, errorReconcile error) {
 	logger := logrLogger
 
 	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
@@ -308,33 +306,22 @@ func (r *NonAdminBackupReconciler) UpdateSpecStatus(ctx context.Context, logrLog
 		return false, true, nil
 	}
 
-	// We should not update already created VeleroBackup object.
-	// The VeleroBackup within NonAdminBackup will
-	// be reverted back to the previous state - the state which created VeleroBackup
-	// in a first place, so they will be in sync.
-	veleroBackupLogger.Info("VeleroBackup already exists, checking if NonAdminBackup VeleroBackupSpec and VeleroBackupStatus needs update")
+	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
+	// with the VeleroBackup. Any required updates to the NonAdminBackup
+	// Status will be applied based on the current state of the VeleroBackup.
+	veleroBackupLogger.Info("VeleroBackup already exists, verifying if NonAdminBackup Status requires update")
 	updated = updateNonAdminBackupVeleroBackupStatus(&nab.Status, &veleroBackup)
 	if updated {
 		if err := r.Status().Update(ctx, nab); err != nil {
-			veleroBackupLogger.Error(err, "NonAdminBackup BackupStatus - Failed to update")
+			veleroBackupLogger.Error(err, "Failed to update NonAdminBackup Status after VeleroBackup reconciliation")
 			return true, false, err
 		}
 
-		logger.V(1).Info("NonAdminBackup - Requeue after Status Update")
-		return false, true, nil
-	}
-	updated = updateNonAdminBackupVeleroBackupSpec(&nab.Spec, &veleroBackup)
-	if updated {
-		if err := r.Update(ctx, nab); err != nil {
-			veleroBackupLogger.Error(err, "NonAdminBackup BackupSpec - Failed to update")
-			return true, false, err
-		}
-
-		logger.V(1).Info("NonAdminBackup - Requeue after Spec Update")
+		logger.V(1).Info("NonAdminBackup Status updated successfully, requeuing")
 		return false, true, nil
 	}
 
-	logger.V(1).Info("NonAdminBackup VeleroBackupSpec and VeleroBackupStatus already up to date")
+	logger.V(1).Info("NonAdminBackup Status is already up to date")
 	return false, false, nil
 }
 
@@ -375,16 +362,6 @@ func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupSt
 		status.VeleroBackupStatus = veleroBackup.Status.DeepCopy()
 		status.VeleroBackupName = veleroBackup.Name
 		status.VeleroBackupNamespace = veleroBackup.Namespace
-		return true
-	}
-	return false
-}
-
-// updateNonAdminBackupVeleroBackupSpec sets the BackupSpec in NonAdminBackup object spec and returns true
-// if the BackupSpec is changed by this call.
-func updateNonAdminBackupVeleroBackupSpec(spec *nacv1alpha1.NonAdminBackupSpec, veleroBackup *velerov1api.Backup) bool {
-	if !reflect.DeepEqual(spec.BackupSpec, &veleroBackup.Spec) {
-		spec.BackupSpec = veleroBackup.Spec.DeepCopy()
 		return true
 	}
 	return false
