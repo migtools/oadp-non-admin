@@ -8,6 +8,8 @@ If your changes involve code, please check [code quality and standardization sec
 
 If your changes involve Kubernetes objects (`config/` folder), please follow [Kubernetes objects changes section](#kubernetes-objects-changes).
 
+If your changes involve Velero version or its objects, please follow [Velero objects changes section](#velero-objects-changes).
+
 If you are upgrading project's kubebuilder version, please follow [upgrade kubebuilder version section](#upgrade-kubebuilder-version).
 
 > **NOTE:** Run `make help` for more information on all potential `make` targets
@@ -105,6 +107,17 @@ If NAC Kubernetes objects are changed, like CRDs, RBACs, etc, follow this workfl
     NON_ADMIN_CONTROLLER_PATH=/home/user/oadp-non-admin make update-non-admin-manifests
     ```
 - create pull requests both in NAC and OADP operator repositories (OADP operator repository pull request must be merged first)
+
+[More information](architecture.md#oadp-integration).
+
+## Velero objects changes
+
+If Velero version or its objects needs changes, follow this workflow:
+- create branch in this repository and run `make update-non-admin-manifests` command, pointing to related created OADP operator repository branch. Example:
+    ```sh
+    OADP_OPERATOR_PATH=./home/user/oadp-operator make update-velero-manifests
+    ```
+- create pull requests in NAC
 
 [More information](architecture.md#oadp-integration).
 
