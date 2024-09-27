@@ -87,3 +87,11 @@ jobs:
           if test -n "$(git status --short -- ':!oadp-non-admin')"; then
             echo "::warning::run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests"
           fi
+
+      - name: Check Velero manifests
+        working-directory: ./oadp-non-admin
+        run: |
+          OADP_OPERATOR_PATH=../ make update-velero-manifests
+          if test -n "$(git status --short)"; then
+            echo "::error::run 'make update-velero-manifests' in Non Admin Controller (NAC) repository to update Velero manifests"
+          fi
