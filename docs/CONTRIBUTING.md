@@ -81,6 +81,13 @@ make ec
 
 Files format configuration in [`.editorconfig`](../.editorconfig) file.
 
+### Go dependencies
+
+To check if project's Go dependencies are ok, run
+```sh
+make check-go-dependencies
+```
+
 ### Container file linter
 
 To run container file linter, run

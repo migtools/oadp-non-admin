@@ -33,6 +33,9 @@ jobs:
         with:
           version: v1.56.2
 
+      - name: Go dependencies
+        run: make check-go-dependencies
+
   container-check:
     runs-on: ubuntu-latest
     steps:

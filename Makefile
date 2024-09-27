@@ -227,7 +227,7 @@ editorconfig: $(LOCALBIN) ## Download editorconfig locally if necessary.
 COVERAGE_THRESHOLD=60
 
 .PHONY: ci
-ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-images ## Run all project continuous integration (CI) checks locally.
+ci: simulation-test lint docker-build hadolint check-generate check-manifests ec check-go-dependencies check-images ## Run all project continuous integration (CI) checks locally.
 
 .PHONY: simulation-test
 simulation-test: envtest ## Run unit and integration tests.
@@ -261,6 +261,12 @@ check-manifests: manifests ## Check if 'make manifests' was run.
 .PHONY: ec
 ec: editorconfig ## Run file formatter checks against all project's files.
 	$(EC)
+
+.PHONY: check-go-dependencies
+check-go-dependencies: ## Check if 'go mod tidy' was run.
+	go mod tidy
+	go mod verify
+	test -z "$(shell git status --short)" || (echo "run 'go mod tidy' to update go dependencies" && exit 1)
 
 .PHONY: check-images
 check-images: MANAGER_IMAGE:=$(shell grep -I 'newName: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
