@@ -88,5 +88,6 @@ jobs:
         run: |
           NON_ADMIN_CONTROLLER_PATH=./oadp-non-admin make update-non-admin-manifests
           if test -n "$(git status --short -- ':!oadp-non-admin')"; then
-            echo "::warning::run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests"
+            echo "::error::run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests"
+            exit 1
           fi
