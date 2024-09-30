@@ -34,7 +34,6 @@ type VeleroBackupPredicate struct {
 // Update event filter
 func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupPredicate")
-	logger.V(1).Info("Received Update event")
 
 	namespace := evt.ObjectNew.GetNamespace()
 	if namespace == veleroBackupPredicate.OadpVeleroNamespace {
