@@ -33,12 +33,12 @@ import (
 type VeleroBackupHandler struct{}
 
 // Create event handler
-func (*VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	// Create event handler for the Backup object
 }
 
-// Update event handler
-func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+// Update event handler adds Velero Backup's NonAdminBackup to controller queue
+func (VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
@@ -53,11 +53,11 @@ func (*VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 }
 
 // Delete event handler
-func (*VeleroBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 	// Delete event handler for the Backup object
 }
 
 // Generic event handler
-func (*VeleroBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the Backup object
 }

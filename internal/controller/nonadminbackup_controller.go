@@ -52,8 +52,6 @@ const (
 	phaseUpdateRequeue     = "NonAdminBackup - Requeue after Phase Update"
 	conditionUpdateRequeue = "NonAdminBackup - Requeue after Condition Update"
 	statusUpdateError      = "Failed to update NonAdminBackup Status"
-	phaseUpdateError       = "Failed to update NonAdminBackup Phase"
-	conditionUpdateError   = "Failed to update NonAdminBackup Condition"
 )
 
 // +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
@@ -131,7 +129,7 @@ func (r *NonAdminBackupReconciler) Init(ctx context.Context, logrLogger logr.Log
 		updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseNew)
 		if updated {
 			if err := r.Status().Update(ctx, nab); err != nil {
-				logger.Error(err, phaseUpdateError)
+				logger.Error(err, statusUpdateError)
 				return true, false, err
 			}
 
@@ -192,7 +190,7 @@ func (r *NonAdminBackupReconciler) ValidateSpec(ctx context.Context, logrLogger 
 	)
 	if updated {
 		if err := r.Status().Update(ctx, nab); err != nil {
-			logger.Error(err, conditionUpdateError)
+			logger.Error(err, statusUpdateError)
 			return true, false, err
 		}
 
@@ -309,13 +307,14 @@ func (r *NonAdminBackupReconciler) SyncVeleroBackupWithNonAdminBackup(ctx contex
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
-		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
-				OadpVeleroNamespace: r.OADPNamespace,
+				OADPNamespace: r.OADPNamespace,
 			},
 		}).
+		// handler runs after predicate
+		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
 		Complete(r)
 }
 

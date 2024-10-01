@@ -26,17 +26,16 @@ import (
 
 // VeleroBackupPredicate contains event filters for Velero Backup objects
 type VeleroBackupPredicate struct {
-	// We are watching only Velero Backup objects within
-	// namespace where OADP is.
-	OadpVeleroNamespace string
+	OADPNamespace string
 }
 
-// Update event filter
-func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+// Update event filter only accepts Velero Backup update events from OADP namespace
+// and from Velero Backups that have required metadata
+func (p VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupPredicate")
 
 	namespace := evt.ObjectNew.GetNamespace()
-	if namespace == veleroBackupPredicate.OadpVeleroNamespace {
+	if namespace == p.OADPNamespace {
 		if function.CheckVeleroBackupMetadata(evt.ObjectNew) {
 			logger.V(1).Info("Accepted Update event")
 			return true

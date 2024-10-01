@@ -29,14 +29,14 @@ const nonAdminBackupPredicateKey = "NonAdminBackupPredicate"
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
 type NonAdminBackupPredicate struct{}
 
-// Create event filter
+// Create event filter accepts all NonAdminBackup create events
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
 	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
 	logger.V(1).Info("Accepted Create event")
 	return true
 }
 
-// Update event filter
+// Update event filter only accepts NonAdminBackup update events that include spec change
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupPredicateKey)
 
@@ -50,7 +50,7 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	return false
 }
 
-// Delete event filter
+// Delete event filter accepts all NonAdminBackup delete events
 func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
 	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
 	logger.V(1).Info("Accepted Delete event")
