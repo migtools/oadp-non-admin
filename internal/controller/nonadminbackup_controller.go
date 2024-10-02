@@ -55,9 +55,9 @@ const (
 	conditionUpdateError   = "Failed to update NonAdminBackup Condition"
 )
 
-// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
 
 // +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch
 
