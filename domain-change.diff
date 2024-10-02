@@ -1,0 +1,407 @@
+diff --color -ruN old/api/v1alpha1/groupversion_info.go new/api/v1alpha1/groupversion_info.go
+--- old/api/v1alpha1/groupversion_info.go	2024-10-02 13:48:24.974051910 -0300
++++ new/api/v1alpha1/groupversion_info.go	2024-10-02 13:50:14.784925224 -0300
+@@ -14,9 +14,9 @@
+ limitations under the License.
+ */
+ 
+-// Package v1alpha1 contains API Schema definitions for the nac v1alpha1 API group
++// Package v1alpha1 contains API Schema definitions for the oadp v1alpha1 API group
+ // +kubebuilder:object:generate=true
+-// +groupName=nac.oadp.openshift.io
++// +groupName=oadp.openshift.io
+ package v1alpha1
+ 
+ import (
+@@ -26,7 +26,7 @@
+ 
+ var (
+ 	// GroupVersion is group version used to register these objects
+-	GroupVersion = schema.GroupVersion{Group: "nac.oadp.openshift.io", Version: "v1alpha1"}
++	GroupVersion = schema.GroupVersion{Group: "oadp.openshift.io", Version: "v1alpha1"}
+ 
+ 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
+ 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+diff --color -ruN old/cmd/main.go new/cmd/main.go
+--- old/cmd/main.go	2024-10-02 13:48:24.977051934 -0300
++++ new/cmd/main.go	2024-10-02 13:50:14.787925247 -0300
+@@ -34,7 +34,7 @@
+ 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+ 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+ 
+-	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
++	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+ 	"github.com/migtools/oadp-non-admin/internal/controller"
+ 	//+kubebuilder:scaffold:imports
+ )
+@@ -47,7 +47,7 @@
+ func init() {
+ 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+ 
+-	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
++	utilruntime.Must(oadpv1alpha1.AddToScheme(scheme))
+ 	//+kubebuilder:scaffold:scheme
+ }
+ 
+@@ -104,7 +104,7 @@
+ 		WebhookServer:          webhookServer,
+ 		HealthProbeBindAddress: probeAddr,
+ 		LeaderElection:         enableLeaderElection,
+-		LeaderElectionID:       "c9a74565.oadp.openshift.io",
++		LeaderElectionID:       "c9a74565.openshift.io",
+ 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
+ 		// when the Manager ends. This requires the binary to immediately end when the
+ 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
+diff --color -ruN old/config/crd/bases/nac.oadp.openshift.io_nonadminbackups.yaml new/config/crd/bases/nac.oadp.openshift.io_nonadminbackups.yaml
+--- old/config/crd/bases/nac.oadp.openshift.io_nonadminbackups.yaml	2024-10-02 13:48:31.584104478 -0300
++++ new/config/crd/bases/nac.oadp.openshift.io_nonadminbackups.yaml	1969-12-31 21:00:00.000000000 -0300
+@@ -1,54 +0,0 @@
+----
+-apiVersion: apiextensions.k8s.io/v1
+-kind: CustomResourceDefinition
+-metadata:
+-  annotations:
+-    controller-gen.kubebuilder.io/version: v0.14.0
+-  name: nonadminbackups.nac.oadp.openshift.io
+-spec:
+-  group: nac.oadp.openshift.io
+-  names:
+-    kind: NonAdminBackup
+-    listKind: NonAdminBackupList
+-    plural: nonadminbackups
+-    singular: nonadminbackup
+-  scope: Namespaced
+-  versions:
+-  - name: v1alpha1
+-    schema:
+-      openAPIV3Schema:
+-        description: NonAdminBackup is the Schema for the nonadminbackups API
+-        properties:
+-          apiVersion:
+-            description: |-
+-              APIVersion defines the versioned schema of this representation of an object.
+-              Servers should convert recognized schemas to the latest internal value, and
+-              may reject unrecognized values.
+-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+-            type: string
+-          kind:
+-            description: |-
+-              Kind is a string value representing the REST resource this object represents.
+-              Servers may infer this from the endpoint the client submits requests to.
+-              Cannot be updated.
+-              In CamelCase.
+-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+-            type: string
+-          metadata:
+-            type: object
+-          spec:
+-            description: NonAdminBackupSpec defines the desired state of NonAdminBackup
+-            properties:
+-              foo:
+-                description: Foo is an example field of NonAdminBackup. Edit nonadminbackup_types.go
+-                  to remove/update
+-                type: string
+-            type: object
+-          status:
+-            description: NonAdminBackupStatus defines the observed state of NonAdminBackup
+-            type: object
+-        type: object
+-    served: true
+-    storage: true
+-    subresources:
+-      status: {}
+diff --color -ruN old/config/crd/bases/oadp.openshift.io_nonadminbackups.yaml new/config/crd/bases/oadp.openshift.io_nonadminbackups.yaml
+--- old/config/crd/bases/oadp.openshift.io_nonadminbackups.yaml	1969-12-31 21:00:00.000000000 -0300
++++ new/config/crd/bases/oadp.openshift.io_nonadminbackups.yaml	2024-10-02 13:50:20.036966992 -0300
+@@ -0,0 +1,54 @@
++---
++apiVersion: apiextensions.k8s.io/v1
++kind: CustomResourceDefinition
++metadata:
++  annotations:
++    controller-gen.kubebuilder.io/version: v0.14.0
++  name: nonadminbackups.oadp.openshift.io
++spec:
++  group: oadp.openshift.io
++  names:
++    kind: NonAdminBackup
++    listKind: NonAdminBackupList
++    plural: nonadminbackups
++    singular: nonadminbackup
++  scope: Namespaced
++  versions:
++  - name: v1alpha1
++    schema:
++      openAPIV3Schema:
++        description: NonAdminBackup is the Schema for the nonadminbackups API
++        properties:
++          apiVersion:
++            description: |-
++              APIVersion defines the versioned schema of this representation of an object.
++              Servers should convert recognized schemas to the latest internal value, and
++              may reject unrecognized values.
++              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
++            type: string
++          kind:
++            description: |-
++              Kind is a string value representing the REST resource this object represents.
++              Servers may infer this from the endpoint the client submits requests to.
++              Cannot be updated.
++              In CamelCase.
++              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
++            type: string
++          metadata:
++            type: object
++          spec:
++            description: NonAdminBackupSpec defines the desired state of NonAdminBackup
++            properties:
++              foo:
++                description: Foo is an example field of NonAdminBackup. Edit nonadminbackup_types.go
++                  to remove/update
++                type: string
++            type: object
++          status:
++            description: NonAdminBackupStatus defines the observed state of NonAdminBackup
++            type: object
++        type: object
++    served: true
++    storage: true
++    subresources:
++      status: {}
+diff --color -ruN old/config/crd/kustomization.yaml new/config/crd/kustomization.yaml
+--- old/config/crd/kustomization.yaml	2024-10-02 13:48:24.972051894 -0300
++++ new/config/crd/kustomization.yaml	2024-10-02 13:50:14.783925216 -0300
+@@ -2,7 +2,7 @@
+ # since it depends on service name and namespace that are out of this kustomize package.
+ # It should be run by config/default
+ resources:
+-- bases/nac.oadp.openshift.io_nonadminbackups.yaml
++- bases/oadp.openshift.io_nonadminbackups.yaml
+ #+kubebuilder:scaffold:crdkustomizeresource
+ 
+ patches:
+diff --color -ruN old/config/rbac/nonadminbackup_editor_role.yaml new/config/rbac/nonadminbackup_editor_role.yaml
+--- old/config/rbac/nonadminbackup_editor_role.yaml	2024-10-02 13:48:24.973051902 -0300
++++ new/config/rbac/nonadminbackup_editor_role.yaml	2024-10-02 13:50:14.783925216 -0300
+@@ -12,7 +12,7 @@
+   name: nonadminbackup-editor-role
+ rules:
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups
+   verbs:
+@@ -24,7 +24,7 @@
+   - update
+   - watch
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups/status
+   verbs:
+diff --color -ruN old/config/rbac/nonadminbackup_viewer_role.yaml new/config/rbac/nonadminbackup_viewer_role.yaml
+--- old/config/rbac/nonadminbackup_viewer_role.yaml	2024-10-02 13:48:24.972051894 -0300
++++ new/config/rbac/nonadminbackup_viewer_role.yaml	2024-10-02 13:50:14.783925216 -0300
+@@ -12,7 +12,7 @@
+   name: nonadminbackup-viewer-role
+ rules:
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups
+   verbs:
+@@ -20,7 +20,7 @@
+   - list
+   - watch
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups/status
+   verbs:
+diff --color -ruN old/config/rbac/role.yaml new/config/rbac/role.yaml
+--- old/config/rbac/role.yaml	2024-10-02 13:48:31.544104160 -0300
++++ new/config/rbac/role.yaml	2024-10-02 13:50:19.996966673 -0300
+@@ -5,7 +5,7 @@
+   name: manager-role
+ rules:
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups
+   verbs:
+@@ -17,13 +17,13 @@
+   - update
+   - watch
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups/finalizers
+   verbs:
+   - update
+ - apiGroups:
+-  - nac.oadp.openshift.io
++  - oadp.openshift.io
+   resources:
+   - nonadminbackups/status
+   verbs:
+diff --color -ruN old/config/samples/kustomization.yaml new/config/samples/kustomization.yaml
+--- old/config/samples/kustomization.yaml	2024-10-02 13:48:24.973051902 -0300
++++ new/config/samples/kustomization.yaml	2024-10-02 13:50:14.783925216 -0300
+@@ -1,4 +1,4 @@
+ ## Append samples of your project ##
+ resources:
+-- nac_v1alpha1_nonadminbackup.yaml
++- oadp_v1alpha1_nonadminbackup.yaml
+ #+kubebuilder:scaffold:manifestskustomizesamples
+diff --color -ruN old/config/samples/nac_v1alpha1_nonadminbackup.yaml new/config/samples/nac_v1alpha1_nonadminbackup.yaml
+--- old/config/samples/nac_v1alpha1_nonadminbackup.yaml	2024-10-02 13:48:24.973051902 -0300
++++ new/config/samples/nac_v1alpha1_nonadminbackup.yaml	1969-12-31 21:00:00.000000000 -0300
+@@ -1,12 +0,0 @@
+-apiVersion: nac.oadp.openshift.io/v1alpha1
+-kind: NonAdminBackup
+-metadata:
+-  labels:
+-    app.kubernetes.io/name: nonadminbackup
+-    app.kubernetes.io/instance: nonadminbackup-sample
+-    app.kubernetes.io/part-of: oadp-nac
+-    app.kubernetes.io/managed-by: kustomize
+-    app.kubernetes.io/created-by: oadp-nac
+-  name: nonadminbackup-sample
+-spec:
+-  # TODO(user): Add fields here
+diff --color -ruN old/config/samples/oadp_v1alpha1_nonadminbackup.yaml new/config/samples/oadp_v1alpha1_nonadminbackup.yaml
+--- old/config/samples/oadp_v1alpha1_nonadminbackup.yaml	1969-12-31 21:00:00.000000000 -0300
++++ new/config/samples/oadp_v1alpha1_nonadminbackup.yaml	2024-10-02 13:50:14.783925216 -0300
+@@ -0,0 +1,12 @@
++apiVersion: oadp.openshift.io/v1alpha1
++kind: NonAdminBackup
++metadata:
++  labels:
++    app.kubernetes.io/name: nonadminbackup
++    app.kubernetes.io/instance: nonadminbackup-sample
++    app.kubernetes.io/part-of: oadp-nac
++    app.kubernetes.io/managed-by: kustomize
++    app.kubernetes.io/created-by: oadp-nac
++  name: nonadminbackup-sample
++spec:
++  # TODO(user): Add fields here
+diff --color -ruN old/internal/controller/nonadminbackup_controller.go new/internal/controller/nonadminbackup_controller.go
+--- old/internal/controller/nonadminbackup_controller.go	2024-10-02 13:48:24.976051926 -0300
++++ new/internal/controller/nonadminbackup_controller.go	2024-10-02 13:50:14.786925240 -0300
+@@ -24,7 +24,7 @@
+ 	"sigs.k8s.io/controller-runtime/pkg/client"
+ 	"sigs.k8s.io/controller-runtime/pkg/log"
+ 
+-	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
++	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+ )
+ 
+ // NonAdminBackupReconciler reconciles a NonAdminBackup object
+@@ -33,9 +33,9 @@
+ 	Scheme *runtime.Scheme
+ }
+ 
+-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
+-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
+-//+kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
++//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
++//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
++//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
+ 
+ // Reconcile is part of the main kubernetes reconciliation loop which aims to
+ // move the current state of the cluster closer to the desired state.
+@@ -57,6 +57,6 @@
+ // SetupWithManager sets up the controller with the Manager.
+ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
+ 	return ctrl.NewControllerManagedBy(mgr).
+-		For(&nacv1alpha1.NonAdminBackup{}).
++		For(&oadpv1alpha1.NonAdminBackup{}).
+ 		Complete(r)
+ }
+diff --color -ruN old/internal/controller/nonadminbackup_controller_test.go new/internal/controller/nonadminbackup_controller_test.go
+--- old/internal/controller/nonadminbackup_controller_test.go	2024-10-02 13:48:24.976051926 -0300
++++ new/internal/controller/nonadminbackup_controller_test.go	2024-10-02 13:50:14.786925240 -0300
+@@ -27,7 +27,7 @@
+ 
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 
+-	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
++	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+ )
+ 
+ var _ = Describe("NonAdminBackup Controller", func() {
+@@ -40,13 +40,13 @@
+ 			Name:      resourceName,
+ 			Namespace: "default", // TODO(user):Modify as needed
+ 		}
+-		nonadminbackup := &nacv1alpha1.NonAdminBackup{}
++		nonadminbackup := &oadpv1alpha1.NonAdminBackup{}
+ 
+ 		BeforeEach(func() {
+ 			By("creating the custom resource for the Kind NonAdminBackup")
+ 			err := k8sClient.Get(ctx, typeNamespacedName, nonadminbackup)
+ 			if err != nil && errors.IsNotFound(err) {
+-				resource := &nacv1alpha1.NonAdminBackup{
++				resource := &oadpv1alpha1.NonAdminBackup{
+ 					ObjectMeta: metav1.ObjectMeta{
+ 						Name:      resourceName,
+ 						Namespace: "default",
+@@ -59,7 +59,7 @@
+ 
+ 		AfterEach(func() {
+ 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+-			resource := &nacv1alpha1.NonAdminBackup{}
++			resource := &oadpv1alpha1.NonAdminBackup{}
+ 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+ 			Expect(err).NotTo(HaveOccurred())
+ 
+diff --color -ruN old/internal/controller/suite_test.go new/internal/controller/suite_test.go
+--- old/internal/controller/suite_test.go	2024-10-02 13:48:24.976051926 -0300
++++ new/internal/controller/suite_test.go	2024-10-02 13:50:14.786925240 -0300
+@@ -32,7 +32,7 @@
+ 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+ 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+ 
+-	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
++	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+ 	//+kubebuilder:scaffold:imports
+ )
+ 
+@@ -72,7 +72,7 @@
+ 	Expect(err).NotTo(HaveOccurred())
+ 	Expect(cfg).NotTo(BeNil())
+ 
+-	err = nacv1alpha1.AddToScheme(scheme.Scheme)
++	err = oadpv1alpha1.AddToScheme(scheme.Scheme)
+ 	Expect(err).NotTo(HaveOccurred())
+ 
+ 	//+kubebuilder:scaffold:scheme
+diff --color -ruN old/PROJECT new/PROJECT
+--- old/PROJECT	2024-10-02 13:48:24.977051934 -0300
++++ new/PROJECT	2024-10-02 13:50:14.787925247 -0300
+@@ -2,7 +2,7 @@
+ # This file is used to track the info used to scaffold your project
+ # and allow the plugins properly work.
+ # More info: https://book.kubebuilder.io/reference/project-config.html
+-domain: oadp.openshift.io
++domain: openshift.io
+ layout:
+ - go.kubebuilder.io/v4
+ projectName: oadp-nac
+@@ -12,8 +12,8 @@
+     crdVersion: v1
+     namespaced: true
+   controller: true
+-  domain: oadp.openshift.io
+-  group: nac
++  domain: openshift.io
++  group: oadp
+   kind: NonAdminBackup
+   path: github.com/migtools/oadp-non-admin/api/v1alpha1
+   version: v1alpha1
