@@ -17,6 +17,16 @@ NAC objects are included in OADP operator through `make update-non-admin-manifes
 
 The continuous integration (CI) pipeline of the project verifies if OADP operator repository branches have up to date NAC objects included.
 
+Velero version and its objects (for tests) are updated in NAC through `make update-velero-manifests` command, which is run in this repository.
+
+> **NOTE:** Manual steps required in this repository prior to implementation of `make update-velero-manifests` command:
+> - replace statement with `github.com/openshift/velero` must be already set in `go.mod` file
+> - add empty file with expected name in `hack/extra-crds` folder
+
+> **NOTE:** `make update-velero-manifests` command does not work for deletion, i.e., if a file that was previously managed by the command is deleted (or renamed), it needs to be manually deleted.
+
+The continuous integration (CI) pipeline of the project verifies if this repository branches have up to date Velero version and Velero objects.
+
 ## Kubebuilder
 
 The project was generated using kubebuilder version `v3.14.0`, running the following commands
