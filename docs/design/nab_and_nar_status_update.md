@@ -1,4 +1,4 @@
-# Developer Workflow: NonAdminBackup and NonAdminRestore Status Update
+# Controller Workflow: NonAdminBackup and NonAdminRestore Status Update
 
 ## Overview
 
@@ -28,7 +28,6 @@ Those are are the possible values for phase:
 | New | *NonAdminBackup/NonAdminRestore* resource was accepted by the NAB/NAR Controller, but it has not yet been validated by the NAB/NAR Controller |
 | BackingOff | *NonAdminBackup/NonAdminRestore* resource was invalidated by the NAB/NAR Controller, due to invalid Spec. NAB/NAR Controller will not reconcile the object further, until user updates it |
 | Created | *NonAdminBackup/NonAdminRestore* resource was validated by the NAB/NAR Controller and Velero *Backup/restore* was created. The Phase will not have additional information about the *Backup/Restore* run |
-| Deleted | TODO |
 
 ### Conditions
 
@@ -58,8 +57,9 @@ Those are are the possible values for `NonAdminCondition`:
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
 NonAdminBackup `status.veleroBackup` contains `name`, `namespace` and `status`.
-`status.veleroBackup.name` represents the name of the `VeleroBackup` object. `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
-`status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
+- `status.veleroBackup.name` represents the name of the `VeleroBackup` object.
+- `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
+- `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
 The format of those fields allows to interact with that Backup using `oc` or `velero` commands as follows:
 
@@ -73,14 +73,13 @@ status:
 ```
 
 ```shell
-oc describe -n openshift-adp nab-nacproject-c3499c2729730a
-
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
 Similarly, NonAdminRestore `status.veleroRestore` contains `name`, `namespace` and `status`.
-`status.veleroRestore.name` represents the name of the `veleroRestore` object. `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
-`status.veleroRestore.status` field is a copy of the `VeleroBackup` object status.
+- `status.veleroRestore.name` represents the name of the `veleroRestore` object.
+- `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
+- `status.veleroRestore.status` field is a copy of the `VeleroBackup` object status.
 
 ## Example
 
