@@ -19,86 +19,40 @@ package predicate
 import (
 	"context"
 
-	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
-	"github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
+const nonAdminBackupPredicateKey = "NonAdminBackupPredicate"
+
 // NonAdminBackupPredicate contains event filters for Non Admin Backup objects
-type NonAdminBackupPredicate struct {
-	Logger logr.Logger
-}
+type NonAdminBackupPredicate struct{}
 
-func getNonAdminBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
-	return log.FromContext(ctx).WithValues("NonAdminBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
-}
-
-// Create event filter
+// Create event filter accepts all NonAdminBackup create events
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	namespace := evt.Object.GetNamespace()
-	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("NonAdminBackupPredicate: Received Create event")
-	if nonAdminBackup, ok := evt.Object.(*nacv1alpha1.NonAdminBackup); ok {
-		if nonAdminBackup.Status.Phase == constant.EmptyString || nonAdminBackup.Status.Phase == nacv1alpha1.NonAdminBackupPhaseNew {
-			logger.V(1).Info("NonAdminBackupPredicate: Accepted Create event")
-			return true
-		}
-	}
-	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Create event")
-	return false
-}
-
-// Update event filter
-func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	namespace := evt.ObjectNew.GetNamespace()
-	name := evt.ObjectNew.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("NonAdminBackupPredicate: Received Update event")
-
-	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
-		logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - generation change")
-		return true
-	}
-
-	if nonAdminBackupOld, ok := evt.ObjectOld.(*nacv1alpha1.NonAdminBackup); ok {
-		if nonAdminBackupNew, ok := evt.ObjectNew.(*nacv1alpha1.NonAdminBackup); ok {
-			oldPhase := nonAdminBackupOld.Status.Phase
-			newPhase := nonAdminBackupNew.Status.Phase
-
-			// New phase set, reconcile
-			if oldPhase == constant.EmptyString && newPhase != constant.EmptyString {
-				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase change")
-				return true
-			} else if oldPhase == nacv1alpha1.NonAdminBackupPhaseNew && newPhase == nacv1alpha1.NonAdminBackupPhaseCreated {
-				logger.V(1).Info("NonAdminBackupPredicate: Accepted Update event - phase created")
-				return true
-			}
-		}
-	}
-	logger.V(1).Info("NonAdminBackupPredicate: Rejecting Update event")
-
-	return false
-}
-
-// Delete event filter
-func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
-	namespace := evt.Object.GetNamespace()
-	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("NonAdminBackupPredicate: Accepted Delete event")
+	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
+	logger.V(1).Info("Accepted Create event")
 	return true
 }
 
-// Generic event filter
-func (NonAdminBackupPredicate) Generic(ctx context.Context, evt event.GenericEvent) bool {
-	namespace := evt.Object.GetNamespace()
-	name := evt.Object.GetName()
-	logger := getNonAdminBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("NonAdminBackupPredicate: Accepted Generic event")
+// Update event filter only accepts NonAdminBackup update events that include spec change
+func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupPredicateKey)
+
+	// spec change
+	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
+		logger.V(1).Info("Accepted Update event")
+		return true
+	}
+
+	logger.V(1).Info("Rejected Update event")
+	return false
+}
+
+// Delete event filter accepts all NonAdminBackup delete events
+func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
+	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
+	logger.V(1).Info("Accepted Delete event")
 	return true
 }

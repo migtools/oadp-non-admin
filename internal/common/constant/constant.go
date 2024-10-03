@@ -23,6 +23,7 @@ package constant
 // of the specific Object, such as Backup/Restore.
 const (
 	OadpLabel                    = "openshift.io/oadp" // TODO import?
+	OadpLabelValue               = TrueString
 	ManagedByLabel               = "app.kubernetes.io/managed-by"
 	ManagedByLabelValue          = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
 	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
@@ -38,8 +39,8 @@ const (
 // EmptyString defines a constant for the empty string
 const EmptyString = ""
 
-// MaxKubernetesNameLength represents maximum length of the name in k8s
-const MaxKubernetesNameLength = 253
+// TrueString defines a constant for the True string
+const TrueString = "True"
 
 // VeleroBackupNamePrefix represents the prefix for the object name generated
 // by the NonAdminController

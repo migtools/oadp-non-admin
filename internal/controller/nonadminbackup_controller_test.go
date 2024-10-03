@@ -211,8 +211,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			if scenario.createVeleroBackup {
 				veleroBackup := &velerov1.Backup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
-						Namespace: oadpNamespaceName,
+						Name:        function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
+						Namespace:   oadpNamespaceName,
+						Labels:      function.AddNonAdminLabels(nil),
+						Annotations: function.AddNonAdminBackupAnnotations(nonAdminNamespaceName, testNonAdminBackupName, "", nil),
 					},
 					Spec: velerov1.BackupSpec{
 						IncludedNamespaces: []string{nonAdminNamespaceName},
@@ -296,7 +298,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 			result: reconcile.Result{Requeue: true},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup phase to created and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup phase to created and Condition to Queued True and VeleroBackup reference and Exit", nonAdminBackupSingleReconcileScenario{
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -313,39 +315,9 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				// TODO should not have VeleroBackupName and VeleroBackupNamespace?
-				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
-				Conditions: []metav1.Condition{
-					{
-						Type:    "Accepted",
-						Status:  metav1.ConditionTrue,
-						Reason:  "BackupAccepted",
-						Message: "backup accepted",
-					},
-				},
-			},
-			result: reconcile.Result{Requeue: true},
-		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase created; Conditions Accepted True), should update NonAdminBackup Condition to Queued True and Requeue", nonAdminBackupSingleReconcileScenario{
-			createVeleroBackup: true,
-			spec: nacv1alpha1.NonAdminBackupSpec{
-				BackupSpec: &velerov1.BackupSpec{},
-			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
-				Conditions: []metav1.Condition{
-					{
-						Type:               "Accepted",
-						Status:             metav1.ConditionTrue,
-						Reason:             "BackupAccepted",
-						Message:            "backup accepted",
-						LastTransitionTime: metav1.NewTime(time.Now()),
-					},
-				},
-			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				// TODO should not have VeleroBackupName and VeleroBackupNamespace?
-				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
@@ -361,15 +333,17 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			result: reconcile.Result{Requeue: true},
+			result: reconcile.Result{},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase created; Conditions Accepted True, Queued True), should update NonAdminBackup VeleroBackupStatus and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by VeleroBackup Update event, should update NonAdminBackup VeleroBackupStatus and Exit", nonAdminBackupSingleReconcileScenario{
 			createVeleroBackup: true,
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackupName:      placeholder,
+				VeleroBackupNamespace: placeholder,
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
@@ -407,9 +381,9 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			result: reconcile.Result{Requeue: false},
+			result: reconcile.Result{},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new) [invalid spec], should update NonAdminBackup phase to BackingOff and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new) [invalid spec], should update NonAdminBackup phase to BackingOff and Condition to Accepted False and Exit with terminal error", nonAdminBackupSingleReconcileScenario{
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{
 					IncludedNamespaces: []string{"not-valid"},
@@ -417,21 +391,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
-			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
-			},
-			result: reconcile.Result{Requeue: true},
-		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase BackingOff), should update NonAdminBackup Condition to Accepted False and stop with terminal error", nonAdminBackupSingleReconcileScenario{
-			// TODO this validates spec again...
-			spec: nacv1alpha1.NonAdminBackupSpec{
-				BackupSpec: &velerov1.BackupSpec{
-					IncludedNamespaces: []string{"not-valid"},
-				},
-			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
 			},
 			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
@@ -472,7 +431,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 		time.Sleep(1 * time.Second)
 	})
 
-	ginkgo.DescribeTable("full reconcile loop",
+	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup Create event",
 		func(scenario nonAdminBackupFullReconcileScenario) {
 			updateTestScenario()
 
@@ -550,6 +509,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					if err != nil {
 						return false, err
 					}
+					if nonAdminBackup.Status.VeleroBackupStatus == nil {
+						return false, nil
+					}
 					return nonAdminBackup.Status.VeleroBackupStatus.Phase == velerov1.BackupPhaseCompleted, nil
 				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 			}
@@ -566,7 +528,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
 				VeleroBackupName:      placeholder,
 				VeleroBackupNamespace: placeholder,
-				VeleroBackupStatus:    &velerov1.BackupStatus{},
+				VeleroBackupStatus:    nil,
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",

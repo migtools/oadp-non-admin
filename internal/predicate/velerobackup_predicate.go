@@ -19,56 +19,29 @@ package predicate
 import (
 	"context"
 
-	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
 // VeleroBackupPredicate contains event filters for Velero Backup objects
 type VeleroBackupPredicate struct {
-	// We are watching only Velero Backup objects within
-	// namespace where OADP is.
-	OadpVeleroNamespace string
-	Logger              logr.Logger
+	OADPNamespace string
 }
 
-// TODO try to remove calls to get logger functions, try to initialize it
-func getBackupPredicateLogger(ctx context.Context, name, namespace string) logr.Logger {
-	return log.FromContext(ctx).WithValues("VeleroBackupPredicate", types.NamespacedName{Name: name, Namespace: namespace})
-}
+// Update event filter only accepts Velero Backup update events from OADP namespace
+// and from Velero Backups that have required metadata
+func (p VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupPredicate")
 
-// Create event filter
-func (veleroBackupPredicate VeleroBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	namespace := evt.Object.GetNamespace()
-	if namespace != veleroBackupPredicate.OadpVeleroNamespace {
-		return false
+	namespace := evt.ObjectNew.GetNamespace()
+	if namespace == p.OADPNamespace {
+		if function.CheckVeleroBackupMetadata(evt.ObjectNew) {
+			logger.V(1).Info("Accepted Update event")
+			return true
+		}
 	}
 
-	name := evt.Object.GetName()
-	logger := getBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("VeleroBackupPredicate: Received Create event")
-
-	return function.CheckVeleroBackupLabels(evt.Object.GetLabels())
-}
-
-// Update event filter
-func (veleroBackupPredicate VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	namespace := evt.ObjectNew.GetNamespace()
-	name := evt.ObjectNew.GetName()
-	logger := getBackupPredicateLogger(ctx, name, namespace)
-	logger.V(1).Info("VeleroBackupPredicate: Received Update event")
-	return namespace == veleroBackupPredicate.OadpVeleroNamespace
-}
-
-// Delete event filter
-func (VeleroBackupPredicate) Delete(_ context.Context, _ event.DeleteEvent) bool {
-	return false
-}
-
-// Generic event filter
-func (VeleroBackupPredicate) Generic(_ context.Context, _ event.GenericEvent) bool {
+	logger.V(1).Info("Rejected Update event")
 	return false
 }
