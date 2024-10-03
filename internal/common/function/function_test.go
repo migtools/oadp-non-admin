@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -284,6 +285,82 @@ func TestGenerateVeleroBackupName(t *testing.T) {
 		if actual != tc.expected {
 			t.Errorf("Expected: %s, but got: %s", tc.expected, actual)
 		}
+	}
+}
+
+func TestGenerateVeleroBackupNameWithUUID(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		nabName   string
+	}{
+		{
+			name:      "Valid names without truncation",
+			namespace: "default",
+			nabName:   "my-backup",
+		},
+		{
+			name:      "Truncate nabName due to length",
+			namespace: "some",
+			nabName:   strings.Repeat("q", validation.DNS1123SubdomainMaxLength+10), // too long for DNS limit
+		},
+		{
+			name:      "Truncate very long namespace and very long name",
+			namespace: strings.Repeat("w", validation.DNS1123SubdomainMaxLength+10),
+			nabName:   strings.Repeat("e", validation.DNS1123SubdomainMaxLength+10),
+		},
+		{
+			name:      "nabName empty",
+			namespace: "example",
+			nabName:   constant.EmptyString,
+		},
+		{
+			name:      "namespace empty",
+			namespace: constant.EmptyString,
+			nabName:   "my-backup",
+		},
+		{
+			name:      "very long name and namespace empty",
+			namespace: constant.EmptyString,
+			nabName:   strings.Repeat("r", validation.DNS1123SubdomainMaxLength+10),
+		},
+		{
+			name:      "very long namespace and name empty",
+			namespace: strings.Repeat("t", validation.DNS1123SubdomainMaxLength+10),
+			nabName:   constant.EmptyString,
+		},
+		{
+			name:      "empty namespace and empty name",
+			namespace: constant.EmptyString,
+			nabName:   constant.EmptyString,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GenerateVeleroBackupNameWithUUID(tt.namespace, tt.nabName)
+
+			// Check length
+			if len(result) > validation.DNS1123SubdomainMaxLength {
+				t.Errorf("Generated name is too long: %s", result)
+			}
+
+			// Extract the last 36 characters, which should be the UUID
+			if len(result) < 36 {
+				t.Errorf("Generated name is too short to contain a valid UUID: %s", result)
+			}
+			uuidPart := result[len(result)-36:] // The UUID is always the last 36 characters
+
+			// Attempt to parse the UUID part
+			if _, err := uuid.Parse(uuidPart); err != nil {
+				t.Errorf("Last part is not a valid UUID: %s", uuidPart)
+			}
+
+			// Check if no double hyphens are present
+			if strings.Contains(result, "--") {
+				t.Errorf("Generated name contains double hyphens: %s", result)
+			}
+		})
 	}
 }
 

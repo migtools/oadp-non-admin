@@ -39,6 +39,9 @@ const (
 // EmptyString defines a constant for the empty string
 const EmptyString = ""
 
+// BackupNameDelimiter defines character that is used to separate name aprts
+const BackupNameDelimiter = "-"
+
 // TrueString defines a constant for the True string
 const TrueString = "True"
 

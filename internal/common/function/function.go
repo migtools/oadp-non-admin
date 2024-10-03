@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -134,6 +135,51 @@ func GenerateVeleroBackupName(namespace, nabName string) string {
 			namespace = namespace[:maxNamespaceLength]
 		}
 		veleroBackupName = fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
+	}
+
+	return veleroBackupName
+}
+
+// GenerateVeleroBackupNameWithUUID generates a Velero backup name based on the provided namespace and NonAdminBackup name.
+// It includes a UUID suffix. If the name exceeds the maximum length, it truncates nabName first, then namespace.
+func GenerateVeleroBackupNameWithUUID(namespace, nabName string) string {
+	// Generate UUID suffix
+	uuidSuffix := uuid.New().String()
+
+	// Build the initial backup name based on the presence of namespace and nabName
+	veleroBackupName := uuidSuffix
+	if len(nabName) > 0 {
+		veleroBackupName = nabName + constant.BackupNameDelimiter + veleroBackupName
+	}
+	if len(namespace) > 0 {
+		veleroBackupName = namespace + constant.BackupNameDelimiter + veleroBackupName
+	}
+
+	// Ensure the name is within the character limit
+	maxLength := validation.DNS1123SubdomainMaxLength
+
+	if len(veleroBackupName) > maxLength {
+		// Calculate remaining length after UUID
+		remainingLength := maxLength - len(uuidSuffix)
+
+		delimeterLength := len(constant.BackupNameDelimiter)
+
+		// Subtract two delimiter lengths to avoid a corner case where the namespace
+		// and delimiters leave no space for any part of nabName
+		if len(namespace) > remainingLength-delimeterLength-delimeterLength {
+			namespace = namespace[:remainingLength-delimeterLength-delimeterLength]
+			veleroBackupName = namespace + constant.BackupNameDelimiter + uuidSuffix
+		} else {
+			remainingLength = remainingLength - len(namespace) - delimeterLength - delimeterLength
+			nabName = nabName[:remainingLength]
+			veleroBackupName = uuidSuffix
+			if len(nabName) > 0 {
+				veleroBackupName = nabName + constant.BackupNameDelimiter + veleroBackupName
+			}
+			if len(namespace) > 0 {
+				veleroBackupName = namespace + constant.BackupNameDelimiter + veleroBackupName
+			}
+		}
 	}
 
 	return veleroBackupName
