@@ -137,4 +137,19 @@ If Velero version or its objects needs changes, follow this workflow:
 
 ## Upgrade kubebuilder version
 
-To upgrade kubebuilder version, create kubebuilder structure using the current kubebuilder version and the upgrade version, using the same commands presented in [kubebuilder architecture documentation](architecture.md#kubebuilder), in two different folders. Then generate a `diff` file from the two folders and apply changes to project code.
+To upgrade kubebuilder version, create kubebuilder structure using the current kubebuilder version and the upgrade version (get kubebuilder executables in https://github.com/kubernetes-sigs/kubebuilder/releases), using the same commands presented in [kubebuilder architecture documentation](architecture.md#kubebuilder), in two different folders. Then generate a `diff` file from the two folders and apply changes to project code.
+
+Example
+```sh
+mkdir current
+mkdir new
+cd current
+# Run kubebuilder commands pointing to kubebuilder executable with the current version
+cd ..
+cd new
+# Run kubebuilder commands pointing to kubebuilder executable with the new version
+cd ..
+diff -ruN current new > kubebuilder-upgrade.diff
+patch -p1 --verbose -d ./ -i kubebuilder-upgrade.diff
+# Resolve possible conflicts
+```
