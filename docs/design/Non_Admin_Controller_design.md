@@ -31,6 +31,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
     - Create their own BSLs
     - View the status of the BSLs created by them
     - Delete the BSLs created by them
+    - Use their own BSLs for Backup/Restore Operations
 
 ## Installation
 - The Non-Admin Controller (NAC) will be installed via OADP Operator.
@@ -88,6 +89,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
         - get
 
     ```
+    **Note:** If users have admin level access/rights to particular namespace then we do not need to specify the privileges listed above.
 - **Existence of Namespace:** The existence of namespace prior to performing non-admin backup/restore operations is a must.(for backup it will obviously exist but for restore it is an explicit hard precondition)
 ## High-Level design
 
