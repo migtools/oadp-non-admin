@@ -149,10 +149,10 @@ func GenerateVeleroBackupNameWithUUID(namespace, nabName string) string {
 	// Build the initial backup name based on the presence of namespace and nabName
 	veleroBackupName := uuidSuffix
 	if len(nabName) > 0 {
-		veleroBackupName = nabName + constant.BackupNameDelimiter + veleroBackupName
+		veleroBackupName = nabName + constant.NameDelimiter + veleroBackupName
 	}
 	if len(namespace) > 0 {
-		veleroBackupName = namespace + constant.BackupNameDelimiter + veleroBackupName
+		veleroBackupName = namespace + constant.NameDelimiter + veleroBackupName
 	}
 
 	// Ensure the name is within the character limit
@@ -162,22 +162,22 @@ func GenerateVeleroBackupNameWithUUID(namespace, nabName string) string {
 		// Calculate remaining length after UUID
 		remainingLength := maxLength - len(uuidSuffix)
 
-		delimeterLength := len(constant.BackupNameDelimiter)
+		delimeterLength := len(constant.NameDelimiter)
 
 		// Subtract two delimiter lengths to avoid a corner case where the namespace
 		// and delimiters leave no space for any part of nabName
 		if len(namespace) > remainingLength-delimeterLength-delimeterLength {
 			namespace = namespace[:remainingLength-delimeterLength-delimeterLength]
-			veleroBackupName = namespace + constant.BackupNameDelimiter + uuidSuffix
+			veleroBackupName = namespace + constant.NameDelimiter + uuidSuffix
 		} else {
 			remainingLength = remainingLength - len(namespace) - delimeterLength - delimeterLength
 			nabName = nabName[:remainingLength]
 			veleroBackupName = uuidSuffix
 			if len(nabName) > 0 {
-				veleroBackupName = nabName + constant.BackupNameDelimiter + veleroBackupName
+				veleroBackupName = nabName + constant.NameDelimiter + veleroBackupName
 			}
 			if len(namespace) > 0 {
-				veleroBackupName = namespace + constant.BackupNameDelimiter + veleroBackupName
+				veleroBackupName = namespace + constant.NameDelimiter + veleroBackupName
 			}
 		}
 	}
