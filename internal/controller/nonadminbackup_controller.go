@@ -354,7 +354,12 @@ func updateNonAdminBackupVeleroBackupReference(status *nacv1alpha1.NonAdminBacku
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup status field in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
 func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
-	if !reflect.DeepEqual(status.VeleroBackup.Status, &veleroBackup.Status) {
+	if status.VeleroBackup == nil {
+		status.VeleroBackup = &nacv1alpha1.VeleroBackup{
+			Status: veleroBackup.Status.DeepCopy(),
+		}
+		return true
+	} else if !reflect.DeepEqual(status.VeleroBackup.Status, &veleroBackup.Status) {
 		status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
 		return true
 	}
