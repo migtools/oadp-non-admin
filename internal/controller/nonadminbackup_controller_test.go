@@ -69,22 +69,24 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 	if nonAdminBackup.Status.Phase != expectedStatus.Phase {
 		return fmt.Errorf("NonAdminBackup Status Phase %v is not equal to expected %v", nonAdminBackup.Status.Phase, expectedStatus.Phase)
 	}
-	veleroBackupName := expectedStatus.VeleroBackupName
-	if expectedStatus.VeleroBackupName == placeholder {
-		veleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
-	}
-	if nonAdminBackup.Status.VeleroBackupName != veleroBackupName {
-		return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupName, veleroBackupName)
-	}
-	veleroBackupNamespace := expectedStatus.VeleroBackupNamespace
-	if expectedStatus.VeleroBackupNamespace == placeholder {
-		veleroBackupNamespace = oadpNamespaceName
-	}
-	if nonAdminBackup.Status.VeleroBackupNamespace != veleroBackupNamespace {
-		return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupNamespace, veleroBackupNamespace)
-	}
-	if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackupStatus, expectedStatus.VeleroBackupStatus) {
-		return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackupStatus, expectedStatus.VeleroBackupStatus)
+	if expectedStatus.VeleroBackup != nil {
+		veleroBackupName := expectedStatus.VeleroBackup.Name
+		if expectedStatus.VeleroBackup.Name == placeholder {
+			veleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
+		}
+		if nonAdminBackup.Status.VeleroBackup.Name != veleroBackupName {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Name, veleroBackupName)
+		}
+		veleroBackupNamespace := expectedStatus.VeleroBackup.Namespace
+		if expectedStatus.VeleroBackup.Namespace == placeholder {
+			veleroBackupNamespace = oadpNamespaceName
+		}
+		if nonAdminBackup.Status.VeleroBackup.Namespace != veleroBackupNamespace {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Namespace, veleroBackupNamespace)
+		}
+		if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status) {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status)
+		}
 	}
 
 	if len(nonAdminBackup.Status.Conditions) != len(expectedStatus.Conditions) {
@@ -225,11 +227,13 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 
 			if scenario.priorStatus != nil {
 				nonAdminBackup.Status = *scenario.priorStatus
-				if nonAdminBackup.Status.VeleroBackupName == placeholder {
-					nonAdminBackup.Status.VeleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
-				}
-				if nonAdminBackup.Status.VeleroBackupNamespace == placeholder {
-					nonAdminBackup.Status.VeleroBackupNamespace = oadpNamespaceName
+				if nonAdminBackup.Status.VeleroBackup != nil {
+					if nonAdminBackup.Status.VeleroBackup.Name == placeholder {
+						nonAdminBackup.Status.VeleroBackup.Name = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
+					}
+					if nonAdminBackup.Status.VeleroBackup.Namespace == placeholder {
+						nonAdminBackup.Status.VeleroBackup.Namespace = oadpNamespaceName
+					}
 				}
 				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
 			}
@@ -315,9 +319,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      placeholder,
-				VeleroBackupNamespace: placeholder,
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Name:      placeholder,
+					Namespace: placeholder,
+				},
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
@@ -341,9 +347,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				BackupSpec: &velerov1.BackupSpec{},
 			},
 			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
-				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      placeholder,
-				VeleroBackupNamespace: placeholder,
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Name:      placeholder,
+					Namespace: placeholder,
+				},
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
@@ -362,10 +370,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      placeholder,
-				VeleroBackupNamespace: placeholder,
-				VeleroBackupStatus:    &velerov1.BackupStatus{},
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Name:      placeholder,
+					Namespace: placeholder,
+					Status:    &velerov1.BackupStatus{},
+				},
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
@@ -476,7 +486,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			ginkgo.By("Validating NonAdminBackup Status")
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 
-			if len(scenario.status.VeleroBackupName) > 0 {
+			if scenario.status.VeleroBackup != nil && len(scenario.status.VeleroBackup.Name) > 0 {
 				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminBackup.Spec,
@@ -509,10 +519,10 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					if err != nil {
 						return false, err
 					}
-					if nonAdminBackup.Status.VeleroBackupStatus == nil {
+					if nonAdminBackup.Status.VeleroBackup.Status == nil {
 						return false, nil
 					}
-					return nonAdminBackup.Status.VeleroBackupStatus.Phase == velerov1.BackupPhaseCompleted, nil
+					return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted, nil
 				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 			}
 
@@ -525,10 +535,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				BackupSpec: &velerov1.BackupSpec{},
 			},
 			status: nacv1alpha1.NonAdminBackupStatus{
-				Phase:                 nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackupName:      placeholder,
-				VeleroBackupNamespace: placeholder,
-				VeleroBackupStatus:    nil,
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Name:      placeholder,
+					Namespace: placeholder,
+					Status:    nil,
+				},
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
