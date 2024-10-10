@@ -40,17 +40,17 @@ const (
 	testNonAdminBackupUUID      = "12345678-1234-1234-1234-123456789abc"
 )
 
-func TestAddNonAdminLabels(t *testing.T) {
+func TestGetNonAdminLabels(t *testing.T) {
 	expected := map[string]string{
 		constant.OadpLabel:      constant.OadpLabelValue,
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
 
-	result := AddNonAdminLabels()
+	result := GetNonAdminLabels()
 	assert.Equal(t, expected, result)
 }
 
-func TestAddNonAdminBackupAnnotations(t *testing.T) {
+func TestGetNonAdminBackupAnnotations(t *testing.T) {
 	nonAdminBackup := &nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNonAdminBackupNamespace,
@@ -65,7 +65,7 @@ func TestAddNonAdminBackupAnnotations(t *testing.T) {
 		constant.NabOriginUUIDAnnotation:      testNonAdminBackupUUID,
 	}
 
-	result := AddNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta)
+	result := GetNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta)
 	assert.Equal(t, expected, result)
 }
 

@@ -215,8 +215,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
 						Namespace:   oadpNamespaceName,
-						Labels:      function.AddNonAdminLabels(),
-						Annotations: function.AddNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta),
+						Labels:      function.GetNonAdminLabels(),
+						Annotations: function.GetNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta),
 					},
 					Spec: velerov1.BackupSpec{
 						IncludedNamespaces: []string{nonAdminNamespaceName},

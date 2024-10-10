@@ -34,16 +34,16 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-// AddNonAdminLabels return the required Non Admin labels
-func AddNonAdminLabels() map[string]string {
+// GetNonAdminLabels return the required Non Admin labels
+func GetNonAdminLabels() map[string]string {
 	return map[string]string{
 		constant.OadpLabel:      constant.OadpLabelValue,
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
 }
 
-// AddNonAdminBackupAnnotations return the required Non Admin annotations
-func AddNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
+// GetNonAdminBackupAnnotations return the required Non Admin annotations
+func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{
 		constant.NabOriginNamespaceAnnotation: objectMeta.Namespace,
 		constant.NabOriginNameAnnotation:      objectMeta.Name,

@@ -219,8 +219,8 @@ func (r *NonAdminBackupReconciler) syncVeleroBackupWithNonAdminBackup(ctx contex
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroBackupName,
 				Namespace:   r.OADPNamespace,
-				Labels:      function.AddNonAdminLabels(),
-				Annotations: function.AddNonAdminBackupAnnotations(nab.ObjectMeta),
+				Labels:      function.GetNonAdminLabels(),
+				Annotations: function.GetNonAdminBackupAnnotations(nab.ObjectMeta),
 			},
 			Spec: *backupSpec,
 		}
