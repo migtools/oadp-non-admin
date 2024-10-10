@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,44 +34,21 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-const requiredAnnotationError = "backup does not have the required annotation '%s'"
-
-// AddNonAdminLabels return a map with both the object labels and with the default Non Admin labels.
-// If error occurs, a map with only the default Non Admin labels is returned
-func AddNonAdminLabels(labels map[string]string) map[string]string {
-	defaultLabels := map[string]string{
+// GetNonAdminLabels return the required Non Admin labels
+func GetNonAdminLabels() map[string]string {
+	return map[string]string{
 		constant.OadpLabel:      constant.OadpLabelValue,
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
-
-	mergedLabels, err := mergeMaps(defaultLabels, labels)
-	if err != nil {
-		// TODO logger
-		_, _ = fmt.Println("Error merging labels:", err)
-		// TODO break?
-		return defaultLabels
-	}
-	return mergedLabels
 }
 
-// AddNonAdminBackupAnnotations return a map with both the object annotations and with the default NonAdminBackup annotations.
-// If error occurs, a map with only the default NonAdminBackup annotations is returned
-func AddNonAdminBackupAnnotations(ownerNamespace string, ownerName string, ownerUUID string, existingAnnotations map[string]string) map[string]string {
-	// TODO could not receive object meta and get info from there?
-	defaultAnnotations := map[string]string{
-		constant.NabOriginNamespaceAnnotation: ownerNamespace,
-		constant.NabOriginNameAnnotation:      ownerName,
-		constant.NabOriginUUIDAnnotation:      ownerUUID,
+// GetNonAdminBackupAnnotations return the required Non Admin annotations
+func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
+	return map[string]string{
+		constant.NabOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NabOriginNameAnnotation:      objectMeta.Name,
+		constant.NabOriginUUIDAnnotation:      string(objectMeta.UID),
 	}
-
-	mergedAnnotations, err := mergeMaps(defaultAnnotations, existingAnnotations)
-	if err != nil {
-		// TODO logger
-		_, _ = fmt.Println("Error merging annotations:", err)
-		// TODO break?
-		return defaultAnnotations
-	}
-	return mergedAnnotations
 }
 
 // containsOnlyNamespace checks if the given namespaces slice contains only the specified namespace
@@ -84,27 +61,20 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 	return true
 }
 
-// GetBackupSpecFromNonAdminBackup return BackupSpec object from NonAdminBackup spec, if no error occurs
-func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup) (*velerov1.BackupSpec, error) {
-	// TODO https://github.com/migtools/oadp-non-admin/issues/60
+// ValidateBackupSpec return nil, if NonAdminBackup is valid; error otherwise
+func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
 	// this should be Kubernetes API validation
 	if nonAdminBackup.Spec.BackupSpec == nil {
-		return nil, fmt.Errorf("BackupSpec is not defined")
+		return fmt.Errorf("BackupSpec is not defined")
 	}
 
-	veleroBackupSpec := nonAdminBackup.Spec.BackupSpec.DeepCopy()
-
-	// TODO: Additional validations, before continuing
-
-	if veleroBackupSpec.IncludedNamespaces == nil {
-		veleroBackupSpec.IncludedNamespaces = []string{nonAdminBackup.Namespace}
-	} else {
-		if !containsOnlyNamespace(veleroBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return nil, fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
+	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
+		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
+			return fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
 		}
 	}
 
-	return veleroBackupSpec, nil
+	return nil
 }
 
 // GenerateVeleroBackupName generates a Velero backup name based on the provided namespace and NonAdminBackup name.
@@ -112,31 +82,24 @@ func GetBackupSpecFromNonAdminBackup(nonAdminBackup *nacv1alpha1.NonAdminBackup)
 // If the resulting name exceeds the maximum Kubernetes name length, it truncates the namespace to fit within the limit.
 func GenerateVeleroBackupName(namespace, nabName string) string {
 	// Calculate a hash of the name
-	const hashLength = 14
-	prefixLength := len(constant.VeleroBackupNamePrefix) + len("--") // Account for two "-"
-
 	hasher := sha256.New()
 	_, err := hasher.Write([]byte(nabName))
 	if err != nil {
 		return ""
 	}
 
+	const hashLength = 14
 	nameHash := hex.EncodeToString(hasher.Sum(nil))[:hashLength] // Take first 14 chars
 
-	// Generate the Velero backup name created from NAB
-	veleroBackupName := fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
-
+	usedLength := hashLength + len(constant.VeleroBackupNamePrefix) + len("--")
+	maxNamespaceLength := validation.DNS1123SubdomainMaxLength - usedLength
 	// Ensure the name is within the character limit
-	if len(veleroBackupName) > validation.DNS1123SubdomainMaxLength {
+	if len(namespace) > maxNamespaceLength {
 		// Truncate the namespace if necessary
-		maxNamespaceLength := validation.DNS1123SubdomainMaxLength - len(nameHash) - prefixLength
-		if len(namespace) > maxNamespaceLength {
-			namespace = namespace[:maxNamespaceLength]
-		}
-		veleroBackupName = fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
+		return fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace[:maxNamespaceLength], nameHash)
 	}
 
-	return veleroBackupName
+	return fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
 }
 
 // CheckVeleroBackupMetadata return true if Velero Backup object has required Non Admin labels and annotations, false otherwise
@@ -179,80 +142,6 @@ func checkAnnotationValueIsValid(annotations map[string]string, key string) bool
 	}
 	length := len(value)
 	return length > 0 && length < validation.DNS1123SubdomainMaxLength
-}
-
-// TODO not used
-
-// GetNonAdminBackupFromVeleroBackup return referenced NonAdminBackup object from Velero Backup object, if no error occurs
-func GetNonAdminBackupFromVeleroBackup(ctx context.Context, clientInstance client.Client, backup *velerov1.Backup) (*nacv1alpha1.NonAdminBackup, error) {
-	// Check if the backup has the required annotations to identify the associated NonAdminBackup object
-	logger := log.FromContext(ctx)
-
-	annotations := backup.GetAnnotations()
-
-	annotationsStr := fmt.Sprintf("%v", annotations)
-	logger.V(1).Info("Velero Backup Annotations", "annotations", annotationsStr)
-
-	if annotations == nil {
-		return nil, fmt.Errorf("backup has no annotations")
-	}
-
-	nabOriginNamespace, ok := annotations[constant.NabOriginNamespaceAnnotation]
-	if !ok {
-		return nil, fmt.Errorf(requiredAnnotationError, constant.NabOriginNamespaceAnnotation)
-	}
-
-	nabOriginName, ok := annotations[constant.NabOriginNameAnnotation]
-	if !ok {
-		return nil, fmt.Errorf(requiredAnnotationError, constant.NabOriginNameAnnotation)
-	}
-
-	nonAdminBackupKey := types.NamespacedName{
-		Namespace: nabOriginNamespace,
-		Name:      nabOriginName,
-	}
-
-	nonAdminBackup := &nacv1alpha1.NonAdminBackup{}
-	err := clientInstance.Get(ctx, nonAdminBackupKey, nonAdminBackup)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch NonAdminBackup object: %v", err)
-	}
-
-	nabOriginUUID, ok := annotations[constant.NabOriginUUIDAnnotation]
-	if !ok {
-		return nil, fmt.Errorf(requiredAnnotationError, constant.NabOriginUUIDAnnotation)
-	}
-	// Ensure UID matches
-	if nonAdminBackup.ObjectMeta.UID != types.UID(nabOriginUUID) {
-		return nil, fmt.Errorf("UID from annotation does not match UID of fetched NonAdminBackup object")
-	}
-
-	return nonAdminBackup, nil
-}
-
-// TODO import? Similar to as pkg/common/common.go:AppendUniqueKeyTOfTMaps from github.com/openshift/oadp-operator
-
-// Return map, of the same type as the input maps, that contains all keys/values from all input maps.
-// Key/value pairs that are identical in different input maps, are added only once to return map.
-// If a key exists in more than one input map, with a different value, an error is returned
-func mergeMaps[T comparable](maps ...map[T]T) (map[T]T, error) {
-	merge := make(map[T]T)
-	for _, m := range maps {
-		if m == nil {
-			continue
-		}
-		for k, v := range m {
-			existingValue, found := merge[k]
-			if found {
-				if existingValue != v {
-					return nil, fmt.Errorf("conflicting key %v: has both value %v and value %v in input maps", k, v, existingValue)
-				}
-				continue
-			}
-			merge[k] = v
-		}
-	}
-	return merge, nil
 }
 
 // GetLogger return a logger from input ctx, with additional key/value pairs being
