@@ -56,8 +56,8 @@ Those are are the possible values for `NonAdminCondition`:
 
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
-NonAdminBackup `status.veleroBackup` contains `name`, `namespace` and `status`.
-- `status.veleroBackup.name` represents the name of the `VeleroBackup` object.
+NonAdminBackup `status.veleroBackup` contains `nabnacuuid`, `namespace` and `status`.
+- `status.veleroBackup.nabnacuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-uuid` within the created `VeleroBackup` object.
 - `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
 - `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
@@ -76,10 +76,10 @@ status:
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
-Similarly, NonAdminRestore `status.veleroRestore` contains `name`, `namespace` and `status`.
-- `status.veleroRestore.name` represents the name of the `veleroRestore` object.
+Similarly, NonAdminRestore `status.veleroRestore` contains `nabnacuuid`, `namespace` and `status`.
+- `status.veleroRestore.nabnacuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-uuid` within the created `VeleroRestore` object.
 - `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
-- `status.veleroRestore.status` field is a copy of the `VeleroBackup` object status.
+- `status.veleroRestore.status` field is a copy of the `VeleroRestore` object status.
 
 ## Example
 
@@ -91,7 +91,7 @@ Object passed validation and Velero `Backup` object was created, but there was a
 ```yaml
 status:
   veleroBackup:
-    name: nab-nacproject-83fc04a2fd253d
+    nabnacuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
     namespace: openshift-adp
     status:
       expiration: '2024-05-16T08:12:11Z'
@@ -135,16 +135,25 @@ reconcileExit1[\Requeue: true, nil/]
 reconcileExit1 ==> question(is NonAdminBackup Spec valid?) == yes ==> reconcileStart2
 question == no ==> reconcileStartInvalid1
 
+
+
 reconcileStart2[/Reconcile start\] ==>
 
 conditionsAcceptedTrue["`status.conditions[Accepted] to **True**`"] -. Requeue: false, err .- reconcileStart2
+
 conditionsAcceptedTrue ==>
 
 reconcileExit2[\Requeue: true, nil/] ==>
 
 reconcileStart3[/Reconcile start\] ==>
 
-createVeleroBackup([Create Velero Backup]) -. Requeue: false, err .- reconcileStart3
+setVeleroBackupUUID([Set status.veleroBackup.nabNacUUID]) -. Requeue: false, err .- reconcileStart3
+
+setVeleroBackupUUID ==>
+
+reconcileStart4[/Reconcile start\] ==>
+
+createVeleroBackup([Create Velero Backup]) -. Requeue: false, err .- reconcileStart4
 createVeleroBackup ==>
 
 phaseCreated["`
@@ -152,7 +161,7 @@ status.phase: **Created**
 status.conditions[Queued] to **True**
 status.conditions.veleroBackup.name
 status.conditions.veleroBackup.namespace
-`"] -. Requeue: false, err .- reconcileStart3
+`"] -. Requeue: false, err .- reconcileStart4
 phaseCreated ==>
 
 reconcileExit4[\Requeue: false, nil/]
