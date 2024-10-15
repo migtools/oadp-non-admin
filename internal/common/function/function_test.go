@@ -368,12 +368,12 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "Velero Backup with wrong required non admin annotation [long]",
+			name: "Velero Backup with wrong required non admin label [long]",
 			backup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						constant.OadpLabel:          constant.OadpLabelValue,
-						constant.ManagedByLabel:     constant.ManagedByLabelValue,
+						constant.ManagedByLabel:     strings.Repeat("ll", validation.DNS1123SubdomainMaxLength),
 						constant.NabOriginUUIDLabel: testNonAdminBackupUUID,
 					},
 					Annotations: map[string]string{
