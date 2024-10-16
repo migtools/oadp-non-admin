@@ -119,9 +119,9 @@ func GenerateNacObjectNameWithUUID(namespace, nacName string) string {
 	return nacObjectName
 }
 
-// GetObjectByLabel retrieves a list of Kubernetes objects of a specified type based on a label within a given namespace.
-// It returns a slice of the specified object type and an error.
-func GetObjectByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
+// ListLabeledObjectsInNamespace retrieves a list of Kubernetes objects in a specified namespace
+// that match a given label key-value pair.
+func ListLabeledObjectsInNamespace(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
 	// Validate input parameters
 	if namespace == constant.EmptyString || labelKey == constant.EmptyString || labelValue == constant.EmptyString {
 		return fmt.Errorf("invalid input: namespace, labelKey, and labelValue must not be empty")
@@ -146,8 +146,8 @@ func GetObjectByLabel(ctx context.Context, clientInstance client.Client, namespa
 func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.Backup, error) {
 	veleroBackupList := &velerov1.BackupList{}
 
-	// Call the generic GetObjectByLabel function
-	if err := GetObjectByLabel(ctx, clientInstance, namespace, constant.NabOriginUUIDLabel, labelValue, veleroBackupList); err != nil {
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListLabeledObjectsInNamespace(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
 		return nil, err
 	}
 
@@ -157,7 +157,7 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	case 1:
 		return &veleroBackupList.Items[0], nil // Found 1 matching VeleroBackup
 	default:
-		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginUUIDLabel, labelValue, namespace)
+		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNameUUIDLabel, labelValue, namespace)
 	}
 }
 
@@ -171,7 +171,7 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 
-	if !checkLabelValueIsValid(objLabels, constant.NabOriginUUIDLabel) {
+	if !checkLabelValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
 		return false
 	}
 

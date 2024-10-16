@@ -198,11 +198,11 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 //
 // This function generates a UUID and stores it in the VeleroBackup status field of NonAdminBackup.
 func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NabNacUUID == constant.EmptyString {
-		nabNacUUID := function.GenerateNacObjectNameWithUUID(nab.Namespace, nab.Name)
+	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NameUUID == constant.EmptyString {
+		veleroBackupNameUUID := function.GenerateNacObjectNameWithUUID(nab.Namespace, nab.Name)
 		nab.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
-			NabNacUUID: nabNacUUID,
-			Namespace:  r.OADPNamespace,
+			NameUUID:  veleroBackupNameUUID,
+			Namespace: r.OADPNamespace,
 		}
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
@@ -226,29 +226,29 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 //	logger: Logger instance for logging messages.
 //	nab: Pointer to the NonAdminBackup object.
 func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NabNacUUID == constant.EmptyString {
+	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NameUUID == constant.EmptyString {
 		return false, errors.New("unable to get Velero Backup UUID from NonAdminBackup Status")
 	}
 
-	veleroBackupUUID := nab.Status.VeleroBackup.NabNacUUID
+	veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
 
-	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupUUID)
+	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
 
 	if err != nil {
 		// Case in which more then one VeleroBackup is found with the same label UUID
-		logger.Error(err, "Failed to find single VeleroBackup object", "UUID", veleroBackupUUID)
+		logger.Error(err, "Failed to find single VeleroBackup object", "UUID", veleroBackupNameUUID)
 		return false, err
 	}
 
 	if veleroBackup == nil {
-		logger.Info("VeleroBackup with label not found, creating one", "UUID", veleroBackupUUID)
+		logger.Info("VeleroBackup with label not found, creating one", "UUID", veleroBackupNameUUID)
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
 
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        veleroBackupUUID,
+				Name:        veleroBackupNameUUID,
 				Namespace:   r.OADPNamespace,
 				Labels:      function.GetNonAdminLabels(),
 				Annotations: function.GetNonAdminBackupAnnotations(nab.ObjectMeta),
@@ -256,15 +256,15 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			Spec: *backupSpec,
 		}
 
-		// Add NonAdminBackup's veleroBackupUUID as the label to the VeleroBackup object
+		// Add NonAdminBackup's veleroBackupNameUUID as the label to the VeleroBackup object
 		// We don't add this as an argument of GetNonAdminLabels(), because there may be
 		// situations where NAC object do not require NabOriginUUIDLabel
-		veleroBackup.Labels[constant.NabOriginUUIDLabel] = veleroBackupUUID
+		veleroBackup.Labels[constant.NabOriginNameUUIDLabel] = veleroBackupNameUUID
 
 		err = r.Create(ctx, &veleroBackup)
 
 		if err != nil {
-			// We do not retry here as the veleroBackupUUID
+			// We do not retry here as the veleroBackupNameUUID
 			// should be guaranteed to be unique
 			logger.Error(err, "Failed to create VeleroBackup")
 			return false, err
@@ -272,7 +272,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		logger.Info("VeleroBackup successfully created")
 	}
 
-	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupUUID, Namespace: r.OADPNamespace})
+	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupNameUUID, Namespace: r.OADPNamespace})
 
 	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseCreated)
 

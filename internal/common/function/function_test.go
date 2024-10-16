@@ -228,11 +228,11 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: defaultStr,
 						Name:      "backup1",
-						Labels:    map[string]string{constant.NabOriginUUIDLabel: testAppStr},
+						Labels:    map[string]string{constant.NabOriginNameUUIDLabel: testAppStr},
 					},
 				},
 			},
-			expected:      &velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "backup1", Labels: map[string]string{constant.NabOriginUUIDLabel: testAppStr}}},
+			expected:      &velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "backup1", Labels: map[string]string{constant.NabOriginNameUUIDLabel: testAppStr}}},
 			expectedError: nil,
 		},
 		{
@@ -252,19 +252,19 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: defaultStr,
 						Name:      "backup2",
-						Labels:    map[string]string{constant.NabOriginUUIDLabel: testAppStr},
+						Labels:    map[string]string{constant.NabOriginNameUUIDLabel: testAppStr},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: defaultStr,
 						Name:      "backup3",
-						Labels:    map[string]string{constant.NabOriginUUIDLabel: testAppStr},
+						Labels:    map[string]string{constant.NabOriginNameUUIDLabel: testAppStr},
 					},
 				},
 			},
 			expected:      nil,
-			expectedError: errors.New("multiple VeleroBackup objects found with label openshift.io/oadp-nab-origin-uuid=test-app in namespace 'default'"),
+			expectedError: errors.New("multiple VeleroBackup objects found with label openshift.io/oadp-nab-origin-nameuuid=test-app in namespace 'default'"),
 		},
 		{
 			name:          "Invalid input - empty namespace",
@@ -355,9 +355,9 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 			backup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						constant.OadpLabel:          constant.OadpLabelValue,
-						constant.ManagedByLabel:     constant.ManagedByLabelValue,
-						constant.NabOriginUUIDLabel: testNonAdminBackupUUID,
+						constant.OadpLabel:              constant.OadpLabelValue,
+						constant.ManagedByLabel:         constant.ManagedByLabelValue,
+						constant.NabOriginNameUUIDLabel: testNonAdminBackupUUID,
 					},
 					Annotations: map[string]string{
 						constant.NabOriginNamespaceAnnotation: constant.EmptyString,
@@ -372,9 +372,9 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 			backup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						constant.OadpLabel:          constant.OadpLabelValue,
-						constant.ManagedByLabel:     strings.Repeat("ll", validation.DNS1123SubdomainMaxLength),
-						constant.NabOriginUUIDLabel: testNonAdminBackupUUID,
+						constant.OadpLabel:              constant.OadpLabelValue,
+						constant.ManagedByLabel:         strings.Repeat("ll", validation.DNS1123SubdomainMaxLength),
+						constant.NabOriginNameUUIDLabel: testNonAdminBackupUUID,
 					},
 					Annotations: map[string]string{
 						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
@@ -389,9 +389,9 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 			backup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						constant.OadpLabel:          constant.OadpLabelValue,
-						constant.ManagedByLabel:     constant.ManagedByLabelValue,
-						constant.NabOriginUUIDLabel: testNonAdminBackupUUID,
+						constant.OadpLabel:              constant.OadpLabelValue,
+						constant.ManagedByLabel:         constant.ManagedByLabelValue,
+						constant.NabOriginNameUUIDLabel: testNonAdminBackupUUID,
 					},
 					Annotations: map[string]string{
 						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,

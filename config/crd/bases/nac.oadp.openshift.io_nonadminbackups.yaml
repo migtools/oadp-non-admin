@@ -612,13 +612,13 @@ spec:
                 description: VeleroBackup contains information of the related Velero
                   backup object.
                 properties:
-                  nabnacuuid:
-                    description: nabnacuuid references the Non Admin Backup object
-                      by it's nacUUID.
-                    type: string
                   namespace:
                     description: namespace references the Namespace in which Velero
                       backup exists.
+                    type: string
+                  nameuuid:
+                    description: nameuuid references the Velero Backup object by it's
+                      label containing same NameUUID.
                     type: string
                   status:
                     description: status captures the current status of the Velero

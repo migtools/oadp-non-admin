@@ -30,8 +30,8 @@ const (
 	ManagedByLabelValue          = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
 	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
 	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NabOriginUUIDLabel           = "openshift.io/oadp-nab-origin-uuid"
-	NarOriginUUIDLabel           = "openshift.io/oadp-nar-origin-uuid"
+	NabOriginNameUUIDLabel       = "openshift.io/oadp-nab-origin-nameuuid"
+	NarOriginNameUUIDLabel       = "openshift.io/oadp-nar-origin-nameuuid"
 )
 
 // Common environment variables for the Non Admin Controller

@@ -56,8 +56,8 @@ Those are are the possible values for `NonAdminCondition`:
 
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
-NonAdminBackup `status.veleroBackup` contains `nabnacuuid`, `namespace` and `status`.
-- `status.veleroBackup.nabnacuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-uuid` within the created `VeleroBackup` object.
+NonAdminBackup `status.veleroBackup` contains `nameuuid`, `namespace` and `status`.
+- `status.veleroBackup.nameuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nameuuid` within the created `VeleroBackup` object.
 - `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
 - `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
@@ -76,8 +76,8 @@ status:
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
-Similarly, NonAdminRestore `status.veleroRestore` contains `nabnacuuid`, `namespace` and `status`.
-- `status.veleroRestore.nabnacuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-uuid` within the created `VeleroRestore` object.
+Similarly, NonAdminRestore `status.veleroRestore` contains `nameuuid`, `namespace` and `status`.
+- `status.veleroRestore.nameuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nameuuid` within the created `VeleroRestore` object.
 - `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
 - `status.veleroRestore.status` field is a copy of the `VeleroRestore` object status.
 
@@ -91,7 +91,7 @@ Object passed validation and Velero `Backup` object was created, but there was a
 ```yaml
 status:
   veleroBackup:
-    nabnacuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
+    nameuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
     namespace: openshift-adp
     status:
       expiration: '2024-05-16T08:12:11Z'
@@ -147,7 +147,7 @@ reconcileExit2[\Requeue: true, nil/] ==>
 
 reconcileStart3[/Reconcile start\] ==>
 
-setVeleroBackupUUID([Set status.veleroBackup.nabNacUUID]) -. Requeue: false, err .- reconcileStart3
+setVeleroBackupUUID([Set status.veleroBackup.nameUUID]) -. Requeue: false, err .- reconcileStart3
 
 setVeleroBackupUUID ==>
 
