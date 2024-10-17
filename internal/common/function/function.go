@@ -119,9 +119,9 @@ func GenerateNacObjectNameWithUUID(namespace, nacName string) string {
 	return nacObjectName
 }
 
-// ListLabeledObjectsInNamespace retrieves a list of Kubernetes objects in a specified namespace
+// ListObjectsByLabel retrieves a list of Kubernetes objects in a specified namespace
 // that match a given label key-value pair.
-func ListLabeledObjectsInNamespace(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
+func ListObjectsByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
 	// Validate input parameters
 	if namespace == constant.EmptyString || labelKey == constant.EmptyString || labelValue == constant.EmptyString {
 		return fmt.Errorf("invalid input: namespace, labelKey, and labelValue must not be empty")
@@ -147,7 +147,7 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	veleroBackupList := &velerov1.BackupList{}
 
 	// Call the generic ListLabeledObjectsInNamespace function
-	if err := ListLabeledObjectsInNamespace(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
 		return nil, err
 	}
 
