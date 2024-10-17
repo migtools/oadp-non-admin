@@ -139,17 +139,17 @@ This design intends to enable non-admin users the ability to perform Backup and 
       backupSpec: {}
     ```
     - **NAB controller reconciles on this NAB CR:** The NonAdminBackup controller continuously reconciles the NonAdminBackup object's desired state with the actual state in the cluster.
-    - **NAB controller validates the NAB CR and then creates a corresponding Velero Backup CR:** When the NonAdminBackup controller detects a new or modified NonAdminBackup object, it creates or updates a corresponding Velero Backup object within the OADP Namespace using the information provided in the `backupSpec` field of the NonAdminBackup object. The resulting Backup object is named as `nab-<namespace>-<hash>`, where the `<namespace>` is the NonAdminBackup namespace and the `<hash>` is computed from the original NonAdminBackup name. The resulting Backup object is labeled and annotated with the following additional metadata:
+    - **NAB controller validates the NAB CR and then creates a corresponding Velero Backup CR:** When the NonAdminBackup controller detects a new or modified NonAdminBackup object, it creates or updates a corresponding Velero Backup object within the OADP Namespace using the information provided in the `backupSpec` field of the NonAdminBackup object. The resulting Backup object is named as `<namespace>-<name>-<hash>`, where the `<namespace>` is the NonAdminBackup namespace, `<name>` is the NonAdminBackup name and the `<hash>` is the generated UUID (version 4). If the resulting Backup object name is too long the name is adapted to 63 characters limit strpping first characters from name and then from namespace. The resulting Backup object is labeled and annotated with the following additional metadata:
 
     ```yaml
     metadata:
       annotations:
         openshift.io/oadp-nab-origin-name: <NonAdminBackup name>
         openshift.io/oadp-nab-origin-namespace: <NonAdminBackup Namespace>
-        openshift.io/oadp-nab-origin-uuid: <NonAdminBackup UUID>
       labels:
         app.kubernetes.io/managed-by: <OADP NonAdminController id>
         openshift.io/oadp: 'True'
+        openshift.io/oadp-nab-origin-nameuuid: <NonAdminBackup's NameUUID from Status>
     ```
     - **Velero runs Backup**: Velero executes the backup operation based on the configuration specified in the Velero Backup object. Velero updates the status of the Velero Backup object to reflect the outcome of the backup process.
     - **Reconcile loop updates NonAdminBackup object Status**: Upon detecting changes in the status of the Velero Backup object, the NonAdminBackup controller's reconciliation loop updates the Status field of the corresponding NonAdminBackup object with the updated status from the Velero Backup object.
@@ -162,17 +162,17 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - **Backup Sync controller syncs the Non-admin Backup CRs:** The Backup-Sync controller ensures that the NS relevant backups are synced and Non-admin backup CRs exists for non-admin users to refer them for restore operations.
 - **Non-Admin user creates the Non-Admin restore CR:** The user creates NonAdminRestore custom resource object in the Namespace on which the restore will run within the Kubernetes cluster. The `NonAdminRestore` schema has the `restoreSpec`, which is the same as `Restore` CR from the `velero.io/v1` apiVersion. Note that the non-admin user will use non-admin backup name (and not Velero backup name) in non-admin restore spec.
 - **NAR controller reconciles on this NAR CR:** The NonAdminRestore controller continuously reconciles the NonAdminRestore object's desired state with the actual state in the cluster.
-- **NAR controller validates the NAR CR and then creates a corresponding Velero Restore CR:** When the NonAdminRestore controller detects a new or modified NonAdminRestore object, it creates the corresponding Velero Restore object within the OADP Namespace using the information provided in the `restoreSpec` field of the NonAdminRestore object. The resulting Restore object is named as `nar-<namespace>-<hash>`, where the `<namespace>` is the NonAdminRestore namespace and the `<hash>` is computed from the original NonAdminRestore name. The resulting Restore object is labeled and annotated with the following additional metadata:
+- **NAR controller validates the NAR CR and then creates a corresponding Velero Restore CR:** When the NonAdminRestore controller detects a new or modified NonAdminRestore object, it creates the corresponding Velero Restore object within the OADP Namespace using the information provided in the `restoreSpec` field of the NonAdminRestore object. The resulting Restore object is named as `<namespace>-<name>-<hash>`, where the `<namespace>` is the NonAdminRestore namespace, `<name>` is the NonAdminRestore name and the `<hash>` is the generated UUID (version 4). If the resulting Restore object name is too long the name is adapted to 63 characters limit strpping first characters from name and then from namespace. The resulting Restore object is labeled and annotated with the following additional metadata:
 
   ```yaml
   metadata:
     annotations:
       openshift.io/oadp-nar-origin-name: <NonAdminRestore name>
       openshift.io/oadp-nar-origin-namespace: <NonAdminRestore Namespace>
-      openshift.io/oadp-nar-origin-uuid: <NonAdminRestore UUID>
     labels:
       app.kubernetes.io/managed-by: <OADP NonAdminController id>
       openshift.io/oadp: 'True'
+      openshift.io/oadp-nar-origin-nameuuid: <NonAdminRestore's NameUUID from Status>
   ```
 - **Velero runs Restore**: Velero executes the restore operation based on the configuration specified in the Velero Restore object. Velero updates the status of the Velero Restore object to reflect the outcome of the restore process.
 - **Reconcile loop updates NonAdminRestore object Status**: Upon detecting changes in the status of the Velero Restore object, the NonAdminRestore controller's reconciliation loop updates the Status field of the corresponding NonAdminRestore object with the updated status from the Velero Restore object.
