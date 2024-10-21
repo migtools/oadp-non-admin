@@ -378,7 +378,41 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 					},
 					Annotations: map[string]string{
 						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
-						constant.NabOriginNameAnnotation:      strings.Repeat("nn", validation.DNS1123SubdomainMaxLength),
+						constant.NabOriginNameAnnotation:      testNonAdminBackupName,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup with wrong required non admin name annotation [long]",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:              constant.OadpLabelValue,
+						constant.ManagedByLabel:         constant.ManagedByLabelValue,
+						constant.NabOriginNameUUIDLabel: testNonAdminBackupUUID,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: testNonAdminBackupNamespace,
+						constant.NabOriginNameAnnotation:      strings.Repeat("nm", validation.DNS1123SubdomainMaxLength),
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Backup with wrong required non admin name annotation [long]",
+			backup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:              constant.OadpLabelValue,
+						constant.ManagedByLabel:         constant.ManagedByLabelValue,
+						constant.NabOriginNameUUIDLabel: testNonAdminBackupUUID,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: strings.Repeat("ns", validation.DNS1123SubdomainMaxLength),
+						constant.NabOriginNameAnnotation:      testNonAdminBackupName,
 					},
 				},
 			},

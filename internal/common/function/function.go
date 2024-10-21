@@ -171,15 +171,15 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 
-	if !checkLabelValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
+	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
 		return false
 	}
 
 	annotations := obj.GetAnnotations()
-	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
 		return false
 	}
-	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
 		return false
 	}
 
@@ -194,22 +194,13 @@ func checkLabelValue(objLabels map[string]string, key string, value string) bool
 	return got == value
 }
 
-func checkAnnotationValueIsValid(annotations map[string]string, key string) bool {
-	value, exists := annotations[key]
+func checkLabelAnnotationValueIsValid(labelsOrAnnotations map[string]string, key string) bool {
+	value, exists := labelsOrAnnotations[key]
 	if !exists {
 		return false
 	}
 	length := len(value)
-	return length > 0
-}
-
-func checkLabelValueIsValid(objLabels map[string]string, key string) bool {
-	value, exists := objLabels[key]
-	if !exists {
-		return false
-	}
-	length := len(value)
-	return length > 0 && length < validation.DNS1123LabelMaxLength
+	return length > 0 && length < validation.DNS1123SubdomainMaxLength
 }
 
 // GetLogger return a logger from input ctx, with additional key/value pairs being

@@ -124,78 +124,107 @@ It is similar for a NonAdminRestore.
 ```mermaid
 %%{init: {'theme':'neutral'}}%%
 graph
-event1{{predicate: Create event NAB}} == If event is accepted ==>
-
-reconcileStart1[/Reconcile start\] ==>
-
-phaseNew["`status.phase to **New**`"] -. Requeue: false, err .-> reconcileStart1
-phaseNew ==>
-
-reconcileExit1[\Requeue: true, nil/]
-reconcileExit1 ==> question(is NonAdminBackup Spec valid?) == yes ==> reconcileStart2
-question == no ==> reconcileStartInvalid1
 
 
+predicateUpdateNabEvent{{predicate: Accepted **update** event NAB}};
+predicateCreateNabEvent{{predicate: Accepted **create** event NAB}};
+predicateUpdateVBEvent{{predicate: Accepted **update** event Velero Backup}};
 
-reconcileStart2[/Reconcile start\] ==>
+requeueTrueNil[\"Requeue: true"/];
+requeueFalseNil[\"Requeue: false"/];
+requeueFalseErr[\"Requeue: false, error"/];
+requeueFalseTerminalErr[\"Requeue: false, Terminal error"/];
 
-conditionsAcceptedTrue["`status.conditions[Accepted] to **True**`"] -. Requeue: false, err .- reconcileStart2
+reconcileStartAcceptedPredicate[/Reconcile start\];
 
-conditionsAcceptedTrue ==>
+questionPhaseStatusSetToNew{"Is status.phase: **New** ?"};
+questionConditionAcceptedTrue{"Is status.conditions[Accepted]: **True** ?"};
+questionIsNabValid{"Is NonAdminBackup Spec valid ?"};
+questionPhaseStatusSetToBackingOff{"Is status.phase: **BackingOff**
+ and status.conditions[Accepted]: **False** ?"};
+questionPhaseStatusSetToCreated{"Is status.phase: **Created**
+ and status.conditions[BackupScheduled]: **True** ?"};
+questionStatusVeleroBackupUUID{"Is status.VeleroBackup.NameUUID existing and valid ?"};
+questionSuccess{"Success ?"};
+questionSuccessCreateVB{"Success ?"}
+questionSuccessWithTerminalError{"Success ?"};
+questionSuccessWithNoRequeue{"Success ?"};
+questionSuccessGetVB{"Error ?"};
+questionGetSingleVB{"Is Single Velero Backup found ?"};
+questionNabStatusUpdateFromVB{"Does NAB Object status requires update ?"};
 
-reconcileExit2[\Requeue: true, nil/] ==>
+createVBObject{{"Create New Velero Backup Object"}};
 
-reconcileStart3[/Reconcile start\] ==>
 
-setVeleroBackupUUID([Set status.veleroBackup.nameUUID]) -. Requeue: false, err .- reconcileStart3
+getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
 
-setVeleroBackupUUID ==>
+statusPhaseSetToNew["Set status.phase to: **New**"];
+statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
+ and status.conditions[Accepted]: **False** ?"];
+statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
+statusPhaseStatusSetToCreated["Set status.phase: **Created**
+ and status.conditions[BackupScheduled]: **True** ?"];
+statusSetVeleroBackupUUID["Set valid status.VeleroBackup.NameUUID"];
+statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
 
-reconcileStart4[/Reconcile start\] ==>
+predicateCreateNabEvent --> reconcileStartAcceptedPredicate;
+predicateUpdateNabEvent --> reconcileStartAcceptedPredicate;
+predicateUpdateVBEvent --> reconcileStartAcceptedPredicate;
 
-createVeleroBackup([Create Velero Backup]) -. Requeue: false, err .- reconcileStart4
-createVeleroBackup ==>
+reconcileStartAcceptedPredicate --> questionPhaseStatusSetToNew;
+questionPhaseStatusSetToNew -- No --> statusPhaseSetToNew;
+questionPhaseStatusSetToNew -- Yes --> questionIsNabValid;
 
-phaseCreated["`
-status.phase: **Created**
-status.conditions[Queued] to **True**
-status.conditions.veleroBackup.name
-status.conditions.veleroBackup.namespace
-`"] -. Requeue: false, err .- reconcileStart4
-phaseCreated ==>
+statusPhaseSetToNew --> questionSuccess;
+questionSuccess -- No --> requeueFalseErr;
+questionSuccess -- Yes --> requeueTrueNil;
 
-reconcileExit4[\Requeue: false, nil/]
+requeueTrueNil --> reconcileStartAcceptedPredicate;
 
-reconcileStartInvalid1[/Reconcile start\] ==>
+questionIsNabValid -- No --> questionPhaseStatusSetToBackingOff;
+questionIsNabValid -- Yes --> questionConditionAcceptedTrue;
 
-phaseBackingOff["`
-status.phase to **BackingOff**
-status.conditions[Accepted] to **False**
-`"] -. Requeue: false, err .- reconcileStartInvalid1
-phaseBackingOff ==>
+questionConditionAcceptedTrue -- No --> statusConditionSetAcceptedToTrue;
+questionConditionAcceptedTrue -- Yes --> questionStatusVeleroBackupUUID;
 
-reconcileExitInvalid1[\Requeue: false, TerminalError/]
+questionStatusVeleroBackupUUID -- No --> statusSetVeleroBackupUUID;
+questionStatusVeleroBackupUUID -- Yes --> getUUIDMatchingVeleroBackup;
 
-reconcileExit4 ~~~ event2
-reconcileExitInvalid1 ~~~ event2
+statusSetVeleroBackupUUID --> questionSuccess;
 
-event2{{predicate: Update event VeleroBackup}} == If event is accepted ==>
-handler1{{handler: Handle VeleroBackup update event}} ==> reconcileStart5
+statusConditionSetAcceptedToTrue --> questionSuccess;
 
-reconcileStart5[/Reconcile start\] ==> conditionsVeleroBackupStatus
 
-conditionsVeleroBackupStatus["`status.conditions.veleroBackup.status`"] -. Requeue: false, err .- reconcileStart5
-conditionsVeleroBackupStatus ==>
+questionPhaseStatusSetToBackingOff -- No --> statusPhaseStatusSetToBackingOff;
+questionPhaseStatusSetToBackingOff -- Yes --> requeueFalseTerminalErr;
+statusPhaseStatusSetToBackingOff --> questionSuccessWithTerminalError;
 
-reconcileExit5[\Requeue: false, nil/]
+questionSuccessWithTerminalError -- No --> requeueFalseErr;
+questionSuccessWithTerminalError -- Yes --> requeueFalseTerminalErr;
 
-reconcileExit5 ~~~ event3
+getUUIDMatchingVeleroBackup --> questionSuccessGetVB;
 
-event3{{predicate: Delete event NAB}} == If event is accepted ==>
+questionSuccessGetVB -- No --> questionGetSingleVB;
+questionSuccessGetVB -- Yes --> requeueFalseErr;
 
-reconcileDelete1[/Reconcile start\] ==>
+questionGetSingleVB -- No --> createVBObject;
+questionGetSingleVB -- Yes --> questionPhaseStatusSetToCreated;
+createVBObject --> questionSuccessCreateVB;
 
-reconcileExitDelete1[\Requeue: false, nil/] -. Requeue: false, err .-> reconcileDelete1
+questionSuccessCreateVB -- No --> requeueFalseErr;
+questionSuccessCreateVB -- Yes --> questionPhaseStatusSetToCreated;
 
-event4{{predicate: Update event NAB}} == If event is accepted ==> question
+questionPhaseStatusSetToCreated -- No --> statusPhaseStatusSetToCreated;
+questionPhaseStatusSetToCreated -- Yes --> questionNabStatusUpdateFromVB;
+statusPhaseStatusSetToCreated --> questionSuccessWithNoRequeue;
+
+questionSuccessWithNoRequeue -- No --> requeueFalseErr;
+questionSuccessWithNoRequeue -- Yes --> requeueFalseNil;
+
+questionNabStatusUpdateFromVB -- No --> requeueFalseNil;
+
+questionNabStatusUpdateFromVB -- Yes --> statusNabStatusUpdateFromVB;
+
+statusNabStatusUpdateFromVB --> questionSuccessWithNoRequeue;
+
 ```
