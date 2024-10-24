@@ -144,7 +144,7 @@ questionPhaseStatusSetToBackingOff{"Is status.phase: **BackingOff**
  and status.conditions[Accepted]: **False** ?"};
 questionPhaseStatusSetToCreated{"Is status.phase: **Created**
  and status.conditions[BackupScheduled]: **True** ?"};
-questionStatusVeleroBackupUUID{"Is status.VeleroBackup.NameUUID existing and valid ?"};
+questionStatusVeleroBackupUUID{"Does status.VeleroBackup.NameUUID exist ?"};
 questionSuccess{"Success ?"};
 questionSuccessCreateVB{"Success ?"}
 questionSuccessWithTerminalError{"Success ?"};
@@ -164,7 +164,7 @@ statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
 statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
 statusPhaseStatusSetToCreated["Set status.phase: **Created**
  and status.conditions[BackupScheduled]: **True** ?"];
-statusSetVeleroBackupUUID["Set valid status.VeleroBackup.NameUUID"];
+statusSetVeleroBackupUUID["Generate a NameUUID and set it as status.VeleroBackup.NameUUID"];
 statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
 
 predicateCreateNabEvent --> reconcileStartAcceptedPredicate;

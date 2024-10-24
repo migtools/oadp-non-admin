@@ -269,6 +269,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				nonAdminBackupAfterReconcile,
 			)).To(gomega.Succeed())
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackupAfterReconcile, scenario.nonAdminBackupExpectedStatus, oadpNamespace)).To(gomega.Succeed())
+			// TODO: Include the following check in the checkTestNonAdminBackupStatus. Note that there is a challenge where variables are used in the scenario
+			//       data within nonAdminBackupExpectedStatus. Currently the data there needs to be static.
 			if scenario.uuidCreatedByReconcile {
 				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NameUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
 				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
@@ -547,13 +549,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					veleroBackup,
 				)).To(gomega.Succeed())
 
+				// TODO can not call .Status().Update() for veleroBackup object: backups.velero.io "name..." not found error
 				veleroBackup.Status = velerov1.BackupStatus{
 					Phase: velerov1.BackupPhaseCompleted,
 				}
 
 				gomega.Expect(k8sClient.Update(ctxTimeout, veleroBackup)).To(gomega.Succeed())
 
-				time.Sleep(1 * time.Second)
 				ginkgo.By("VeleroBackup updated")
 
 				// wait NAB reconcile
