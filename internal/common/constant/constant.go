@@ -32,6 +32,7 @@ const (
 	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
 	NabOriginNameUUIDLabel       = "openshift.io/oadp-nab-origin-nameuuid"
 	NarOriginNameUUIDLabel       = "openshift.io/oadp-nar-origin-nameuuid"
+	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
