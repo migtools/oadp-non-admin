@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -88,14 +89,15 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	reconcileSteps := []reconcileStepFunction{
-		r.setFinalizerForDeletion,
+		r.setDeletionStatus,
 		r.initVeleroBackupDeletion,
 		r.initNabDeletion,
+		r.finalizeNabDeletion,
 		r.initNabCreate,
 		r.validateSpec,
 		r.setBackupUUIDInStatus,
+		r.setFinalizerOnNonAdminBackup,
 		r.createVeleroBackupAndSyncWithNonAdminBackup,
-		r.finalizeNabDeletion,
 	}
 	for _, step := range reconcileSteps {
 		requeue, err := step(ctx, logger, nab)
@@ -109,175 +111,151 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, nil
 }
 
-// setFinalizerForDeletion ensures that the finalizer is set on the NonAdminBackup object
-// if it is marked for deletion by the `deleteBackup` spec field.
-//
-// Parameters:
-//   - ctx: Context for managing request lifetime.
-//   - logger: Logger instance for logging messages.
-//   - nab: Pointer to the NonAdminBackup object to be updated.
-//
-// This function checks if the NonAdminBackup object’s `deleteBackup` field is set to true.
-// If so, it verifies whether the finalizer is already present. If not, the finalizer is added
-// and the function requeues the reconciliation to avoid continuing until the finalizer is set.
-// The function also updates the status phase to `Deletion` if necessary and initiates deletion
-// of the corresponding VeleroBackup object. It returns a boolean indicating whether to requeue
-// and an error if the status update or VeleroBackup deletion fails.
-func (r *NonAdminBackupReconciler) setFinalizerForDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Check if the object is marked for deletion by checking the deleteBackup spec
-	if !nab.Spec.DeleteBackup {
-		return false, nil
-	}
-
-	// If the object does not have the finalizer, add it
-	if !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
-		controllerutil.AddFinalizer(nab, constant.NabFinalizerName)
-		if err := r.Update(ctx, nab); err != nil {
-			logger.Error(err, "Failed to add finalizer")
-			return false, err
+func (r *NonAdminBackupReconciler) setDeletionStatus(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	// Check if DeleteBackup is set and if it wasn't already marked for deletion
+	if nab.Spec.DeleteBackup && controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+		updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseDeletion)
+		if updated {
+			if err := r.Status().Update(ctx, nab); err != nil {
+				logger.Error(err, statusUpdateError)
+				return false, err
+			}
+			logger.V(1).Info("NonAdminBackup status marked for deletion")
+			return true, nil
 		}
-		logger.V(1).Info("Finalizer added to NonAdminBackup", "finalizer", constant.NabFinalizerName)
-		return true, nil // Requeue after adding finalizer
 	}
-
-	// Update Phase if needed, outside finalizer block to avoid excessive updates
-	updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseDeletion)
-	if updated {
-		if err := r.Status().Update(ctx, nab); err != nil {
-			logger.Error(err, statusUpdateError)
-			return false, err
-		}
-		logger.V(1).Info(phaseUpdateRequeue)
-		return true, nil // Requeue after status update
-	}
-
-	logger.V(1).Info("NonAdminBackup marked for deletetion")
-	return false, nil // Continue so initVeleroBackupDeletion can delete VeleroBackup object
+	return false, nil
 }
 
-// initVeleroBackupDeletion initiates the deletion of the associated VeleroBackup
-// if the NonAdminBackup (NAB) object is marked for deletion and contains the finalizer.
+// initVeleroBackupDeletion initiates deletion of the associated VeleroBackup object if
+// the NonAdminBackup (NAB) object has DeleteBackup set to true and contains the required finalizer.
+// This ensures the VeleroBackup is deleted before the NAB object itself is removed.
 //
 // Parameters:
 //   - ctx: Context to manage request lifetime.
 //   - logger: Logger instance for logging messages.
 //   - nab: Pointer to the NonAdminBackup object to be managed.
 //
-// This function checks if the `DeleteBackup` spec field is set to true and verifies the
-// presence of the finalizer on the NAB object. If these conditions are met, it attempts
-// to locate the associated VeleroBackup object based on the UUID stored in NAB's status.
-// If a single VeleroBackup object is found, it initiates deletion of that VeleroBackup
-// and requeues the reconcile loop. If VeleroBackup deletion fails or multiple objects
-// are found, it logs the error and returns for further handling.
+// This function first checks if the DeleteBackup field in the NAB spec is set to true and confirms
+// that the NAB object has the finalizer. If both conditions are met, it attempts to locate the associated
+// VeleroBackup object by the UUID stored in the NAB status. If a unique VeleroBackup object is found,
+// deletion is initiated, and the reconcile loop will be requeued. If multiple VeleroBackup objects
+// are found with the same label, the function logs an error and returns.
 //
-// Returns a boolean indicating whether to requeue and an error if deletion or retrieval
-// of the VeleroBackup fails.
+// Returns:
+//   - A boolean indicating whether to requeue the reconcile loop,
+//   - An error if VeleroBackup deletion or retrieval fails, for example, due to multiple VeleroBackup objects found with the same UUID label.
 func (r *NonAdminBackupReconciler) initVeleroBackupDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Check if DeleteBackup is set and finalizer is present
-	if !nab.Spec.DeleteBackup || !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
-		return false, nil
-	}
+	// Initiate deletion of the VeleroBackup object only when the DeleteBackup is set and the finalizer is existing.
+	// If the NAB object does not have DeleteBackup, indicating deletion is not directly requested by the user,
+	// the VeleroBackup deletion should not be triggered.
+	if nab.Spec.DeleteBackup && controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+		veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
+		if veleroBackupNameUUID != constant.EmptyString {
+			veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
 
-	// Initiate VeleroBackup deletion
-	veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
-	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
+			if err != nil {
+				// Case where more than one VeleroBackup is found with the same label UUID
+				// TODO: Determine if all objects with this UUID should be deleted
+				logger.Error(err, findSingleVBError, uuidString, veleroBackupNameUUID)
+				return false, err
+			}
 
-	if err != nil {
-		// Case in which more then one VeleroBackup is found with the same label UUID
-		// TODO: Should we delete all of the objects with such UUID ?
-		logger.Error(err, findSingleVBError, uuidString, veleroBackupNameUUID)
-		return false, err
-	}
-
-	if veleroBackup != nil {
-		if err := r.Delete(ctx, veleroBackup); err != nil {
-			logger.Error(err, "Failed to delete VeleroBackup", nameString, veleroBackupNameUUID)
-			return false, err
+			if veleroBackup != nil {
+				if err := r.Delete(ctx, veleroBackup); err != nil {
+					logger.Error(err, "Failed to delete VeleroBackup", nameString, veleroBackupNameUUID)
+					return false, err
+				}
+				logger.V(1).Info("VeleroBackup deletion initiated", nameString, veleroBackupNameUUID)
+			} else {
+				logger.V(1).Info("VeleroBackup already deleted")
+			}
 		}
-		logger.V(1).Info("VeleroBackup deletion initiated", nameString, veleroBackupNameUUID)
-		return true, nil // Requeue after deletion of VeleroBackup was initiated
 	}
-
-	logger.V(1).Info("VeleroBackup already deleted")
 	return false, nil // Continue so initNabDeletion can initialize deletion of an NonAdminBackup object
 }
 
-// initNabDeletion initiates the deletion of the NonAdminBackup (NAB) object if
-// it is marked for deletion and has the required finalizer.
+// initNabDeletion initiates the deletion of the NonAdminBackup (NAB) object if it has been marked
+// with DeleteBackup in its spec.
 //
 // Parameters:
 //   - ctx: Context for managing request lifetime.
 //   - logger: Logger instance for logging messages.
 //   - nab: Pointer to the NonAdminBackup object to be deleted.
 //
-// This function checks if the `DeleteBackup` spec field is set to true and if
-// the NAB object contains the finalizer. If both conditions are met, and the
-// deletion has not previously been initiated, it marks the NAB object for deletion.
-// It returns a boolean indicating whether to requeue and an error if any deletion operation fails.
+// This function first checks if DeleteBackup is set to true in the NAB spec and if the object does not already
+// have a DeletionTimestamp, indicating that deletion has not yet been marked. If these conditions are met,
+// it attempts to delete the NAB object and requeues the reconcile loop to allow finalizers to proceed with cleanup.
+// If the NAB object already has a DeletionTimestamp, the function logs that the object is already marked for deletion,
+// avoiding redundant delete operations.
+//
+// Returns:
+//   - A boolean indicating whether to requeue the reconcile loop (true if deletion is initiated, false otherwise).
+//   - An error if deletion of the NAB object fails.
 func (r *NonAdminBackupReconciler) initNabDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Check if DeleteBackup is set and finalizer is present
-	if !nab.Spec.DeleteBackup || !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
-		return false, nil
-	}
-
-	if nab.ObjectMeta.DeletionTimestamp.IsZero() {
+	// Check if DeleteBackup is set and if it wasn't already marked for deletion
+	if nab.Spec.DeleteBackup && nab.ObjectMeta.DeletionTimestamp.IsZero() {
 		logger.V(1).Info("Marking NonAdminBackup for deletion", nameString, nab.Name)
 		if err := r.Delete(ctx, nab); err != nil {
 			logger.Error(err, "Failed to mark NonAdminBackup for deletion")
 			return false, err
 		}
 		return true, nil // Requeue to allow deletion to proceed
+	} else if !nab.ObjectMeta.DeletionTimestamp.IsZero() {
+		logger.V(1).Info("NonAdminBackup already marked for deletion")
 	}
-
-	logger.V(1).Info("NonAdminBackup already marked for deletion")
 	return false, nil // Continue so finalizeNabDeletion can delete NonAdminBackup object
 }
 
-// finalizeNabDeletion handles the deletion of the NonAdminBackup (NAB) object by ensuring
-// the associated VeleroBackup is deleted and the NAB finalizer is removed once cleanup is complete.
+// finalizeNabDeletion ensures the associated VeleroBackup object is deleted and removes
+// the finalizer from the NonAdminBackup (NAB) object to complete its cleanup process.
 //
 // Parameters:
 //   - ctx: Context for managing request lifetime.
 //   - logger: Logger instance for logging messages.
-//   - nab: Pointer to the NonAdminBackup object to be cleaned up.
+//   - nab: Pointer to the NonAdminBackup object undergoing cleanup.
 //
-// The function first checks if the `deleteBackup` spec field is set to true and if the NAB object
-// contains the finalizer. If these conditions are met, it attempts to locate the VeleroBackup
-// object associated with the NAB and if it is found it ensures it's deleted.
-// Once the VeleroBackup object is confirmed as deleted, the finalizer
-// is removed from the NAB, allowing the object itself to be deleted by Kubernetes garbage collection.
-// Returns a boolean indicating whether to requeue and an error if any update or deletion operation fails.
+// This function first checks if the `DeleteBackup` field in the NAB spec is set to true or if
+// the NAB has been marked for deletion by Kubernetes. If either condition is met, it verifies
+// the existence of an associated VeleroBackup object by consulting the UUID stored in the NAB’s status.
+// If the VeleroBackup is found, the function waits for it to be deleted before proceeding further.
+// After confirming VeleroBackup deletion, it removes the finalizer from the NAB, allowing Kubernetes
+// to complete the garbage collection process for the NAB object itself.
+//
+// Returns:
+//   - A boolean indicating whether to requeue the reconcile loop (true if waiting for VeleroBackup deletion).
+//   - An error if any update operation or deletion check fails.
 func (r *NonAdminBackupReconciler) finalizeNabDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Check if DeleteBackup is set and finalizer is present
-	if !nab.Spec.DeleteBackup || !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
-		return false, nil
+	// Check if DeleteBackup is set or NAB was deleted
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
+		if nab.Status.VeleroBackup != nil && nab.Status.VeleroBackup.NameUUID != constant.EmptyString {
+			veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
+
+			veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
+			if err != nil {
+				// Case in which more then one VeleroBackup is found with the same label UUID
+				// TODO: Should we delete all of the objects with such UUID ?
+				logger.Error(err, findSingleVBError, uuidString, veleroBackupNameUUID)
+				return false, err
+			}
+
+			if veleroBackup != nil {
+				logger.V(1).Info("Waiting for VeleroBackup to be deleted", nameString, veleroBackupNameUUID)
+				return true, nil // Requeue
+			}
+		}
+		// VeleroBackup is deleted, proceed with deleting the NonAdminBackup
+		logger.V(1).Info("VeleroBackup deleted, removing NonAdminBackup finalizer")
+
+		controllerutil.RemoveFinalizer(nab, constant.NabFinalizerName)
+
+		if err := r.Update(ctx, nab); err != nil {
+			logger.Error(err, "Failed to remove finalizer from NonAdminBackup")
+			return false, err
+		}
+
+		logger.V(1).Info("NonAdminBackup finalizer removed and object deleted")
 	}
-
-	veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
-	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
-
-	if err != nil {
-		// Case in which more then one VeleroBackup is found with the same label UUID
-		// TODO: Should we delete all of the objects with such UUID ?
-		logger.Error(err, findSingleVBError, uuidString, veleroBackupNameUUID)
-		return false, err
-	}
-
-	if veleroBackup != nil {
-		logger.V(1).Info("Waiting for VeleroBackup to be deleted", nameString, veleroBackupNameUUID)
-		return true, nil // Requeue
-	}
-
-	// VeleroBackup is deleted, proceed with deleting the NonAdminBackup
-	logger.V(1).Info("VeleroBackup deleted, removing NonAdminBackup finalizer")
-	controllerutil.RemoveFinalizer(nab, constant.NabFinalizerName)
-
-	if err := r.Update(ctx, nab); err != nil {
-		logger.Error(err, "Failed to remove finalizer from NonAdminBackup")
-		return false, err
-	}
-
-	logger.V(1).Info("NonAdminBackup finalizer removed and object deleted")
 	return false, nil
 }
 
@@ -294,8 +272,8 @@ func (r *NonAdminBackupReconciler) finalizeNabDeletion(ctx context.Context, logg
 // It then returns boolean values indicating whether the reconciliation loop should requeue or exit
 // and error value whether the status was updated successfully.
 func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Skip the init, due to finalizer being set
-	if controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+	// If the NonAdminBackup is marked for deletion (either by DeleteBackup in the spec or with a DeletionTimestamp), skip initNabCreate
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
 
@@ -329,8 +307,8 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition Accepted to "False".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition Accepted to "True".
 func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Skip the validateSpec, due to finalizer being set
-	if controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+	// If the NonAdminBackup is marked for deletion (either by DeleteBackup in the spec or with a DeletionTimestamp), skip validateSpec
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
 
@@ -388,8 +366,8 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 //
 // This function generates a UUID and stores it in the VeleroBackup status field of NonAdminBackup.
 func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Skip the setBackupUUIDInStatus, due to finalizer being set
-	if controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+	// If the NonAdminBackup is marked for deletion (either by DeleteBackup in the spec or with a DeletionTimestamp), skip setBackupUUIDInStatus
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
 
@@ -410,6 +388,29 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 	return false, nil
 }
 
+func (r *NonAdminBackupReconciler) setFinalizerOnNonAdminBackup(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	// If the NonAdminBackup is marked for deletion (either by DeleteBackup in the spec or with a DeletionTimestamp)
+	// skip setFinalizerOnNonAdminBackup as we don't want to add finalizer again
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
+		return false, nil
+	}
+
+	// If the object does not have the finalizer, add it before creating Velero Backup
+	// to ensure we won't risk having orphant Velero Backup resource, due to an unexpected error
+	// while adding finalizer after creatign Velero Backup
+	if !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+		controllerutil.AddFinalizer(nab, constant.NabFinalizerName)
+		if err := r.Update(ctx, nab); err != nil {
+			logger.Error(err, "Failed to add finalizer")
+			return false, err
+		}
+		logger.V(1).Info("Finalizer added to NonAdminBackup", "finalizer", constant.NabFinalizerName)
+		return true, nil // Requeue after adding finalizer
+	}
+	logger.V(1).Info("Finalizer exists on the NonAdminBackup object", "finalizer", constant.NabFinalizerName)
+	return false, nil
+}
+
 // createVeleroBackupAndSyncWithNonAdminBackup ensures the VeleroBackup associated with the given NonAdminBackup resource
 // is created, if it does not exist.
 // The function also updates the status and conditions of the NonAdminBackup resource to reflect the state
@@ -421,8 +422,8 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 //	logger: Logger instance for logging messages.
 //	nab: Pointer to the NonAdminBackup object.
 func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// Skip the createVeleroBackupAndSyncWithNonAdminBackup, due to finalizer being set
-	if controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+	// If the NonAdminBackup is marked for deletion (either by DeleteBackup in the spec or with a DeletionTimestamp), skip createVeleroBackupAndSyncWithNonAdminBackup
+	if nab.Spec.DeleteBackup || !nab.ObjectMeta.DeletionTimestamp.IsZero() {
 		return false, nil
 	}
 
@@ -460,6 +461,11 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		// We don't add this as an argument of GetNonAdminLabels(), because there may be
 		// situations where NAC object do not require NabOriginUUIDLabel
 		veleroBackup.Labels[constant.NabOriginNameUUIDLabel] = veleroBackupNameUUID
+
+		// Skip the createVeleroBackupAndSyncWithNonAdminBackup, due to finalizer missing
+		if !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+			return false, fmt.Errorf("NonAdminBackup object is missing finalizer, can not continue with VeleroBackup creation")
+		}
 
 		err = r.Create(ctx, &veleroBackup)
 

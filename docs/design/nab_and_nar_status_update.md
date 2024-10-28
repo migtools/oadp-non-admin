@@ -138,8 +138,11 @@ requeueFalseTerminalErr[\"Requeue: false, Terminal error"/];
 
 reconcileStartAcceptedPredicate[/Reconcile start\];
 
-questionIsMarkedForDeletion{"Is NAB marked for deletion ?"};
-questionIsFinalizerForDeletionSet{"Is NonAdminBackup finalizer set ?"};
+questionIsMarkedForDeletion{"Is NonAdminBackup.Spec.DeleteBackup true ?"};
+questionIsPendingDeletion{"Is NAB object pending deletion ?"};
+questionIsPendingDeletionAfterDeleteBackup{"Is NAB object pending deletion ?"};
+
+questionIsVeleroBackupFinalizerSet{"Is NonAdminBackup finalizer set ?"};
 questionPhaseStatusSetToNew{"Is status.phase: **New** ?"};
 questionConditionAcceptedTrue{"Is status.conditions[Accepted]: **True** ?"};
 questionIsNabValid{"Is NonAdminBackup Spec valid ?"};
@@ -160,7 +163,8 @@ questionDoesVeleroObjectExists("Does Velero Object with corresponding status.Vel
 
 createVBObject{{"Create New Velero Backup Object"}};
 deleteVeleroObject{{"Delete Velero Backup Object"}};
-deleteNonAdminBackupObject{{"Delete Non Admin Backup Object"}}
+initDeleteNonAdminBackup{{"Initialize deletion of Non Admin Backup Object"}};
+removeFinalizerDeletingNonAdminBackupObject{{"Remove finalizer from NonAdminBackup"}};
 
 getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
 
@@ -179,22 +183,32 @@ predicateCreateNabEvent --> reconcileStartAcceptedPredicate;
 predicateUpdateNabEvent --> reconcileStartAcceptedPredicate;
 predicateUpdateVBEvent --> reconcileStartAcceptedPredicate;
 
-reconcileStartAcceptedPredicate --> questionIsMarkedForDeletion;
-questionIsMarkedForDeletion -- Yes --> questionIsFinalizerForDeletionSet;
-questionIsFinalizerForDeletionSet -- No --> setFinalizerOnNab;
-setFinalizerOnNab --> questionSuccess;
 
-questionIsFinalizerForDeletionSet -- Yes --> questionPhaseStatusSetToDeletion;
+reconcileStartAcceptedPredicate --> questionIsMarkedForDeletion;
+
+
+questionIsMarkedForDeletion -- No --> questionIsPendingDeletion;
+questionIsMarkedForDeletion -- Yes --> questionPhaseStatusSetToDeletion;
+
+questionIsPendingDeletion -- Yes --> requeueFalseNil;
+questionIsPendingDeletion -- No --> questionPhaseStatusSetToNew;
+
 
 questionPhaseStatusSetToDeletion -- No --> statusPhaseSetToDeletion;
+questionPhaseStatusSetToDeletion -- Yes --> questionIsPendingDeletionAfterDeleteBackup;
+
+questionIsPendingDeletionAfterDeleteBackup -- No --> initDeleteNonAdminBackup;
+questionIsPendingDeletionAfterDeleteBackup -- Yes --> questionDoesVeleroObjectExists;
+
+initDeleteNonAdminBackup --> questionSuccess;
 statusPhaseSetToDeletion --> questionSuccess;
-questionPhaseStatusSetToDeletion -- Yes --> questionDoesVeleroObjectExists;
-questionDoesVeleroObjectExists -- No --> deleteNonAdminBackupObject;
+
+
+questionDoesVeleroObjectExists -- No --> removeFinalizerDeletingNonAdminBackupObject;
 questionDoesVeleroObjectExists -- Yes --> deleteVeleroObject;
 deleteVeleroObject --> questionSuccess;
-deleteNonAdminBackupObject --> questionSuccessWithNoRequeue;
+removeFinalizerDeletingNonAdminBackupObject --> questionSuccess;
 
-questionIsMarkedForDeletion -- No --> questionPhaseStatusSetToNew;
 
 questionPhaseStatusSetToNew -- No --> statusPhaseSetToNew;
 questionPhaseStatusSetToNew -- Yes --> questionIsNabValid;
@@ -212,12 +226,15 @@ questionConditionAcceptedTrue -- No --> statusConditionSetAcceptedToTrue;
 questionConditionAcceptedTrue -- Yes --> questionStatusVeleroBackupUUID;
 
 questionStatusVeleroBackupUUID -- No --> statusSetVeleroBackupUUID;
-questionStatusVeleroBackupUUID -- Yes --> getUUIDMatchingVeleroBackup;
+questionStatusVeleroBackupUUID -- Yes --> questionIsVeleroBackupFinalizerSet;
 
-statusSetVeleroBackupUUID --> questionSuccess;
+questionIsVeleroBackupFinalizerSet -- No --> setFinalizerOnNab;
+questionIsVeleroBackupFinalizerSet -- Yes --> getUUIDMatchingVeleroBackup;
+
 
 statusConditionSetAcceptedToTrue --> questionSuccess;
-
+statusSetVeleroBackupUUID --> questionSuccess;
+setFinalizerOnNab --> questionSuccess;
 
 questionPhaseStatusSetToBackingOff -- No --> statusPhaseStatusSetToBackingOff;
 questionPhaseStatusSetToBackingOff -- Yes --> requeueFalseTerminalErr;
