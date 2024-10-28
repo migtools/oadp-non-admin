@@ -19,12 +19,13 @@ package function
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 
 	"github.com/go-logr/logr"
+	"github.com/google/uuid"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +48,6 @@ func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]strin
 	return map[string]string{
 		constant.NabOriginNamespaceAnnotation: objectMeta.Namespace,
 		constant.NabOriginNameAnnotation:      objectMeta.Name,
-		constant.NabOriginUUIDAnnotation:      string(objectMeta.UID),
 	}
 }
 
@@ -77,66 +77,125 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
 	return nil
 }
 
-// GenerateVeleroBackupName generates a Velero backup name based on the provided namespace and NonAdminBackup name.
-// It calculates a hash of the NonAdminBackup name and combines it with the namespace and a prefix to create the Velero backup name.
-// If the resulting name exceeds the maximum Kubernetes name length, it truncates the namespace to fit within the limit.
-func GenerateVeleroBackupName(namespace, nabName string) string {
-	// Calculate a hash of the name
-	hasher := sha256.New()
-	_, err := hasher.Write([]byte(nabName))
-	if err != nil {
-		return ""
+// GenerateNacObjectNameWithUUID generates a unique name based on the provided namespace and object origin name.
+// It includes a UUID suffix. If the name exceeds the maximum length, it truncates nacName first, then namespace.
+func GenerateNacObjectNameWithUUID(namespace, nacName string) string {
+	// Generate UUID suffix
+	uuidSuffix := uuid.New().String()
+
+	// Build the initial name based on the presence of namespace and nacName
+	nacObjectName := uuidSuffix
+	if len(nacName) > 0 {
+		nacObjectName = nacName + constant.NameDelimiter + nacObjectName
+	}
+	if len(namespace) > 0 {
+		nacObjectName = namespace + constant.NameDelimiter + nacObjectName
 	}
 
-	const hashLength = 14
-	nameHash := hex.EncodeToString(hasher.Sum(nil))[:hashLength] // Take first 14 chars
+	if len(nacObjectName) > constant.MaximumNacObjectNameLength {
+		// Calculate remaining length after UUID
+		remainingLength := constant.MaximumNacObjectNameLength - len(uuidSuffix)
 
-	usedLength := hashLength + len(constant.VeleroBackupNamePrefix) + len("--")
-	maxNamespaceLength := validation.DNS1123SubdomainMaxLength - usedLength
-	// Ensure the name is within the character limit
-	if len(namespace) > maxNamespaceLength {
-		// Truncate the namespace if necessary
-		return fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace[:maxNamespaceLength], nameHash)
+		delimeterLength := len(constant.NameDelimiter)
+
+		// Subtract two delimiter lengths to avoid a corner case where the namespace
+		// and delimiters leave no space for any part of nabName
+		if len(namespace) > remainingLength-delimeterLength-delimeterLength {
+			namespace = namespace[:remainingLength-delimeterLength-delimeterLength]
+			nacObjectName = namespace + constant.NameDelimiter + uuidSuffix
+		} else {
+			remainingLength = remainingLength - len(namespace) - delimeterLength - delimeterLength
+			nacName = nacName[:remainingLength]
+			nacObjectName = uuidSuffix
+			if len(nacName) > 0 {
+				nacObjectName = nacName + constant.NameDelimiter + nacObjectName
+			}
+			if len(namespace) > 0 {
+				nacObjectName = namespace + constant.NameDelimiter + nacObjectName
+			}
+		}
 	}
 
-	return fmt.Sprintf("%s-%s-%s", constant.VeleroBackupNamePrefix, namespace, nameHash)
+	return nacObjectName
+}
+
+// ListObjectsByLabel retrieves a list of Kubernetes objects in a specified namespace
+// that match a given label key-value pair.
+func ListObjectsByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
+	// Validate input parameters
+	if namespace == constant.EmptyString || labelKey == constant.EmptyString || labelValue == constant.EmptyString {
+		return fmt.Errorf("invalid input: namespace, labelKey, and labelValue must not be empty")
+	}
+
+	labelSelector := labels.SelectorFromSet(labels.Set{labelKey: labelValue})
+
+	// Attempt to list objects with the specified label
+	if err := clientInstance.List(ctx, objectList, &client.ListOptions{
+		LabelSelector: labelSelector,
+		Namespace:     namespace,
+	}); err != nil {
+		return fmt.Errorf("failed to list objects in namespace '%s': %w", namespace, err)
+	}
+
+	return nil
+}
+
+// GetVeleroBackupByLabel retrieves a VeleroBackup object based on a specified label within a given namespace.
+// It returns the VeleroBackup only when exactly one object is found, throws an error if multiple backups are found,
+// or returns nil if no matches are found.
+func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.Backup, error) {
+	veleroBackupList := &velerov1.BackupList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
+		return nil, err
+	}
+
+	switch len(veleroBackupList.Items) {
+	case 0:
+		return nil, nil // No matching VeleroBackup found
+	case 1:
+		return &veleroBackupList.Items[0], nil // Found 1 matching VeleroBackup
+	default:
+		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNameUUIDLabel, labelValue, namespace)
+	}
 }
 
 // CheckVeleroBackupMetadata return true if Velero Backup object has required Non Admin labels and annotations, false otherwise
 func CheckVeleroBackupMetadata(obj client.Object) bool {
-	labels := obj.GetLabels()
-	if !checkLabelValue(labels, constant.OadpLabel, constant.OadpLabelValue) {
+	objLabels := obj.GetLabels()
+	if !checkLabelValue(objLabels, constant.OadpLabel, constant.OadpLabelValue) {
 		return false
 	}
-	if !checkLabelValue(labels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+	if !checkLabelValue(objLabels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+		return false
+	}
+
+	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
 		return false
 	}
 
 	annotations := obj.GetAnnotations()
-	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
 		return false
 	}
-	if !checkAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
-		return false
-	}
-	// TODO what is a valid uuid?
-	if !checkAnnotationValueIsValid(annotations, constant.NabOriginUUIDAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
 		return false
 	}
 
 	return true
 }
 
-func checkLabelValue(labels map[string]string, key string, value string) bool {
-	got, exists := labels[key]
+func checkLabelValue(objLabels map[string]string, key string, value string) bool {
+	got, exists := objLabels[key]
 	if !exists {
 		return false
 	}
 	return got == value
 }
 
-func checkAnnotationValueIsValid(annotations map[string]string, key string) bool {
-	value, exists := annotations[key]
+func checkLabelAnnotationValueIsValid(labelsOrAnnotations map[string]string, key string) bool {
+	value, exists := labelsOrAnnotations[key]
 	if !exists {
 		return false
 	}

@@ -56,8 +56,8 @@ Those are are the possible values for `NonAdminCondition`:
 
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
-NonAdminBackup `status.veleroBackup` contains `name`, `namespace` and `status`.
-- `status.veleroBackup.name` represents the name of the `VeleroBackup` object.
+NonAdminBackup `status.veleroBackup` contains `nameuuid`, `namespace` and `status`.
+- `status.veleroBackup.nameuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nameuuid` within the created `VeleroBackup` object.
 - `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
 - `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
@@ -76,10 +76,10 @@ status:
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
-Similarly, NonAdminRestore `status.veleroRestore` contains `name`, `namespace` and `status`.
-- `status.veleroRestore.name` represents the name of the `veleroRestore` object.
+Similarly, NonAdminRestore `status.veleroRestore` contains `nameuuid`, `namespace` and `status`.
+- `status.veleroRestore.nameuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nameuuid` within the created `VeleroRestore` object.
 - `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
-- `status.veleroRestore.status` field is a copy of the `VeleroBackup` object status.
+- `status.veleroRestore.status` field is a copy of the `VeleroRestore` object status.
 
 ## Example
 
@@ -91,7 +91,7 @@ Object passed validation and Velero `Backup` object was created, but there was a
 ```yaml
 status:
   veleroBackup:
-    name: nab-nacproject-83fc04a2fd253d
+    nameuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
     namespace: openshift-adp
     status:
       expiration: '2024-05-16T08:12:11Z'
@@ -124,69 +124,107 @@ It is similar for a NonAdminRestore.
 ```mermaid
 %%{init: {'theme':'neutral'}}%%
 graph
-event1{{predicate: Create event NAB}} == If event is accepted ==>
 
-reconcileStart1[/Reconcile start\] ==>
 
-phaseNew["`status.phase to **New**`"] -. Requeue: false, err .-> reconcileStart1
-phaseNew ==>
+predicateUpdateNabEvent{{predicate: Accepted **update** event NAB}};
+predicateCreateNabEvent{{predicate: Accepted **create** event NAB}};
+predicateUpdateVBEvent{{predicate: Accepted **update** event Velero Backup}};
 
-reconcileExit1[\Requeue: true, nil/]
-reconcileExit1 ==> question(is NonAdminBackup Spec valid?) == yes ==> reconcileStart2
-question == no ==> reconcileStartInvalid1
+requeueTrueNil[\"Requeue: true"/];
+requeueFalseNil[\"Requeue: false"/];
+requeueFalseErr[\"Requeue: false, error"/];
+requeueFalseTerminalErr[\"Requeue: false, Terminal error"/];
 
-reconcileStart2[/Reconcile start\] ==>
+reconcileStartAcceptedPredicate[/Reconcile start\];
 
-conditionsAcceptedTrue["`status.conditions[Accepted] to **True**`"] -. Requeue: false, err .- reconcileStart2
-conditionsAcceptedTrue ==>
+questionPhaseStatusSetToNew{"Is status.phase: **New** ?"};
+questionConditionAcceptedTrue{"Is status.conditions[Accepted]: **True** ?"};
+questionIsNabValid{"Is NonAdminBackup Spec valid ?"};
+questionPhaseStatusSetToBackingOff{"Is status.phase: **BackingOff**
+ and status.conditions[Accepted]: **False** ?"};
+questionPhaseStatusSetToCreated{"Is status.phase: **Created**
+ and status.conditions[BackupScheduled]: **True** ?"};
+questionStatusVeleroBackupUUID{"Does status.VeleroBackup.NameUUID exist ?"};
+questionSuccess{"Success ?"};
+questionSuccessCreateVB{"Success ?"}
+questionSuccessWithTerminalError{"Success ?"};
+questionSuccessWithNoRequeue{"Success ?"};
+questionSuccessGetVB{"Error ?"};
+questionGetSingleVB{"Is Single Velero Backup found ?"};
+questionNabStatusUpdateFromVB{"Does NAB Object status requires update ?"};
 
-reconcileExit2[\Requeue: true, nil/] ==>
+createVBObject{{"Create New Velero Backup Object"}};
 
-reconcileStart3[/Reconcile start\] ==>
 
-createVeleroBackup([Create Velero Backup]) -. Requeue: false, err .- reconcileStart3
-createVeleroBackup ==>
+getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
 
-phaseCreated["`
-status.phase: **Created**
-status.conditions[Queued] to **True**
-status.conditions.veleroBackup.name
-status.conditions.veleroBackup.namespace
-`"] -. Requeue: false, err .- reconcileStart3
-phaseCreated ==>
+statusPhaseSetToNew["Set status.phase to: **New**"];
+statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
+ and status.conditions[Accepted]: **False** ?"];
+statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
+statusPhaseStatusSetToCreated["Set status.phase: **Created**
+ and status.conditions[BackupScheduled]: **True** ?"];
+statusSetVeleroBackupUUID["Generate a NameUUID and set it as status.VeleroBackup.NameUUID"];
+statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
 
-reconcileExit4[\Requeue: false, nil/]
+predicateCreateNabEvent --> reconcileStartAcceptedPredicate;
+predicateUpdateNabEvent --> reconcileStartAcceptedPredicate;
+predicateUpdateVBEvent --> reconcileStartAcceptedPredicate;
 
-reconcileStartInvalid1[/Reconcile start\] ==>
+reconcileStartAcceptedPredicate --> questionPhaseStatusSetToNew;
+questionPhaseStatusSetToNew -- No --> statusPhaseSetToNew;
+questionPhaseStatusSetToNew -- Yes --> questionIsNabValid;
 
-phaseBackingOff["`
-status.phase to **BackingOff**
-status.conditions[Accepted] to **False**
-`"] -. Requeue: false, err .- reconcileStartInvalid1
-phaseBackingOff ==>
+statusPhaseSetToNew --> questionSuccess;
+questionSuccess -- No --> requeueFalseErr;
+questionSuccess -- Yes --> requeueTrueNil;
 
-reconcileExitInvalid1[\Requeue: false, TerminalError/]
+requeueTrueNil --> reconcileStartAcceptedPredicate;
 
-reconcileExit4 ~~~ event2
-reconcileExitInvalid1 ~~~ event2
+questionIsNabValid -- No --> questionPhaseStatusSetToBackingOff;
+questionIsNabValid -- Yes --> questionConditionAcceptedTrue;
 
-event2{{predicate: Update event VeleroBackup}} == If event is accepted ==>
-handler1{{handler: Handle VeleroBackup update event}} ==> reconcileStart5
+questionConditionAcceptedTrue -- No --> statusConditionSetAcceptedToTrue;
+questionConditionAcceptedTrue -- Yes --> questionStatusVeleroBackupUUID;
 
-reconcileStart5[/Reconcile start\] ==> conditionsVeleroBackupStatus
+questionStatusVeleroBackupUUID -- No --> statusSetVeleroBackupUUID;
+questionStatusVeleroBackupUUID -- Yes --> getUUIDMatchingVeleroBackup;
 
-conditionsVeleroBackupStatus["`status.conditions.veleroBackup.status`"] -. Requeue: false, err .- reconcileStart5
-conditionsVeleroBackupStatus ==>
+statusSetVeleroBackupUUID --> questionSuccess;
 
-reconcileExit5[\Requeue: false, nil/]
+statusConditionSetAcceptedToTrue --> questionSuccess;
 
-reconcileExit5 ~~~ event3
 
-event3{{predicate: Delete event NAB}} == If event is accepted ==>
+questionPhaseStatusSetToBackingOff -- No --> statusPhaseStatusSetToBackingOff;
+questionPhaseStatusSetToBackingOff -- Yes --> requeueFalseTerminalErr;
+statusPhaseStatusSetToBackingOff --> questionSuccessWithTerminalError;
 
-reconcileDelete1[/Reconcile start\] ==>
+questionSuccessWithTerminalError -- No --> requeueFalseErr;
+questionSuccessWithTerminalError -- Yes --> requeueFalseTerminalErr;
 
-reconcileExitDelete1[\Requeue: false, nil/] -. Requeue: false, err .-> reconcileDelete1
+getUUIDMatchingVeleroBackup --> questionSuccessGetVB;
 
-event4{{predicate: Update event NAB}} == If event is accepted ==> question
+questionSuccessGetVB -- No --> questionGetSingleVB;
+questionSuccessGetVB -- Yes --> requeueFalseErr;
+
+questionGetSingleVB -- No --> createVBObject;
+questionGetSingleVB -- Yes --> questionPhaseStatusSetToCreated;
+createVBObject --> questionSuccessCreateVB;
+
+questionSuccessCreateVB -- No --> requeueFalseErr;
+questionSuccessCreateVB -- Yes --> questionPhaseStatusSetToCreated;
+
+questionPhaseStatusSetToCreated -- No --> statusPhaseStatusSetToCreated;
+questionPhaseStatusSetToCreated -- Yes --> questionNabStatusUpdateFromVB;
+statusPhaseStatusSetToCreated --> questionSuccessWithNoRequeue;
+
+questionSuccessWithNoRequeue -- No --> requeueFalseErr;
+questionSuccessWithNoRequeue -- Yes --> requeueFalseNil;
+
+questionNabStatusUpdateFromVB -- No --> requeueFalseNil;
+
+questionNabStatusUpdateFromVB -- Yes --> statusNabStatusUpdateFromVB;
+
+statusNabStatusUpdateFromVB --> questionSuccessWithNoRequeue;
+
 ```

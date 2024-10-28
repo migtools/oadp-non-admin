@@ -51,9 +51,9 @@ type VeleroBackup struct {
 	// +optional
 	Status *velerov1.BackupStatus `json:"status,omitempty"`
 
-	// name references the Velero backup by it's name.
+	// nameuuid references the Velero Backup object by it's label containing same NameUUID.
 	// +optional
-	Name string `json:"name,omitempty"`
+	NameUUID string `json:"nameuuid,omitempty"`
 
 	// namespace references the Namespace in which Velero backup exists.
 	// +optional

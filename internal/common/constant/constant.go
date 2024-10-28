@@ -17,6 +17,8 @@ limitations under the License.
 // Package constant contains all common constants used in the project
 package constant
 
+import "k8s.io/apimachinery/pkg/util/validation"
+
 // Common labels for objects manipulated by the Non Admin Controller
 // Labels should be used to identify the NAC object
 // Annotations on the other hand should be used to define ownership
@@ -28,7 +30,8 @@ const (
 	ManagedByLabelValue          = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
 	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
 	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NabOriginUUIDAnnotation      = "openshift.io/oadp-nab-origin-uuid"
+	NabOriginNameUUIDLabel       = "openshift.io/oadp-nab-origin-nameuuid"
+	NarOriginNameUUIDLabel       = "openshift.io/oadp-nar-origin-nameuuid"
 )
 
 // Common environment variables for the Non Admin Controller
@@ -39,9 +42,12 @@ const (
 // EmptyString defines a constant for the empty string
 const EmptyString = ""
 
+// NameDelimiter defines character that is used to separate name parts
+const NameDelimiter = "-"
+
 // TrueString defines a constant for the True string
 const TrueString = "True"
 
-// VeleroBackupNamePrefix represents the prefix for the object name generated
-// by the NonAdminController
-const VeleroBackupNamePrefix = "nab"
+// MaximumNacObjectNameLength represents Generated Non Admin Object Name and
+// must be below 63 characters, because it's used within object Label Value
+const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength

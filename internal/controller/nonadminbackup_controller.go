@@ -51,9 +51,11 @@ type NonAdminBackupReconciler struct {
 type reconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
 
 const (
-	phaseUpdateRequeue     = "NonAdminBackup - Requeue after Phase Update"
-	conditionUpdateRequeue = "NonAdminBackup - Requeue after Condition Update"
-	statusUpdateError      = "Failed to update NonAdminBackup Status"
+	phaseUpdateRequeue           = "NonAdminBackup - Requeue after Phase Update"
+	conditionUpdateRequeue       = "NonAdminBackup - Requeue after Condition Update"
+	veleroReferenceUpdateRequeue = "NonAdminBackup - Requeue after Status Update with UUID reference"
+	statusUpdateExit             = "NonAdminBackup - Exit after Status Update"
+	statusUpdateError            = "Failed to update NonAdminBackup Status"
 )
 
 // +kubebuilder:rbac:groups=nac.oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
@@ -84,7 +86,8 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	reconcileSteps := []reconcileStepFunction{
 		r.init,
 		r.validateSpec,
-		r.syncVeleroBackupWithNonAdminBackup,
+		r.setBackupUUIDInStatus,
+		r.createVeleroBackupAndSyncWithNonAdminBackup,
 	}
 	for _, step := range reconcileSteps {
 		requeue, err := step(ctx, logger, nab)
@@ -185,7 +188,34 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 	return false, nil
 }
 
-// syncVeleroBackupWithNonAdminBackup ensures the VeleroBackup associated with the given NonAdminBackup resource
+// setBackupUUIDInStatus generates a UUID for VeleroBackup and stores it in the NonAdminBackup status.
+//
+// Parameters:
+//
+//	ctx: Context for the request.
+//	logger: Logger instance for logging messages.
+//	nab: Pointer to the NonAdminBackup object.
+//
+// This function generates a UUID and stores it in the VeleroBackup status field of NonAdminBackup.
+func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NameUUID == constant.EmptyString {
+		veleroBackupNameUUID := function.GenerateNacObjectNameWithUUID(nab.Namespace, nab.Name)
+		nab.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
+			NameUUID:  veleroBackupNameUUID,
+			Namespace: r.OADPNamespace,
+		}
+		if err := r.Status().Update(ctx, nab); err != nil {
+			logger.Error(err, statusUpdateError)
+			return false, err
+		}
+		logger.V(1).Info(veleroReferenceUpdateRequeue)
+		return true, nil
+	}
+	logger.V(1).Info("NonAdminBackup already contains VeleroBackup UUID reference")
+	return false, nil
+}
+
+// createVeleroBackupAndSyncWithNonAdminBackup ensures the VeleroBackup associated with the given NonAdminBackup resource
 // is created, if it does not exist.
 // The function also updates the status and conditions of the NonAdminBackup resource to reflect the state
 // of the VeleroBackup.
@@ -195,29 +225,30 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 //	ctx: Context for the request.
 //	logger: Logger instance for logging messages.
 //	nab: Pointer to the NonAdminBackup object.
-func (r *NonAdminBackupReconciler) syncVeleroBackupWithNonAdminBackup(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	veleroBackupName := function.GenerateVeleroBackupName(nab.Namespace, nab.Name)
-	if veleroBackupName == constant.EmptyString {
-		return false, errors.New("unable to generate Velero Backup name")
+func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NameUUID == constant.EmptyString {
+		return false, errors.New("unable to get Velero Backup UUID from NonAdminBackup Status")
 	}
 
-	veleroBackup := velerov1.Backup{}
-	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupName, Namespace: r.OADPNamespace})
-	err := r.Get(ctx, client.ObjectKey{Namespace: r.OADPNamespace, Name: veleroBackupName}, &veleroBackup)
+	veleroBackupNameUUID := nab.Status.VeleroBackup.NameUUID
+
+	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNameUUID)
+
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			veleroBackupLogger.Error(err, "Unable to fetch VeleroBackup")
-			return false, err
-		}
-		// Create VeleroBackup
-		veleroBackupLogger.Info("VeleroBackup not found")
+		// Case in which more then one VeleroBackup is found with the same label UUID
+		logger.Error(err, "Failed to find single VeleroBackup object", "UUID", veleroBackupNameUUID)
+		return false, err
+	}
+
+	if veleroBackup == nil {
+		logger.Info("VeleroBackup with label not found, creating one", "UUID", veleroBackupNameUUID)
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
 
-		veleroBackup = velerov1.Backup{
+		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        veleroBackupName,
+				Name:        veleroBackupNameUUID,
 				Namespace:   r.OADPNamespace,
 				Labels:      function.GetNonAdminLabels(),
 				Annotations: function.GetNonAdminBackupAnnotations(nab.ObjectMeta),
@@ -225,15 +256,26 @@ func (r *NonAdminBackupReconciler) syncVeleroBackupWithNonAdminBackup(ctx contex
 			Spec: *backupSpec,
 		}
 
+		// Add NonAdminBackup's veleroBackupNameUUID as the label to the VeleroBackup object
+		// We don't add this as an argument of GetNonAdminLabels(), because there may be
+		// situations where NAC object do not require NabOriginUUIDLabel
+		veleroBackup.Labels[constant.NabOriginNameUUIDLabel] = veleroBackupNameUUID
+
 		err = r.Create(ctx, &veleroBackup)
+
 		if err != nil {
-			veleroBackupLogger.Error(err, "Failed to create VeleroBackup")
+			// We do not retry here as the veleroBackupNameUUID
+			// should be guaranteed to be unique
+			logger.Error(err, "Failed to create VeleroBackup")
 			return false, err
 		}
-		veleroBackupLogger.Info("VeleroBackup successfully created")
+		logger.Info("VeleroBackup successfully created")
 	}
 
+	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupNameUUID, Namespace: r.OADPNamespace})
+
 	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseCreated)
+
 	updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminConditionQueued),
@@ -242,22 +284,20 @@ func (r *NonAdminBackupReconciler) syncVeleroBackupWithNonAdminBackup(ctx contex
 			Message: "Created Velero Backup object",
 		},
 	)
-	updatedReference := updateNonAdminBackupVeleroBackupReference(&nab.Status, &veleroBackup)
-	if updatedPhase || updatedCondition || updatedReference {
+
+	if updatedPhase || updatedCondition {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
-
-		logger.V(1).Info("NonAdminBackup - Exit after Status Update")
+		logger.V(1).Info(statusUpdateExit)
 		return false, nil
 	}
 
 	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
 	// with the VeleroBackup. Any required updates to the NonAdminBackup
 	// Status will be applied based on the current state of the VeleroBackup.
-	veleroBackupLogger.Info("VeleroBackup already exists, verifying if NonAdminBackup Status requires update")
-	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, &veleroBackup)
+	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, veleroBackup)
 	if updated {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			veleroBackupLogger.Error(err, "Failed to update NonAdminBackup Status after VeleroBackup reconciliation")
@@ -301,32 +341,16 @@ func updateNonAdminPhase(phase *nacv1alpha1.NonAdminBackupPhase, newPhase nacv1a
 	return true
 }
 
-// updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup reference fields in NonAdminBackup object status and returns true
-// if the VeleroBackup fields are changed by this call.
-func updateNonAdminBackupVeleroBackupReference(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
-	if status.VeleroBackup == nil {
-		status.VeleroBackup = &nacv1alpha1.VeleroBackup{
-			Name:      veleroBackup.Name,
-			Namespace: veleroBackup.Namespace,
-		}
-		return true
-	} else if status.VeleroBackup.Name != veleroBackup.Name || status.VeleroBackup.Namespace != veleroBackup.Namespace {
-		status.VeleroBackup.Name = veleroBackup.Name
-		status.VeleroBackup.Namespace = veleroBackup.Namespace
-		return true
-	}
-	return false
-}
-
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup status field in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
 func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
+	if status == nil || veleroBackup == nil {
+		return false
+	}
 	if status.VeleroBackup == nil {
-		status.VeleroBackup = &nacv1alpha1.VeleroBackup{
-			Status: veleroBackup.Status.DeepCopy(),
-		}
-		return true
-	} else if !reflect.DeepEqual(status.VeleroBackup.Status, &veleroBackup.Status) {
+		status.VeleroBackup = &nacv1alpha1.VeleroBackup{}
+	}
+	if status.VeleroBackup.Status == nil || !reflect.DeepEqual(status.VeleroBackup.Status, veleroBackup.Status) {
 		status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
 		return true
 	}

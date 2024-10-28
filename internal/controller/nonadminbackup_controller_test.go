@@ -29,25 +29,24 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
-const (
-	testNonAdminBackupName = "test-non-admin-backup"
-	placeholder            = "PLACEHOLDER"
-)
-
 type nonAdminBackupSingleReconcileScenario struct {
-	resultError        error
-	priorStatus        *nacv1alpha1.NonAdminBackupStatus
-	spec               nacv1alpha1.NonAdminBackupSpec
-	ExpectedStatus     nacv1alpha1.NonAdminBackupStatus
-	result             reconcile.Result
-	createVeleroBackup bool
+	resultError                  error
+	nonAdminBackupPriorStatus    *nacv1alpha1.NonAdminBackupStatus
+	nonAdminBackupSpec           nacv1alpha1.NonAdminBackupSpec
+	nonAdminBackupExpectedStatus nacv1alpha1.NonAdminBackupStatus
+	result                       reconcile.Result
+	createVeleroBackup           bool
+	uuidCreatedByReconcile       bool
+	uuidFromTestCase             bool
 }
 
 type nonAdminBackupFullReconcileScenario struct {
@@ -55,37 +54,40 @@ type nonAdminBackupFullReconcileScenario struct {
 	status nacv1alpha1.NonAdminBackupStatus
 }
 
-func buildTestNonAdminBackup(namespace string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
+func buildTestNonAdminBackup(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
 	return &nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testNonAdminBackupName,
-			Namespace: namespace,
+			Name:      nonAdminName,
+			Namespace: nonAdminNamespace,
 		},
 		Spec: spec,
 	}
 }
 
-func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, expectedStatus nacv1alpha1.NonAdminBackupStatus, nonAdminNamespaceName string, oadpNamespaceName string) error {
+func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, expectedStatus nacv1alpha1.NonAdminBackupStatus, oadpNamespaceName string) error {
 	if nonAdminBackup.Status.Phase != expectedStatus.Phase {
 		return fmt.Errorf("NonAdminBackup Status Phase %v is not equal to expected %v", nonAdminBackup.Status.Phase, expectedStatus.Phase)
 	}
-	if expectedStatus.VeleroBackup != nil {
-		veleroBackupName := expectedStatus.VeleroBackup.Name
-		if expectedStatus.VeleroBackup.Name == placeholder {
-			veleroBackupName = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
+
+	if nonAdminBackup.Status.VeleroBackup != nil {
+		if nonAdminBackup.Status.VeleroBackup.NameUUID == "" {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is 0 length string", nonAdminBackup.Status.VeleroBackup.NameUUID)
 		}
-		if nonAdminBackup.Status.VeleroBackup.Name != veleroBackupName {
-			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Name, veleroBackupName)
-		}
-		veleroBackupNamespace := expectedStatus.VeleroBackup.Namespace
-		if expectedStatus.VeleroBackup.Namespace == placeholder {
-			veleroBackupNamespace = oadpNamespaceName
-		}
-		if nonAdminBackup.Status.VeleroBackup.Namespace != veleroBackupNamespace {
-			return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Namespace, veleroBackupNamespace)
-		}
-		if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status) {
-			return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status)
+
+		if expectedStatus.VeleroBackup != nil {
+			// When there is no VeleroBackup expected Namespace provided, use one that should be result of reconcile loop
+			veleroBackupNamespace := expectedStatus.VeleroBackup.Namespace
+			if veleroBackupNamespace == "" {
+				veleroBackupNamespace = oadpNamespaceName
+			}
+			if nonAdminBackup.Status.VeleroBackup.Namespace != veleroBackupNamespace {
+				return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Namespace, veleroBackupNamespace)
+			}
+			if expectedStatus.VeleroBackup.Status != nil {
+				if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status) {
+					return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status)
+				}
+			}
 		}
 	}
 
@@ -119,7 +121,6 @@ func createTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oad
 	if err != nil {
 		return err
 	}
-
 	oadpNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: oadpNamespaceName,
@@ -127,7 +128,6 @@ func createTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oad
 	}
 	return k8sClient.Create(ctx, oadpNamespace)
 }
-
 func deleteTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oadpNamespaceName string) error {
 	oadpNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -138,7 +138,6 @@ func deleteTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oad
 	if err != nil {
 		return err
 	}
-
 	nonAdminNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nonAdminNamespaceName,
@@ -149,50 +148,47 @@ func deleteTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oad
 
 var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile function", func() {
 	var (
-		ctx                   = context.Background()
-		nonAdminNamespaceName = ""
-		oadpNamespaceName     = ""
-		counter               = 0
-		updateTestScenario    = func() {
-			counter++
-			nonAdminNamespaceName = fmt.Sprintf("test-nonadminbackup-reconcile-%v", counter)
-			oadpNamespaceName = nonAdminNamespaceName + "-oadp"
-		}
+		ctx                     = context.Background()
+		nonAdminObjectName      string
+		nonAdminObjectNamespace string
+		oadpNamespace           string
+		veleroBackupNameUUID    string
+		counter                 = 0
 	)
-
+	ginkgo.BeforeEach(func() {
+		counter++
+		nonAdminObjectName = fmt.Sprintf("nab-object-%v", counter)
+		nonAdminObjectNamespace = fmt.Sprintf("test-nab-reconcile-%v", counter)
+		oadpNamespace = nonAdminObjectNamespace + "-oadp"
+		veleroBackupNameUUID = function.GenerateNacObjectNameWithUUID(nonAdminObjectNamespace, nonAdminObjectName)
+		gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
+	})
 	ginkgo.AfterEach(func() {
 		nonAdminBackup := &nacv1alpha1.NonAdminBackup{}
 		if k8sClient.Get(
 			ctx,
 			types.NamespacedName{
-				Name:      testNonAdminBackupName,
-				Namespace: nonAdminNamespaceName,
+				Name:      nonAdminObjectName,
+				Namespace: nonAdminObjectNamespace,
 			},
 			nonAdminBackup,
 		) == nil {
 			gomega.Expect(k8sClient.Delete(ctx, nonAdminBackup)).To(gomega.Succeed())
 		}
-
-		gomega.Expect(deleteTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
+		gomega.Expect(deleteTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 	})
-
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup Delete event",
 		func(scenario nonAdminBackupSingleReconcileScenario) {
-			updateTestScenario()
-
-			gomega.Expect(createTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
-
 			result, err := (&NonAdminBackupReconciler{
 				Client: k8sClient,
 				Scheme: testEnv.Scheme,
 			}).Reconcile(
 				context.Background(),
 				reconcile.Request{NamespacedName: types.NamespacedName{
-					Namespace: nonAdminNamespaceName,
-					Name:      testNonAdminBackupName,
+					Name:      nonAdminObjectName,
+					Namespace: nonAdminObjectNamespace,
 				}},
 			)
-
 			gomega.Expect(result).To(gomega.Equal(scenario.result))
 			gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 		},
@@ -200,56 +196,60 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			result: reconcile.Result{},
 		}),
 	)
-
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup Create/Update events and by Requeue",
 		func(scenario nonAdminBackupSingleReconcileScenario) {
-			updateTestScenario()
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminObjectNamespace, nonAdminObjectName, scenario.nonAdminBackupSpec)
+			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup.DeepCopy())).To(gomega.Succeed())
+			nonAdminBackupAfterCreate := &nacv1alpha1.NonAdminBackup{}
+			gomega.Expect(k8sClient.Get(
+				ctx,
+				types.NamespacedName{
+					Name:      nonAdminObjectName,
+					Namespace: nonAdminObjectNamespace,
+				},
+				nonAdminBackupAfterCreate,
+			)).To(gomega.Succeed())
+			if scenario.nonAdminBackupPriorStatus != nil {
+				nonAdminBackupAfterCreate.Status = *scenario.nonAdminBackupPriorStatus
 
-			gomega.Expect(createTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
-
-			nonAdminBackup := buildTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
-			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
-
+				if scenario.uuidFromTestCase {
+					nonAdminBackupAfterCreate.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
+						NameUUID:  veleroBackupNameUUID,
+						Namespace: oadpNamespace,
+					}
+				}
+				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackupAfterCreate)).To(gomega.Succeed())
+			}
 			if scenario.createVeleroBackup {
 				veleroBackup := &velerov1.Backup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
-						Namespace:   oadpNamespaceName,
-						Labels:      function.GetNonAdminLabels(),
+						Name:      nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+						Namespace: oadpNamespace,
+						Labels: map[string]string{
+							constant.OadpLabel:              constant.OadpLabelValue,
+							constant.ManagedByLabel:         constant.ManagedByLabelValue,
+							constant.NabOriginNameUUIDLabel: nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+						},
 						Annotations: function.GetNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta),
 					},
 					Spec: velerov1.BackupSpec{
-						IncludedNamespaces: []string{nonAdminNamespaceName},
+						IncludedNamespaces: []string{nonAdminObjectNamespace},
 					},
 				}
 				gomega.Expect(k8sClient.Create(ctx, veleroBackup)).To(gomega.Succeed())
 			}
-
-			if scenario.priorStatus != nil {
-				nonAdminBackup.Status = *scenario.priorStatus
-				if nonAdminBackup.Status.VeleroBackup != nil {
-					if nonAdminBackup.Status.VeleroBackup.Name == placeholder {
-						nonAdminBackup.Status.VeleroBackup.Name = function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName)
-					}
-					if nonAdminBackup.Status.VeleroBackup.Namespace == placeholder {
-						nonAdminBackup.Status.VeleroBackup.Namespace = oadpNamespaceName
-					}
-				}
-				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
-			}
 			// easy hack to test that only one update call happens per reconcile
 			// priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
-
 			result, err := (&NonAdminBackupReconciler{
 				Client:        k8sClient,
 				Scheme:        testEnv.Scheme,
-				OADPNamespace: oadpNamespaceName,
+				OADPNamespace: oadpNamespace,
 			}).Reconcile(
 				context.Background(),
 				reconcile.Request{NamespacedName: types.NamespacedName{
-					Namespace: nonAdminNamespaceName,
-					Name:      testNonAdminBackupName,
+					Name:      nonAdminObjectName,
+					Namespace: nonAdminObjectNamespace,
 				}},
 			)
 			gomega.Expect(result).To(gomega.Equal(scenario.result))
@@ -259,37 +259,41 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(err).To(gomega.HaveOccurred())
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring(scenario.resultError.Error()))
 			}
-
+			nonAdminBackupAfterReconcile := &nacv1alpha1.NonAdminBackup{}
 			gomega.Expect(k8sClient.Get(
 				ctx,
 				types.NamespacedName{
-					Name:      testNonAdminBackupName,
-					Namespace: nonAdminNamespaceName,
+					Name:      nonAdminObjectName,
+					Namespace: nonAdminObjectNamespace,
 				},
-				nonAdminBackup,
+				nonAdminBackupAfterReconcile,
 			)).To(gomega.Succeed())
-
-			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.ExpectedStatus, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
-
+			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackupAfterReconcile, scenario.nonAdminBackupExpectedStatus, oadpNamespace)).To(gomega.Succeed())
+			// TODO: Include the following check in the checkTestNonAdminBackupStatus. Note that there is a challenge where variables are used in the scenario
+			//       data within nonAdminBackupExpectedStatus. Currently the data there needs to be static.
+			if scenario.uuidCreatedByReconcile {
+				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NameUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
+				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
+			}
 			// easy hack to test that only one update call happens per reconcile
 			// currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			// gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
 		ginkgo.Entry("When triggered by NonAdminBackup Create event, should update NonAdminBackup phase to new and Requeue", nonAdminBackupSingleReconcileScenario{
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
 			result: reconcile.Result{Requeue: true},
 		}),
 		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new), should update NonAdminBackup Condition to Accepted True and Requeue", nonAdminBackupSingleReconcileScenario{
-			spec: nacv1alpha1.NonAdminBackupSpec{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 				Conditions: []metav1.Condition{
 					{
@@ -302,11 +306,41 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 			result: reconcile.Result{Requeue: true},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup phase to created and Condition to Queued True and VeleroBackup reference and Exit", nonAdminBackupSingleReconcileScenario{
-			spec: nacv1alpha1.NonAdminBackupSpec{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup Status generated UUID for VeleroBackup and Requeue", nonAdminBackupSingleReconcileScenario{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+				},
+			},
+			uuidCreatedByReconcile: true,
+			result:                 reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NameUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{},
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 				Conditions: []metav1.Condition{
 					{
@@ -318,12 +352,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Name:      placeholder,
-					Namespace: placeholder,
-				},
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",
@@ -339,19 +369,17 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			result: reconcile.Result{},
+			uuidFromTestCase: true,
+			result:           reconcile.Result{},
 		}),
 		ginkgo.Entry("When triggered by VeleroBackup Update event, should update NonAdminBackup VeleroBackupStatus and Exit", nonAdminBackupSingleReconcileScenario{
 			createVeleroBackup: true,
-			spec: nacv1alpha1.NonAdminBackupSpec{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
-				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Name:      placeholder,
-					Namespace: placeholder,
-				},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase:        nacv1alpha1.NonAdminBackupPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{},
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
@@ -369,12 +397,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Name:      placeholder,
-					Namespace: placeholder,
-					Status:    &velerov1.BackupStatus{},
+					Status: &velerov1.BackupStatus{},
 				},
 				Conditions: []metav1.Condition{
 					{
@@ -391,18 +417,19 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			result: reconcile.Result{},
+			uuidFromTestCase: true,
+			result:           reconcile.Result{},
 		}),
 		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new) [invalid spec], should update NonAdminBackup phase to BackingOff and Condition to Accepted False and Exit with terminal error", nonAdminBackupSingleReconcileScenario{
-			spec: nacv1alpha1.NonAdminBackupSpec{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{
 					IncludedNamespaces: []string{"not-valid"},
 				},
 			},
-			priorStatus: &nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
-			ExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
 				Conditions: []metav1.Condition{
 					{
@@ -414,27 +441,28 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			resultError: reconcile.TerminalError(fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: ")),
-		}),
-	)
+		}))
 })
 
 var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller", func() {
 	var (
-		ctx                   context.Context
-		cancel                context.CancelFunc
-		nonAdminNamespaceName = ""
-		oadpNamespaceName     = ""
-		counter               = 0
-		updateTestScenario    = func() {
-			ctx, cancel = context.WithCancel(context.Background())
-			counter++
-			nonAdminNamespaceName = fmt.Sprintf("test-nonadminbackup-reconcile-full-%v", counter)
-			oadpNamespaceName = nonAdminNamespaceName + "-oadp"
-		}
+		ctx                     context.Context
+		cancel                  context.CancelFunc
+		nonAdminObjectName      = ""
+		nonAdminObjectNamespace = ""
+		oadpNamespace           = ""
+		counter                 = 0
 	)
 
+	ginkgo.BeforeEach(func() {
+		counter++
+		nonAdminObjectName = fmt.Sprintf("nab-object-%v", counter)
+		nonAdminObjectNamespace = fmt.Sprintf("test-nab-reconcile-full-%v", counter)
+		oadpNamespace = nonAdminObjectNamespace + "-oadp"
+	})
+
 	ginkgo.AfterEach(func() {
-		gomega.Expect(deleteTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
+		gomega.Expect(deleteTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 
 		cancel()
 		// wait cancel
@@ -443,9 +471,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup Create event",
 		func(scenario nonAdminBackupFullReconcileScenario) {
-			updateTestScenario()
+			ctx, cancel = context.WithCancel(context.Background())
 
-			gomega.Expect(createTestNamespaces(ctx, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
+			gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
@@ -455,7 +483,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			err = (&NonAdminBackupReconciler{
 				Client:        k8sManager.GetClient(),
 				Scheme:        k8sManager.GetScheme(),
-				OADPNamespace: oadpNamespaceName,
+				OADPNamespace: oadpNamespace,
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -465,28 +493,44 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				gomega.Expect(err).ToNot(gomega.HaveOccurred(), "failed to run manager")
 			}()
 			// wait manager start
-			time.Sleep(1 * time.Second)
+			managerStartTimeout := 10 * time.Second
+			pollInterval := 100 * time.Millisecond
+			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
+			defer cancel()
+
+			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					// Check if the manager has started by verifying if the client is initialized
+					return k8sManager.GetClient() != nil, nil
+				}
+			})
+			// Check if the context timeout or another error occurred
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Manager failed to start within the timeout period")
 
 			ginkgo.By("Waiting Reconcile of create event")
-			nonAdminBackup := buildTestNonAdminBackup(nonAdminNamespaceName, scenario.spec)
-			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminObjectNamespace, nonAdminObjectName, scenario.spec)
+			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminBackup)).To(gomega.Succeed())
 			// wait NAB reconcile
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 
 			ginkgo.By("Fetching NonAdminBackup after Reconcile")
 			gomega.Expect(k8sClient.Get(
-				ctx,
+				ctxTimeout,
 				types.NamespacedName{
-					Name:      testNonAdminBackupName,
-					Namespace: nonAdminNamespaceName,
+					Name:      nonAdminObjectName,
+					Namespace: nonAdminObjectNamespace,
 				},
 				nonAdminBackup,
 			)).To(gomega.Succeed())
 
 			ginkgo.By("Validating NonAdminBackup Status")
-			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, nonAdminNamespaceName, oadpNamespaceName)).To(gomega.Succeed())
 
-			if scenario.status.VeleroBackup != nil && len(scenario.status.VeleroBackup.Name) > 0 {
+			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, oadpNamespace)).To(gomega.Succeed())
+
+			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NameUUID) > 0 {
 				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminBackup.Spec,
@@ -494,32 +538,41 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				)).To(gomega.BeTrue())
 
 				ginkgo.By("Simulating VeleroBackup update to finished state")
+
 				veleroBackup := &velerov1.Backup{}
 				gomega.Expect(k8sClient.Get(
-					ctx,
+					ctxTimeout,
 					types.NamespacedName{
-						Name:      function.GenerateVeleroBackupName(nonAdminNamespaceName, testNonAdminBackupName),
-						Namespace: oadpNamespaceName,
+						Name:      nonAdminBackup.Status.VeleroBackup.NameUUID,
+						Namespace: oadpNamespace,
 					},
 					veleroBackup,
 				)).To(gomega.Succeed())
-				veleroBackup.Status.Phase = velerov1.BackupPhaseCompleted
+
 				// TODO can not call .Status().Update() for veleroBackup object: backups.velero.io "name..." not found error
-				gomega.Expect(k8sClient.Update(ctx, veleroBackup)).To(gomega.Succeed())
+				veleroBackup.Status = velerov1.BackupStatus{
+					Phase: velerov1.BackupPhaseCompleted,
+				}
+
+				gomega.Expect(k8sClient.Update(ctxTimeout, veleroBackup)).To(gomega.Succeed())
+
+				ginkgo.By("VeleroBackup updated")
+
+				// wait NAB reconcile
 
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctx,
+						ctxTimeout,
 						types.NamespacedName{
-							Name:      testNonAdminBackupName,
-							Namespace: nonAdminNamespaceName,
+							Name:      nonAdminObjectName,
+							Namespace: nonAdminObjectNamespace,
 						},
 						nonAdminBackup,
 					)
 					if err != nil {
 						return false, err
 					}
-					if nonAdminBackup.Status.VeleroBackup.Status == nil {
+					if nonAdminBackup == nil || nonAdminBackup.Status.VeleroBackup == nil || nonAdminBackup.Status.VeleroBackup.Status == nil {
 						return false, nil
 					}
 					return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted, nil
@@ -527,7 +580,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			}
 
 			ginkgo.By("Waiting Reconcile of delete event")
-			gomega.Expect(k8sClient.Delete(ctx, nonAdminBackup)).To(gomega.Succeed())
+			gomega.Expect(k8sClient.Delete(ctxTimeout, nonAdminBackup)).To(gomega.Succeed())
 			time.Sleep(1 * time.Second)
 		},
 		ginkgo.Entry("Should update NonAdminBackup until VeleroBackup completes and then delete it", nonAdminBackupFullReconcileScenario{
@@ -537,8 +590,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			status: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Name:      placeholder,
-					Namespace: placeholder,
+					Namespace: oadpNamespace,
 					Status:    nil,
 				},
 				Conditions: []metav1.Condition{
