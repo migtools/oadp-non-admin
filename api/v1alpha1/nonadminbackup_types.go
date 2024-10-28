@@ -22,7 +22,7 @@ import (
 )
 
 // NonAdminBackupPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
-// +kubebuilder:validation:Enum=New;BackingOff;Created
+// +kubebuilder:validation:Enum=New;BackingOff;Created;Deletion
 type NonAdminBackupPhase string
 
 const (
@@ -32,6 +32,8 @@ const (
 	NonAdminBackupPhaseBackingOff NonAdminBackupPhase = "BackingOff"
 	// NonAdminBackupPhaseCreated - Velero Backup was created. The Phase will not have additional informations about the Backup.
 	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
+	// NonAdminBackupPhaseDeletion - Velero Backup is pending deletion. The Phase will not have additional informations about the Backup.
+	NonAdminBackupPhaseDeletion NonAdminBackupPhase = "Deletion"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -43,6 +45,10 @@ type NonAdminBackupSpec struct {
 	// +optional
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
 	LogLevel string `json:"logLevel,omitempty"`
+
+	// DeleteBackup tells the controller to remove created Velero Backup.
+	// +optional
+	DeleteBackup bool `json:"deleteBackup,omitempty"`
 }
 
 // VeleroBackup contains information of the related Velero backup object.

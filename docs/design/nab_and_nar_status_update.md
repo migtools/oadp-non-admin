@@ -28,6 +28,7 @@ Those are are the possible values for phase:
 | New | *NonAdminBackup/NonAdminRestore* resource was accepted by the NAB/NAR Controller, but it has not yet been validated by the NAB/NAR Controller |
 | BackingOff | *NonAdminBackup/NonAdminRestore* resource was invalidated by the NAB/NAR Controller, due to invalid Spec. NAB/NAR Controller will not reconcile the object further, until user updates it |
 | Created | *NonAdminBackup/NonAdminRestore* resource was validated by the NAB/NAR Controller and Velero *Backup/restore* was created. The Phase will not have additional information about the *Backup/Restore* run |
+| Deletion | *NonAdminBackup/NonAdminRestore* resource has been marked for deletion. The NAB/NAR Controller will delete the corresponding Velero *Backup/Restore* if it exists. Once this deletion completes, the *NonAdminBackup/NonAdminRestore* object itself will also be removed |
 
 ### Conditions
 
@@ -123,7 +124,7 @@ It is similar for a NonAdminRestore.
 
 ```mermaid
 %%{init: {'theme':'neutral'}}%%
-graph
+flowchart TD
 
 
 predicateUpdateNabEvent{{predicate: Accepted **update** event NAB}};
@@ -137,6 +138,11 @@ requeueFalseTerminalErr[\"Requeue: false, Terminal error"/];
 
 reconcileStartAcceptedPredicate[/Reconcile start\];
 
+questionIsMarkedForDeletion{"Is NonAdminBackup.Spec.DeleteBackup true ?"};
+questionIsPendingDeletion{"Is NAB object pending deletion ?"};
+questionIsPendingDeletionAfterDeleteBackup{"Is NAB object pending deletion ?"};
+
+questionIsVeleroBackupFinalizerSet{"Is NonAdminBackup finalizer set ?"};
 questionPhaseStatusSetToNew{"Is status.phase: **New** ?"};
 questionConditionAcceptedTrue{"Is status.conditions[Accepted]: **True** ?"};
 questionIsNabValid{"Is NonAdminBackup Spec valid ?"};
@@ -152,13 +158,18 @@ questionSuccessWithNoRequeue{"Success ?"};
 questionSuccessGetVB{"Error ?"};
 questionGetSingleVB{"Is Single Velero Backup found ?"};
 questionNabStatusUpdateFromVB{"Does NAB Object status requires update ?"};
+questionPhaseStatusSetToDeletion{"Is status.phase: **Deletion** ?"};
+questionDoesVeleroObjectExists("Does Velero Object with corresponding status.VeleroBackup.NameUUID exist ?")
 
 createVBObject{{"Create New Velero Backup Object"}};
-
+deleteVeleroObject{{"Delete Velero Backup Object"}};
+initDeleteNonAdminBackup{{"Initialize deletion of Non Admin Backup Object"}};
+removeFinalizerDeletingNonAdminBackupObject{{"Remove finalizer from NonAdminBackup"}};
 
 getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
 
 statusPhaseSetToNew["Set status.phase to: **New**"];
+statusPhaseSetToDeletion["Set status.phase to: **Deletion**"];
 statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
  and status.conditions[Accepted]: **False** ?"];
 statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
@@ -166,12 +177,39 @@ statusPhaseStatusSetToCreated["Set status.phase: **Created**
  and status.conditions[BackupScheduled]: **True** ?"];
 statusSetVeleroBackupUUID["Generate a NameUUID and set it as status.VeleroBackup.NameUUID"];
 statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
+setFinalizerOnNab["Set finalizer on NonAdminBackup"]
 
 predicateCreateNabEvent --> reconcileStartAcceptedPredicate;
 predicateUpdateNabEvent --> reconcileStartAcceptedPredicate;
 predicateUpdateVBEvent --> reconcileStartAcceptedPredicate;
 
-reconcileStartAcceptedPredicate --> questionPhaseStatusSetToNew;
+
+reconcileStartAcceptedPredicate --> questionIsMarkedForDeletion;
+
+
+questionIsMarkedForDeletion -- No --> questionIsPendingDeletion;
+questionIsMarkedForDeletion -- Yes --> questionPhaseStatusSetToDeletion;
+
+questionIsPendingDeletion -- Yes --> requeueFalseNil;
+questionIsPendingDeletion -- No --> questionPhaseStatusSetToNew;
+
+
+questionPhaseStatusSetToDeletion -- No --> statusPhaseSetToDeletion;
+questionPhaseStatusSetToDeletion -- Yes --> questionIsPendingDeletionAfterDeleteBackup;
+
+questionIsPendingDeletionAfterDeleteBackup -- No --> initDeleteNonAdminBackup;
+questionIsPendingDeletionAfterDeleteBackup -- Yes --> questionDoesVeleroObjectExists;
+
+initDeleteNonAdminBackup --> questionSuccess;
+statusPhaseSetToDeletion --> questionSuccess;
+
+
+questionDoesVeleroObjectExists -- No --> removeFinalizerDeletingNonAdminBackupObject;
+questionDoesVeleroObjectExists -- Yes --> deleteVeleroObject;
+deleteVeleroObject --> questionSuccess;
+removeFinalizerDeletingNonAdminBackupObject --> questionSuccess;
+
+
 questionPhaseStatusSetToNew -- No --> statusPhaseSetToNew;
 questionPhaseStatusSetToNew -- Yes --> questionIsNabValid;
 
@@ -188,12 +226,15 @@ questionConditionAcceptedTrue -- No --> statusConditionSetAcceptedToTrue;
 questionConditionAcceptedTrue -- Yes --> questionStatusVeleroBackupUUID;
 
 questionStatusVeleroBackupUUID -- No --> statusSetVeleroBackupUUID;
-questionStatusVeleroBackupUUID -- Yes --> getUUIDMatchingVeleroBackup;
+questionStatusVeleroBackupUUID -- Yes --> questionIsVeleroBackupFinalizerSet;
 
-statusSetVeleroBackupUUID --> questionSuccess;
+questionIsVeleroBackupFinalizerSet -- No --> setFinalizerOnNab;
+questionIsVeleroBackupFinalizerSet -- Yes --> getUUIDMatchingVeleroBackup;
+
 
 statusConditionSetAcceptedToTrue --> questionSuccess;
-
+statusSetVeleroBackupUUID --> questionSuccess;
+setFinalizerOnNab --> questionSuccess;
 
 questionPhaseStatusSetToBackingOff -- No --> statusPhaseStatusSetToBackingOff;
 questionPhaseStatusSetToBackingOff -- Yes --> requeueFalseTerminalErr;

@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -45,6 +46,7 @@ type nonAdminBackupSingleReconcileScenario struct {
 	nonAdminBackupExpectedStatus nacv1alpha1.NonAdminBackupStatus
 	result                       reconcile.Result
 	createVeleroBackup           bool
+	addFinalizer                 bool
 	uuidCreatedByReconcile       bool
 	uuidFromTestCase             bool
 }
@@ -209,6 +211,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 				nonAdminBackupAfterCreate,
 			)).To(gomega.Succeed())
+			if scenario.addFinalizer {
+				if !controllerutil.ContainsFinalizer(nonAdminBackupAfterCreate, constant.NabFinalizerName) {
+					controllerutil.AddFinalizer(nonAdminBackupAfterCreate, constant.NabFinalizerName)
+					gomega.Expect(k8sClient.Update(ctx, nonAdminBackupAfterCreate)).To(gomega.Succeed())
+				}
+			}
 			if scenario.nonAdminBackupPriorStatus != nil {
 				nonAdminBackupAfterCreate.Status = *scenario.nonAdminBackupPriorStatus
 
@@ -337,6 +345,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			result:                 reconcile.Result{Requeue: true},
 		}),
 		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NameUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
+			addFinalizer: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -374,6 +383,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		}),
 		ginkgo.Entry("When triggered by VeleroBackup Update event, should update NonAdminBackup VeleroBackupStatus and Exit", nonAdminBackupSingleReconcileScenario{
 			createVeleroBackup: true,
+			addFinalizer:       true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
