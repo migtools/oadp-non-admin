@@ -549,7 +549,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					veleroBackup,
 				)).To(gomega.Succeed())
 
-				// TODO can not call .Status().Update() for veleroBackup object: backups.velero.io "name..." not found error
+				// can not call .Status().Update() for veleroBackup object https://github.com/vmware-tanzu/velero/issues/8285
 				veleroBackup.Status = velerov1.BackupStatus{
 					Phase: velerov1.BackupPhaseCompleted,
 				}

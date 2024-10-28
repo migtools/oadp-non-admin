@@ -37,19 +37,11 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - The Non-Admin Controller (NAC) will be installed via OADP Operator.
 - The Data Protection Application (DPA) CR will consist of a root level struct called `nonAdmin` under the features. This struct will have a boolean to `enable` or `disable` the non-admin feature.
 - If the `features.nonAdmin.enable` flag is set to `true`, the OADP Operator will install the NAC in OADP Operator's install namespace, by default this feature will be disabled.
-- **Multiple OADP:NAC installations:** Due to performance limitations of single threaded nature of Velero controller, it might be desirable in some environments to have more than one instance of OADP:NAC installed.
-  - We need to ensure that one OADP operator instance is mapped to only one NAC instance
-  - Also, the namespaces catered by each NAC instance should be separate and not merge with each other
-  - We can facilitate this by accepting a list of NS that will be watched/catered by the particular NAC instance. We can do this during the installation time via DPA. There may be 2 ways which we will support of NS filtering:
-    - Direct List of NS Names `(Spec.features.nonAdmin.NSList[])`
-    - List of NS to filtered based on a LabelSelector `(Spec.features.nonAdmin.labelSelector)`
-    - By default, of none of the above are specified then NAC listens to all the Namespaces in the cluster
-    - We need to error out if NAC NS scopes overlap (i.e. NS watch list overlap)
+- Only one NAC can be installed in the whole cluster. OADP Operator validates this.
 
 
 ## Pre-requisites
 - **OADP installed**: OADP Operator must be installed and configured to use non-admin controller
-- **Non Admin Controller configured**: Data Protection Application (DPA) instance must configure Non Admin Controller to watch user namespace(s), by default it watches all Namespaces
 - **RBAC privileges for the user**: User must have the appropriate RBAC privileges to create Non Admin objects within the Namespace where Backup will be taken. An example of such ClusterRole, which may be added to the user with `RoleBinding`:
     ```yaml
     # permissions for end users to edit non-admin custom resources.
@@ -207,5 +199,5 @@ In order to implement this we could accept a configmap from cluster-admin users 
 
 ## Open Questions and Know Limitations
 - Velero command and pod logs
-- Multiple instance of OADP Operator
+- Multiple instances of NAC not allowed (which can impact performance)
 - Should BSL configuration be optional like cluster-admin could opt for shard BSLs or BYOB (Bring your own Bucket/BSL)
