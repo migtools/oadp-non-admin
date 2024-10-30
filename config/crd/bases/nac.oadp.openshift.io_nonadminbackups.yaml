@@ -516,8 +516,16 @@ spec:
                     type: array
                 type: object
               deleteBackup:
-                description: DeleteBackup tells the controller to remove created Velero
-                  Backup.
+                description: |-
+                  DeleteBackup tells the controller to remove created Velero Backup
+                  and the NonAdminBackup objects.
+                type: boolean
+              forceDeleteBackup:
+                description: |-
+                  ForceDeleteBackup instructs the controller to immediately remove
+                  the VeleroBackup and DeleteBackupRequest, bypassing the wait
+                  for backup data deletion from storage, and then proceed with
+                  the removal of the NonAdminBackup object.
                 type: boolean
               logLevel:
                 description: NonAdminBackup log level (use debug for the most logging,
@@ -611,12 +619,15 @@ spec:
                 - New
                 - BackingOff
                 - Created
-                - Deletion
+                - Deleting
                 type: string
               veleroBackup:
                 description: VeleroBackup contains information of the related Velero
                   backup object.
                 properties:
+                  name:
+                    description: references the Velero Backup object by it's name.
+                    type: string
                   namespace:
                     description: namespace references the Namespace in which Velero
                       backup exists.
@@ -772,6 +783,42 @@ spec:
                           execution of the backup. The actual warnings are in the backup's log
                           file in object storage.
                         type: integer
+                    type: object
+                type: object
+              veleroDeleteBackupRequest:
+                description: VeleroDeleteBackupRequest contains information of the
+                  related Velero delete backup request object.
+                properties:
+                  name:
+                    description: name references the Velero delete backup request
+                      object by it's name.
+                    type: string
+                  namespace:
+                    description: namespace references the Namespace in which Velero
+                      delete backup request exists.
+                    type: string
+                  nameuuid:
+                    description: nameuuid references the Velero delete backup request
+                      object by it's label containing same NameUUID.
+                    type: string
+                  status:
+                    description: status captures the current status of the Velero
+                      delete backup request.
+                    properties:
+                      errors:
+                        description: Errors contains any errors that were encountered
+                          during the deletion process.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
+                      phase:
+                        description: Phase is the current state of the DeleteBackupRequest.
+                        enum:
+                        - New
+                        - InProgress
+                        - Processed
+                        type: string
                     type: object
                 type: object
             type: object

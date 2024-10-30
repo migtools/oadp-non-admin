@@ -24,9 +24,12 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -34,6 +37,21 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
+
+// CreateRetryGenerateName attempts to create an object, retrying on "AlreadyExists" errors if the object’s name is generated.
+// borrowed from https://github.com/vmware-tanzu/velero/blob/8320df44fda00daf802b60a42ba2327bb5f39e15/pkg/client/retry.go#L30
+func CreateRetryGenerateName(k8sClient client.Client, ctx context.Context, obj client.Object) error {
+	retryCreateFn := func() error {
+		// needed to ensure that the name from the failed create isn't left on the object between retries
+		obj.SetName("")
+		return k8sClient.Create(ctx, obj, &client.CreateOptions{})
+	}
+	// only apply retry logic if GenerateName is set and Name is still empty
+	if obj.GetGenerateName() != "" && obj.GetName() == "" {
+		return retry.OnError(retry.DefaultRetry, errors.IsAlreadyExists, retryCreateFn)
+	}
+	return k8sClient.Create(ctx, obj, &client.CreateOptions{})
+}
 
 // GetNonAdminLabels return the required Non Admin labels
 func GetNonAdminLabels() map[string]string {
@@ -158,6 +176,27 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 		return &veleroBackupList.Items[0], nil // Found 1 matching VeleroBackup
 	default:
 		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNameUUIDLabel, labelValue, namespace)
+	}
+}
+
+// GetVeleroDeleteBackupRequestByLabel retrieves a DeleteBackupRequest object based on a specified label within a given namespace.
+// It returns the DeleteBackupRequest only when exactly one object is found, throws an error if multiple backups are found,
+// or returns nil if no matches are found.
+func GetVeleroDeleteBackupRequestByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.DeleteBackupRequest, error) {
+	veleroDeleteBackupRequestList := &velerov1.DeleteBackupRequestList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, velerov1.BackupNameLabel, labelValue, veleroDeleteBackupRequestList); err != nil {
+		return nil, err
+	}
+
+	switch len(veleroDeleteBackupRequestList.Items) {
+	case 0:
+		return nil, nil // No matching DeleteBackupRequest found
+	case 1:
+		return &veleroDeleteBackupRequestList.Items[0], nil // Found 1 matching DeleteBackupRequest
+	default:
+		return nil, fmt.Errorf("multiple DeleteBackupRequest objects found with label %s=%s in namespace '%s'", velerov1.BackupNameLabel, labelValue, namespace)
 	}
 }
 

@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 // NonAdminCondition are used for more detailed information supporing NonAdminBackupPhase state.
-// +kubebuilder:validation:Enum=Accepted;Queued
+// +kubebuilder:validation:Enum=Accepted;Queued;Deleting
 type NonAdminCondition string
 
 // Predefined conditions for NonAdminBackup.
@@ -27,4 +27,5 @@ type NonAdminCondition string
 const (
 	NonAdminConditionAccepted NonAdminCondition = "Accepted"
 	NonAdminConditionQueued   NonAdminCondition = "Queued"
+	NonAdminConditionDeleting NonAdminCondition = "Deleting"
 )

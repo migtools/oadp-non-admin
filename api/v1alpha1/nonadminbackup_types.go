@@ -22,7 +22,7 @@ import (
 )
 
 // NonAdminBackupPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
-// +kubebuilder:validation:Enum=New;BackingOff;Created;Deletion
+// +kubebuilder:validation:Enum=New;BackingOff;Created;Deleting
 type NonAdminBackupPhase string
 
 const (
@@ -32,8 +32,8 @@ const (
 	NonAdminBackupPhaseBackingOff NonAdminBackupPhase = "BackingOff"
 	// NonAdminBackupPhaseCreated - Velero Backup was created. The Phase will not have additional informations about the Backup.
 	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
-	// NonAdminBackupPhaseDeletion - Velero Backup is pending deletion. The Phase will not have additional informations about the Backup.
-	NonAdminBackupPhaseDeletion NonAdminBackupPhase = "Deletion"
+	// NonAdminBackupPhaseDeleting - Velero Backup is pending delete. The Phase will not have additional informations about the Backup.
+	NonAdminBackupPhaseDeleting NonAdminBackupPhase = "Deleting"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -46,9 +46,17 @@ type NonAdminBackupSpec struct {
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
 	LogLevel string `json:"logLevel,omitempty"`
 
-	// DeleteBackup tells the controller to remove created Velero Backup.
+	// DeleteBackup tells the controller to remove created Velero Backup
+	// and the NonAdminBackup objects.
 	// +optional
 	DeleteBackup bool `json:"deleteBackup,omitempty"`
+
+	// ForceDeleteBackup instructs the controller to immediately remove
+	// the VeleroBackup and DeleteBackupRequest, bypassing the wait
+	// for backup data deletion from storage, and then proceed with
+	// the removal of the NonAdminBackup object.
+	// +optional
+	ForceDeleteBackup bool `json:"forceDeleteBackup,omitempty"`
 }
 
 // VeleroBackup contains information of the related Velero backup object.
@@ -61,7 +69,30 @@ type VeleroBackup struct {
 	// +optional
 	NameUUID string `json:"nameuuid,omitempty"`
 
+	// references the Velero Backup object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
 	// namespace references the Namespace in which Velero backup exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// VeleroDeleteBackupRequest contains information of the related Velero delete backup request object.
+type VeleroDeleteBackupRequest struct {
+	// status captures the current status of the Velero delete backup request.
+	// +optional
+	Status *velerov1.DeleteBackupRequestStatus `json:"status,omitempty"`
+
+	// nameuuid references the Velero delete backup request object by it's label containing same NameUUID.
+	// +optional
+	NameUUID string `json:"nameuuid,omitempty"`
+
+	// name references the Velero delete backup request object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero delete backup request exists.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }
@@ -70,6 +101,9 @@ type VeleroBackup struct {
 type NonAdminBackupStatus struct {
 	// +optional
 	VeleroBackup *VeleroBackup `json:"veleroBackup,omitempty"`
+
+	// +optional
+	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
 
 	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
 	Conditions []metav1.Condition  `json:"conditions,omitempty"`
