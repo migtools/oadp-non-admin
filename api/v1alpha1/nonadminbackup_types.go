@@ -32,7 +32,7 @@ const (
 	NonAdminBackupPhaseBackingOff NonAdminBackupPhase = "BackingOff"
 	// NonAdminBackupPhaseCreated - Velero Backup was created. The Phase will not have additional informations about the Backup.
 	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
-	// NonAdminBackupPhaseDeleting - Velero Backup is pending delete. The Phase will not have additional informations about the Backup.
+	// NonAdminBackupPhaseDeleting - Velero Backup is pending deletion. The Phase will not have additional informations about the Backup.
 	NonAdminBackupPhaseDeleting NonAdminBackupPhase = "Deleting"
 )
 
