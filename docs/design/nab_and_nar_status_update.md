@@ -57,8 +57,8 @@ Those are are the possible values for `NonAdminCondition`:
 
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
-NonAdminBackup `status.veleroBackup` contains `nameuuid`, `namespace` and `status`.
-- `status.veleroBackup.nameuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nameuuid` within the created `VeleroBackup` object.
+NonAdminBackup `status.veleroBackup` contains `nacuuid`, `namespace` and `status`.
+- `status.veleroBackup.nacuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nacuuid` within the created `VeleroBackup` object.
 - `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
 - `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
@@ -77,8 +77,8 @@ status:
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
-Similarly, NonAdminRestore `status.veleroRestore` contains `nameuuid`, `namespace` and `status`.
-- `status.veleroRestore.nameuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nameuuid` within the created `VeleroRestore` object.
+Similarly, NonAdminRestore `status.veleroRestore` contains `nacuuid`, `namespace` and `status`.
+- `status.veleroRestore.nacuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nacuuid` within the created `VeleroRestore` object.
 - `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
 - `status.veleroRestore.status` field is a copy of the `VeleroRestore` object status.
 
@@ -92,7 +92,7 @@ Object passed validation and Velero `Backup` object was created, but there was a
 ```yaml
 status:
   veleroBackup:
-    nameuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
+    nacuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
     namespace: openshift-adp
     status:
       expiration: '2024-05-16T08:12:11Z'
@@ -150,7 +150,7 @@ questionPhaseStatusSetToBackingOff{"Is status.phase: **BackingOff**
  and status.conditions[Accepted]: **False** ?"};
 questionPhaseStatusSetToCreated{"Is status.phase: **Created**
  and status.conditions[BackupScheduled]: **True** ?"};
-questionStatusVeleroBackupUUID{"Does status.VeleroBackup.NameUUID exist ?"};
+questionStatusVeleroBackupUUID{"Does status.VeleroBackup.NACUUID exist ?"};
 questionSuccess{"Success ?"};
 questionSuccessCreateVB{"Success ?"}
 questionSuccessWithTerminalError{"Success ?"};
@@ -159,14 +159,14 @@ questionSuccessGetVB{"Error ?"};
 questionGetSingleVB{"Is Single Velero Backup found ?"};
 questionNabStatusUpdateFromVB{"Does NAB Object status requires update ?"};
 questionPhaseStatusSetToDeletion{"Is status.phase: **Deletion** ?"};
-questionDoesVeleroObjectExists("Does Velero Object with corresponding status.VeleroBackup.NameUUID exist ?")
+questionDoesVeleroObjectExists("Does Velero Object with corresponding status.VeleroBackup.NACUUID exist ?")
 
 createVBObject{{"Create New Velero Backup Object"}};
 deleteVeleroObject{{"Delete Velero Backup Object"}};
 initDeleteNonAdminBackup{{"Initialize deletion of Non Admin Backup Object"}};
 removeFinalizerDeletingNonAdminBackupObject{{"Remove finalizer from NonAdminBackup"}};
 
-getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
+getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nacuuid matching status.VeleroBackup.NACUUID");
 
 statusPhaseSetToNew["Set status.phase to: **New**"];
 statusPhaseSetToDeletion["Set status.phase to: **Deletion**"];
@@ -175,7 +175,7 @@ statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
 statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
 statusPhaseStatusSetToCreated["Set status.phase: **Created**
  and status.conditions[BackupScheduled]: **True** ?"];
-statusSetVeleroBackupUUID["Generate a NameUUID and set it as status.VeleroBackup.NameUUID"];
+statusSetVeleroBackupUUID["Generate a NACUUID and set it as status.VeleroBackup.NACUUID"];
 statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
 setFinalizerOnNab["Set finalizer on NonAdminBackup"]
 

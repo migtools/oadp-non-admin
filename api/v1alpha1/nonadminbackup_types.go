@@ -46,15 +46,13 @@ type NonAdminBackupSpec struct {
 	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
 	LogLevel string `json:"logLevel,omitempty"`
 
-	// DeleteBackup tells the controller to remove created Velero Backup
-	// and the NonAdminBackup objects.
+	// DeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
+	// as well as the corresponding object storage
 	// +optional
 	DeleteBackup bool `json:"deleteBackup,omitempty"`
 
-	// ForceDeleteBackup instructs the controller to immediately remove
-	// the VeleroBackup and DeleteBackupRequest, bypassing the wait
-	// for backup data deletion from storage, and then proceed with
-	// the removal of the NonAdminBackup object.
+	// ForceDeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
+	// regardless of whether deletion from object storage succeeds or fails
 	// +optional
 	ForceDeleteBackup bool `json:"forceDeleteBackup,omitempty"`
 }
@@ -65,9 +63,9 @@ type VeleroBackup struct {
 	// +optional
 	Status *velerov1.BackupStatus `json:"status,omitempty"`
 
-	// nameuuid references the Velero Backup object by it's label containing same NameUUID.
+	// nacuuid references the Velero Backup object by it's label containing same NACUUID.
 	// +optional
-	NameUUID string `json:"nameuuid,omitempty"`
+	NACUUID string `json:"nacuuid,omitempty"`
 
 	// references the Velero Backup object by it's name.
 	// +optional
@@ -84,9 +82,9 @@ type VeleroDeleteBackupRequest struct {
 	// +optional
 	Status *velerov1.DeleteBackupRequestStatus `json:"status,omitempty"`
 
-	// nameuuid references the Velero delete backup request object by it's label containing same NameUUID.
+	// nacuuid references the Velero delete backup request object by it's label containing same NACUUID.
 	// +optional
-	NameUUID string `json:"nameuuid,omitempty"`
+	NACUUID string `json:"nacuuid,omitempty"`
 
 	// name references the Velero delete backup request object by it's name.
 	// +optional

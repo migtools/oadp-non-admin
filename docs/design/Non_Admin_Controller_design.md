@@ -141,7 +141,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
       labels:
         app.kubernetes.io/managed-by: <OADP NonAdminController id>
         openshift.io/oadp: 'True'
-        openshift.io/oadp-nab-origin-nameuuid: <NonAdminBackup's NameUUID from Status>
+        openshift.io/oadp-nab-origin-nacuuid: <NonAdminBackup's NACUUID from Status>
     ```
     - **Velero runs Backup**: Velero executes the backup operation based on the configuration specified in the Velero Backup object. Velero updates the status of the Velero Backup object to reflect the outcome of the backup process.
     - **Reconcile loop updates NonAdminBackup object Status**: Upon detecting changes in the status of the Velero Backup object, the NonAdminBackup controller's reconciliation loop updates the Status field of the corresponding NonAdminBackup object with the updated status from the Velero Backup object.
@@ -164,7 +164,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
     labels:
       app.kubernetes.io/managed-by: <OADP NonAdminController id>
       openshift.io/oadp: 'True'
-      openshift.io/oadp-nar-origin-nameuuid: <NonAdminRestore's NameUUID from Status>
+      openshift.io/oadp-nar-origin-nacuuid: <NonAdminRestore's NACUUID from Status>
   ```
 - **Velero runs Restore**: Velero executes the restore operation based on the configuration specified in the Velero Restore object. Velero updates the status of the Velero Restore object to reflect the outcome of the restore process.
 - **Reconcile loop updates NonAdminRestore object Status**: Upon detecting changes in the status of the Velero Restore object, the NonAdminRestore controller's reconciliation loop updates the Status field of the corresponding NonAdminRestore object with the updated status from the Velero Restore object.

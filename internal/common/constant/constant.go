@@ -30,8 +30,8 @@ const (
 	ManagedByLabelValue          = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
 	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
 	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NabOriginNameUUIDLabel       = "openshift.io/oadp-nab-origin-nameuuid"
-	NarOriginNameUUIDLabel       = "openshift.io/oadp-nar-origin-nameuuid"
+	NabOriginNACUUIDLabel        = "openshift.io/oadp-nab-origin-nacuuid"
+	NarOriginNACUUIDLabel        = "openshift.io/oadp-nar-origin-nacuuid"
 	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
 )
 

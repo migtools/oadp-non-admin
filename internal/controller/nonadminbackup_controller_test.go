@@ -72,8 +72,8 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 	}
 
 	if nonAdminBackup.Status.VeleroBackup != nil {
-		if nonAdminBackup.Status.VeleroBackup.NameUUID == "" {
-			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is 0 length string", nonAdminBackup.Status.VeleroBackup.NameUUID)
+		if nonAdminBackup.Status.VeleroBackup.NACUUID == "" {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is 0 length string", nonAdminBackup.Status.VeleroBackup.NACUUID)
 		}
 
 		if expectedStatus.VeleroBackup != nil {
@@ -154,7 +154,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		nonAdminObjectName      string
 		nonAdminObjectNamespace string
 		oadpNamespace           string
-		veleroBackupNameUUID    string
+		veleroBackupNACUUID     string
 		counter                 = 0
 	)
 	ginkgo.BeforeEach(func() {
@@ -162,7 +162,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		nonAdminObjectName = fmt.Sprintf("nab-object-%v", counter)
 		nonAdminObjectNamespace = fmt.Sprintf("test-nab-reconcile-%v", counter)
 		oadpNamespace = nonAdminObjectNamespace + "-oadp"
-		veleroBackupNameUUID = function.GenerateNacObjectNameWithUUID(nonAdminObjectNamespace, nonAdminObjectName)
+		veleroBackupNACUUID = function.GenerateNacObjectUUID(nonAdminObjectNamespace, nonAdminObjectName)
 		gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 	})
 	ginkgo.AfterEach(func() {
@@ -222,7 +222,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 
 				if scenario.uuidFromTestCase {
 					nonAdminBackupAfterCreate.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
-						NameUUID:  veleroBackupNameUUID,
+						NACUUID:   veleroBackupNACUUID,
 						Namespace: oadpNamespace,
 					}
 				}
@@ -231,12 +231,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			if scenario.createVeleroBackup {
 				veleroBackup := &velerov1.Backup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+						Name:      nonAdminBackupAfterCreate.Status.VeleroBackup.NACUUID,
 						Namespace: oadpNamespace,
 						Labels: map[string]string{
-							constant.OadpLabel:              constant.OadpLabelValue,
-							constant.ManagedByLabel:         constant.ManagedByLabelValue,
-							constant.NabOriginNameUUIDLabel: nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+							constant.OadpLabel:             constant.OadpLabelValue,
+							constant.ManagedByLabel:        constant.ManagedByLabelValue,
+							constant.NabOriginNACUUIDLabel: nonAdminBackupAfterCreate.Status.VeleroBackup.NACUUID,
 						},
 						Annotations: function.GetNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta),
 					},
@@ -280,7 +280,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			// TODO: Include the following check in the checkTestNonAdminBackupStatus. Note that there is a challenge where variables are used in the scenario
 			//       data within nonAdminBackupExpectedStatus. Currently the data there needs to be static.
 			if scenario.uuidCreatedByReconcile {
-				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NameUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
+				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NACUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
 				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
 			}
 			// easy hack to test that only one update call happens per reconcile
@@ -344,7 +344,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			uuidCreatedByReconcile: true,
 			result:                 reconcile.Result{Requeue: true},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NameUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NACUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
 			addFinalizer: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
@@ -540,7 +540,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, oadpNamespace)).To(gomega.Succeed())
 
-			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NameUUID) > 0 {
+			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NACUUID) > 0 {
 				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminBackup.Spec,
@@ -553,7 +553,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
 					types.NamespacedName{
-						Name:      nonAdminBackup.Status.VeleroBackup.NameUUID,
+						Name:      nonAdminBackup.Status.VeleroBackup.NACUUID,
 						Namespace: oadpNamespace,
 					},
 					veleroBackup,

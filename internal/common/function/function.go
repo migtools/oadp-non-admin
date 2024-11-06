@@ -24,12 +24,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
-
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -37,21 +34,6 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
-
-// CreateRetryGenerateName attempts to create an object, retrying on "AlreadyExists" errors if the object’s name is generated.
-// borrowed from https://github.com/vmware-tanzu/velero/blob/8320df44fda00daf802b60a42ba2327bb5f39e15/pkg/client/retry.go#L30
-func CreateRetryGenerateName(k8sClient client.Client, ctx context.Context, obj client.Object) error {
-	retryCreateFn := func() error {
-		// needed to ensure that the name from the failed create isn't left on the object between retries
-		obj.SetName("")
-		return k8sClient.Create(ctx, obj, &client.CreateOptions{})
-	}
-	// only apply retry logic if GenerateName is set and Name is still empty
-	if obj.GetGenerateName() != "" && obj.GetName() == "" {
-		return retry.OnError(retry.DefaultRetry, errors.IsAlreadyExists, retryCreateFn)
-	}
-	return k8sClient.Create(ctx, obj, &client.CreateOptions{})
-}
 
 // GetNonAdminLabels return the required Non Admin labels
 func GetNonAdminLabels() map[string]string {
@@ -95,9 +77,9 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
 	return nil
 }
 
-// GenerateNacObjectNameWithUUID generates a unique name based on the provided namespace and object origin name.
+// GenerateNacObjectUUID generates a unique name based on the provided namespace and object origin name.
 // It includes a UUID suffix. If the name exceeds the maximum length, it truncates nacName first, then namespace.
-func GenerateNacObjectNameWithUUID(namespace, nacName string) string {
+func GenerateNacObjectUUID(namespace, nacName string) string {
 	// Generate UUID suffix
 	uuidSuffix := uuid.New().String()
 
@@ -165,7 +147,7 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	veleroBackupList := &velerov1.BackupList{}
 
 	// Call the generic ListLabeledObjectsInNamespace function
-	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNACUUIDLabel, labelValue, veleroBackupList); err != nil {
 		return nil, err
 	}
 
@@ -175,7 +157,7 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	case 1:
 		return &veleroBackupList.Items[0], nil // Found 1 matching VeleroBackup
 	default:
-		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNameUUIDLabel, labelValue, namespace)
+		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNACUUIDLabel, labelValue, namespace)
 	}
 }
 
@@ -210,7 +192,7 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 
-	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
+	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNACUUIDLabel) {
 		return false
 	}
 

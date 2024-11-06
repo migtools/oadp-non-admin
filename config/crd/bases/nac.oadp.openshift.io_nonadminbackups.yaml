@@ -517,15 +517,13 @@ spec:
                 type: object
               deleteBackup:
                 description: |-
-                  DeleteBackup tells the controller to remove created Velero Backup
-                  and the NonAdminBackup objects.
+                  DeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
+                  as well as the corresponding object storage
                 type: boolean
               forceDeleteBackup:
                 description: |-
-                  ForceDeleteBackup instructs the controller to immediately remove
-                  the VeleroBackup and DeleteBackupRequest, bypassing the wait
-                  for backup data deletion from storage, and then proceed with
-                  the removal of the NonAdminBackup object.
+                  ForceDeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
+                  regardless of whether deletion from object storage succeeds or fails
                 type: boolean
               logLevel:
                 description: NonAdminBackup log level (use debug for the most logging,
@@ -625,16 +623,16 @@ spec:
                 description: VeleroBackup contains information of the related Velero
                   backup object.
                 properties:
+                  nacuuid:
+                    description: nacuuid references the Velero Backup object by it's
+                      label containing same NACUUID.
+                    type: string
                   name:
                     description: references the Velero Backup object by it's name.
                     type: string
                   namespace:
                     description: namespace references the Namespace in which Velero
                       backup exists.
-                    type: string
-                  nameuuid:
-                    description: nameuuid references the Velero Backup object by it's
-                      label containing same NameUUID.
                     type: string
                   status:
                     description: status captures the current status of the Velero
@@ -789,6 +787,10 @@ spec:
                 description: VeleroDeleteBackupRequest contains information of the
                   related Velero delete backup request object.
                 properties:
+                  nacuuid:
+                    description: nacuuid references the Velero delete backup request
+                      object by it's label containing same NACUUID.
+                    type: string
                   name:
                     description: name references the Velero delete backup request
                       object by it's name.
@@ -796,10 +798,6 @@ spec:
                   namespace:
                     description: namespace references the Namespace in which Velero
                       delete backup request exists.
-                    type: string
-                  nameuuid:
-                    description: nameuuid references the Velero delete backup request
-                      object by it's label containing same NameUUID.
                     type: string
                   status:
                     description: status captures the current status of the Velero
