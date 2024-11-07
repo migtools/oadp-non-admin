@@ -20,6 +20,8 @@ package function
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -62,7 +64,7 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 }
 
 // ValidateBackupSpec return nil, if NonAdminBackup is valid; error otherwise
-func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
+func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
 	// this should be Kubernetes API validation
 	if nonAdminBackup.Spec.BackupSpec == nil {
 		return fmt.Errorf("BackupSpec is not defined")
@@ -70,7 +72,22 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
 
 	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
+			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
+		}
+	}
+
+	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := reflect.ValueOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
+		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+			field, _ := reflect.TypeOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
+			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			return fmt.Errorf(
+				"NonAdminBackup spec.backupSpec.%v field value is enforced by admin user, can not override it",
+				tagName,
+			)
 		}
 	}
 
