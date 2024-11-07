@@ -13,7 +13,7 @@ The `status` field of NAB and NAR objects contains the following fields:
 
 which are updated by NAB and NAR controllers.
 
-Only one update call should be performed per reconcile of NAB and NAR objects. Controller can requeue or depend on predicates if more updates are needed in that object.
+Any reconciliation function that depends on data stored in the `status` field must ensure it operates on the most recent version of that field from the cluster before proceeding.
 
 ### Phase
 
