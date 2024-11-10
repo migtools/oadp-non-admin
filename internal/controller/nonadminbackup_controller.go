@@ -211,7 +211,7 @@ func (r *NonAdminBackupReconciler) setStatusForDirectKubernetesAPIDeletion(ctx c
 			Type:    string(nacv1alpha1.NonAdminConditionDeleting),
 			Status:  metav1.ConditionTrue,
 			Reason:  "DeletionPending",
-			Message: "backup deletion requires VeleroBackup deletion or finalizer removal",
+			Message: "backup deletion requires setting spec.deleteBackup or spec.forceDeleteBackup to true or finalizer removal",
 		},
 	)
 	if updatedPhase || updatedCondition {

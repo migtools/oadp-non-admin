@@ -18,7 +18,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - As a non-admin user/namespace owner with administrative privileges for a particular namespace, the user should be able to:
     - Create a Backup of the namespace
     - View the status of the Backup created for the particular namespace
-    - Delete the Backup of the namespace
+    - Delete the Backup and its corresponding object storage
 
 ### Restore Operation
 - As a non-admin user/namespace owner with administrative privileges for a particular namespace, the user should be able to:
@@ -170,6 +170,29 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - **Reconcile loop updates NonAdminRestore object Status**: Upon detecting changes in the status of the Velero Restore object, the NonAdminRestore controller's reconciliation loop updates the Status field of the corresponding NonAdminRestore object with the updated status from the Velero Restore object.
 
 - // TODO: Diagram remaining
+
+#### Delete Backup Workflow
+- **Non-Admin backup exists:** Hard precondition that the Non-Admin backup exists and is not pending deletion
+- **Non-Admin set deleteBackup to true:** The user sets the `deleteBackup` field to true in the NonAdminBackup custom resource object's spec.
+- **NAB controller reconciles on this NAB CR:** The NonAdminBackup controller continuously reconciles the NonAdminBackup object's desired state with the actual state in the cluster.
+- **NAB controller creates DeleteBackupRequest CR:** When the NonAdminBackup controller detects that deleteBackup is set to true, it creates a Velero DeleteBackupRequest object in the OADP namespace. The resulting DeleteBackupRequest object is labeled with the following metadata:
+
+  ```yaml
+  metadata:
+    annotations:
+      openshift.io/oadp-nab-origin-name: <NonAdminBackup name>
+      openshift.io/oadp-nab-origin-namespace: <NonAdminBackup Namespace>
+    labels:
+      app.kubernetes.io/managed-by: <OADP NonAdminController id>
+      openshift.io/oadp: 'True'
+      openshift.io/oadp-nab-origin-nacuuid: <NonAdminBackup's NACUUID from Status>
+      velero.io/backup-name: <VeleroBackup name>
+      velero.io/backup-uid: <VeleroBackup UID>
+  ```
+- **Velero deletes the Backup:** Velero deletes the Backup object using the information provided in the DeleteBackupRequest object.
+- **Velero deletes the DeleteBackupRequest object:** Velero deletes the DeleteBackupRequest object.
+- **NAB controller deletes the NonAdminBackup object:** NAB controller reconciles on the NonAdminBackup object and detects that the Velero Backup object has been deleted, the NonAdminBackup controller deletes the NonAdminBackup object.
+// TODO: Diagram remaining
 
 #### Queuing mechanism on NAB/NAR CR status
   - We will introduce a Queue status on NAB/NAR CR status in order to give some transparency on what is the current backup/restore request status or a general idea when it will get processed so that the non-admin users are not left to wonder about what's happening with their backup/restore.
