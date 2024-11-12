@@ -262,11 +262,14 @@ check-manifests: manifests ## Check if 'make manifests' was run.
 ec: editorconfig ## Run file formatter checks against all project's files.
 	$(EC)
 
-.PHONY: check-go-dependencies
-check-go-dependencies: ## Check if 'go mod tidy' was run.
+.PHONY: go-dependencies
+go-dependencies: ## Update go dependencies.
 	go mod tidy
 	go mod verify
-	test -z "$(shell git status --short)" || (echo "run 'go mod tidy' to update go dependencies" && exit 1)
+
+.PHONY: check-go-dependencies
+check-go-dependencies: go-dependencies ## Check if 'make go-dependencies' was run.
+	test -z "$(shell git status --short)" || (echo "run 'make go-dependencies' to update go dependencies" && exit 1)
 
 .PHONY: check-images
 check-images: MANAGER_IMAGE:=$(shell grep -I 'newName: ' ./config/manager/kustomization.yaml | awk -F': ' '{print $$2}')
