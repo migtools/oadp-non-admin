@@ -13,7 +13,7 @@ The `status` field of NAB and NAR objects contains the following fields:
 
 which are updated by NAB and NAR controllers.
 
-Only one update call should be performed per reconcile of NAB and NAR objects. Controller can requeue or depend on predicates if more updates are needed in that object.
+Any reconciliation function that depends on data stored in the `status` field must ensure it operates on the most recent version of that field from the cluster before proceeding.
 
 ### Phase
 
@@ -28,6 +28,7 @@ Those are are the possible values for phase:
 | New | *NonAdminBackup/NonAdminRestore* resource was accepted by the NAB/NAR Controller, but it has not yet been validated by the NAB/NAR Controller |
 | BackingOff | *NonAdminBackup/NonAdminRestore* resource was invalidated by the NAB/NAR Controller, due to invalid Spec. NAB/NAR Controller will not reconcile the object further, until user updates it |
 | Created | *NonAdminBackup/NonAdminRestore* resource was validated by the NAB/NAR Controller and Velero *Backup/restore* was created. The Phase will not have additional information about the *Backup/Restore* run |
+| Deletion | *NonAdminBackup/NonAdminRestore* resource has been marked for deletion. The NAB/NAR Controller will delete the corresponding Velero *Backup/Restore* if it exists. Once this deletion completes, the *NonAdminBackup/NonAdminRestore* object itself will also be removed |
 
 ### Conditions
 
@@ -51,13 +52,14 @@ Those are are the possible values for `NonAdminCondition`:
 |-----------|-----------------|
 | Accepted | The NonAdminBackup/NonAdminRestore object was accepted by the controller, but the Velero Backup/Restore may have not yet been created |
 | Queued | The Velero Backup/Restore was created successfully. At this stage errors may still occur either from the Velero not accepting object or during backup/restore procedure. |
+| Deleting | The NonAdminBackup object is pending deletion, but the Velero Backup object is still present. The NAB Controller will not reconcile the object further, until the Velero Backup object is deleted. |
 
 ### Velero object reference
 
 NonAdminBackup/NonAdminRestore `status` contains reference to the related Velero Backup/Restore.
 
-NonAdminBackup `status.veleroBackup` contains `nameuuid`, `namespace` and `status`.
-- `status.veleroBackup.nameuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nameuuid` within the created `VeleroBackup` object.
+NonAdminBackup `status.veleroBackup` contains `nacuuid`, `namespace` and `status`.
+- `status.veleroBackup.nacuuid` field stores generated unique UUID of the `VeleroBackup` object. The same UUID is also stored as the label value `openshift.io/oadp-nab-origin-nacuuid` within the created `VeleroBackup` object.
 - `status.veleroBackup.namespace` represents the namespace in which the `VeleroBackup` object was created.
 - `status.veleroBackup.status` field is a copy of the `VeleroBackup` object status.
 
@@ -76,8 +78,8 @@ status:
 velero backup describe -n openshift-adp nab-nacproject-c3499c2729730a
 ```
 
-Similarly, NonAdminRestore `status.veleroRestore` contains `nameuuid`, `namespace` and `status`.
-- `status.veleroRestore.nameuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nameuuid` within the created `VeleroRestore` object.
+Similarly, NonAdminRestore `status.veleroRestore` contains `nacuuid`, `namespace` and `status`.
+- `status.veleroRestore.nacuuid` field stores generated unique UUID of the `VeleroRestore` object. The same UUID is also stored as the label value `openshift.io/oadp-nar-origin-nacuuid` within the created `VeleroRestore` object.
 - `status.veleroRestore.namespace` represents the namespace in which the `veleroRestore` object was created.
 - `status.veleroRestore.status` field is a copy of the `VeleroRestore` object status.
 
@@ -91,7 +93,7 @@ Object passed validation and Velero `Backup` object was created, but there was a
 ```yaml
 status:
   veleroBackup:
-    nameuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
+    nacuuid: nonadmin-test-86b8d92b-66b2-11e4-8a2d-42010af06f3f
     namespace: openshift-adp
     status:
       expiration: '2024-05-16T08:12:11Z'
@@ -123,108 +125,125 @@ It is similar for a NonAdminRestore.
 
 ```mermaid
 %%{init: {'theme':'neutral'}}%%
-graph
+flowchart TD
+    title[NonAdminBackup Controller Workflow]
+    style title font-size:24px,font-weight:bold,fill:#e6f3ff,stroke:#666,stroke-width:2px,stroke-dasharray: 0
+
+    %% Start and Main Switch
+    NAB_START[**Start NonAdminBackup Reconciliation**] --> SWITCH[**Switch on Workflow Type**]
+
+    %% Paths with Consistent Labels
+    SWITCH -->|**API Create/Update Event**| CREATE_UPDATE[**Process Create/Update**]
+    SWITCH -->|**API Delete Event**| NAB_API_DELETE[**Process API Delete**]
+    SWITCH -->|**Force Delete Spec: true**| FORCE_DELETE[**Process Force Delete**]
+    SWITCH -->|**Delete Spec: true**| DELETE_BACKUP[**Process Delete Request**]
+
+    %% Create/Update Path - Detailed Version
+    CREATE_UPDATE --> initNabCreate{NAB Phase Empty?}
+    initNabCreate -->|No| validateSpec
+    initNabCreate -->|Yes| setNewPhase[NAB Phase: **New**]
+    setNewPhase -->|Update Status if Changed<br>▶ Continue ║No Requeue║| validateSpec{Validate BackupSpec<br>in NonAdminBackup}
+    validateSpec -->|Invalid| setBackingOffPhase[NAB Phase: **BackingOff**]
+    setBackingOffPhase --> setInvalidCondition[NAB Condition:: Accepted=False<br>Reason: InvalidBackupSpec]
+    validateSpec -->|Valid| setAcceptedCondition[NAB Condition:: Accepted=True<br>Reason: BackupAccepted]
+    setInvalidCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| terminalError[Terminal Error]
+    setAcceptedCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| refetchNAB[Re-fetch NAB]
+    refetchNAB --> checkVeleroBackup{Does NAB Status.VeleroBackup<br>contain NACUUID?}
+    checkVeleroBackup -->|No| generateNACUUID[Generate NACUUID for VeleroBackup]
+    generateNACUUID --> updateNABStatus[Set NAB Status:<br>veleroBackup.nacuuid<br>veleroBackup.namespace<br>veleroBackup.name]
+    updateNABStatus --> |Update Status if Changed<br>▶ Continue ║No Requeue║| setFinalizer{NAB has Finalizer?}
+    checkVeleroBackup -->|Yes| setFinalizer
+    setFinalizer -->|No| addFinalizer[Add Finalizer to NAB]
+    addFinalizer -->|NAB Object Update<br>↻ Reconcile ║API Event║<br>▶ Continue ║No Requeue║| createVB
+    setFinalizer -->|Yes| createVB{VeleroBackup Exists?}
+    createVB -->|No| createNewVB[Create VeleroBackup]
+    createNewVB  --> setCreatedPhase[NAB Phase: **Created**]
+    setCreatedPhase --> setQueuedCondition[NAB Condition:: Queued=True<br>Reason: BackupScheduled<br>Message: Created Velero Backup object]
+    createVB -->|Yes| updateFromVB[Update NAB Status from VeleroBackup:<br>Phase, Start Time, Completion Time,<br>Expiration, Errors, Warnings,<br>Progress, ValidationErrors]
+    setQueuedCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endCreateUpdate[End Create/Update]
+    updateFromVB -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endCreateUpdate
 
 
-predicateUpdateNabEvent{{predicate: Accepted **update** event NAB}};
-predicateCreateNabEvent{{predicate: Accepted **create** event NAB}};
-predicateUpdateVBEvent{{predicate: Accepted **update** event Velero Backup}};
+    %% API Delete Path
+    NAB_API_DELETE --> setPhase["NAB Phase: **Deleting**"]
+    setPhase --> setCondition["NAB Condition: Deleting=True
+    Reason: DeletionPending
+    Message: backup deletion requires setting
+    spec.deleteBackup or spec.forceDeleteBackup
+    to true or finalizer removal"]
+    setCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endDelete["End"]
 
-requeueTrueNil[\"Requeue: true"/];
-requeueFalseNil[\"Requeue: false"/];
-requeueFalseErr[\"Requeue: false, error"/];
-requeueFalseTerminalErr[\"Requeue: false, Terminal error"/];
+    %% Force Delete Path
+    FORCE_DELETE --> setDeletingPhase[NAB Phase: **Deleting**]
+    setDeletingPhase --> setDeletingCondition[NAB Condition:: Deleting=True<br>Reason: DeletionPending<br>Message: backup accepted for deletion]
+    setDeletingCondition --> checkStatusChanged{NAB Status<br>requires update?}
+    checkStatusChanged -->|No| checkDeletionTimestamp{NAB DeletionTimestamp<br>Is Zero?}
+    checkStatusChanged -->|Yes| updateAndRequeue[Update NAB Status<br>║↻ Set To Requeue║]
+    updateAndRequeue --> checkDeletionTimestamp
+    checkDeletionTimestamp -->|No| checkRequeueFlag
+    checkDeletionTimestamp -->|Yes| initiateForceDelete[Set Delete on NAB Object]
+    initiateForceDelete --> requeueAfterForceDelete[║↻ Set To Requeue]
+    checkVeleroObjects -->|Don't Exist| removeFinalizer
+    requeueAfterForceDelete --> checkRequeueFlag{Is Set <br>To Requeue?}
+    checkRequeueFlag --> |No| checkVeleroObjects
+    checkRequeueFlag --> |Yes| requeueForceDeletePath[║↻ Requeue║]
+    checkVeleroObjects{Check VeleroBackup<br> or DeleteBackupRequest} -->|Exist| deleteVeleroObjects[Delete VeleroBackup and<br>DeleteBackupRequest Objects]
+    deleteVeleroObjects --> removeFinalizer[Remove NAB Finalizer]
+    removeFinalizer --> endForce[End Force Delete]
 
-reconcileStartAcceptedPredicate[/Reconcile start\];
+    %% Delete Backup Path
+    DELETE_BACKUP --> setDeletingPhaseDelete[NAB Phase: **Deleting**]
+    setDeletingPhaseDelete --> setDeletingConditionDelete[NAB Condition:: Deleting=True<br>Reason: DeletionPending<br>Message: backup accepted for deletion]
+    setDeletingConditionDelete --> checkStatusChangedDelete{NAB Status<br>requires update?}
+    checkStatusChangedDelete -->|No| checkDeletionTimestampDelete{NAB DeletionTimestamp<br>Is Zero?}
+    checkStatusChangedDelete -->|Yes| updateAndRequeueDelete[Update NAB Status<br>║↻ Set To Requeue║]
+    updateAndRequeueDelete --> checkDeletionTimestampDelete
+    checkDeletionTimestampDelete -->|No| checkRequeueFlagDelete
+    checkDeletionTimestampDelete -->|Yes| initiateDelete[Set Delete on NAB Object]
+    initiateDelete --> requeueAfterDelete[║↻ Set To Requeue]
+    requeueAfterDelete --> checkRequeueFlagDelete{Is Set <br>To Requeue?}
+    checkRequeueFlagDelete --> |No| checkFinalizer{NAB has<br>Finalizer?}
+    checkRequeueFlagDelete --> |Yes| requeueDeletePath[║↻ Requeue║]
+    checkFinalizer -->|No| endDeleteBackup[End Delete Backup]
+    checkFinalizer -->|Yes| checkVeleroBackupInfo{Check VeleroBackup}
+    checkVeleroBackupInfo -->|Don't Exist| removeNABFinalizer[Remove NAB Finalizer]
+    checkVeleroBackupInfo -->|Exists| checkDeleteBackupRequest{Check DeleteBackupRequest}
+    checkDeleteBackupRequest -->|Don't Exists| createDeleteBackupRequest[Create DeleteBackupRequest]
+    checkDeleteBackupRequest -->|Exists| updateDBRStatus[Update NAB Status from<br>DeleteBackupRequest Info]
+    createDeleteBackupRequest --> updateDBRStatus[Update NAB Status from<br>DeleteBackupRequest Info]
+    updateDBRStatus --> |Update Status if Changed<br>▶ Continue ║No Requeue║| waitForVBDeletion{Check if VeleroBackup<br>still exists?}
+    waitForVBDeletion -->|No| removeNABFinalizer[Remove NAB Finalizer]
+    waitForVBDeletion -->|Yes| requeueForVBDeletion[║↻ Requeue║]
+    removeNABFinalizer --> endDeleteBackup
 
-questionPhaseStatusSetToNew{"Is status.phase: **New** ?"};
-questionConditionAcceptedTrue{"Is status.conditions[Accepted]: **True** ?"};
-questionIsNabValid{"Is NonAdminBackup Spec valid ?"};
-questionPhaseStatusSetToBackingOff{"Is status.phase: **BackingOff**
- and status.conditions[Accepted]: **False** ?"};
-questionPhaseStatusSetToCreated{"Is status.phase: **Created**
- and status.conditions[BackupScheduled]: **True** ?"};
-questionStatusVeleroBackupUUID{"Does status.VeleroBackup.NameUUID exist ?"};
-questionSuccess{"Success ?"};
-questionSuccessCreateVB{"Success ?"}
-questionSuccessWithTerminalError{"Success ?"};
-questionSuccessWithNoRequeue{"Success ?"};
-questionSuccessGetVB{"Error ?"};
-questionGetSingleVB{"Is Single Velero Backup found ?"};
-questionNabStatusUpdateFromVB{"Does NAB Object status requires update ?"};
+    %% Apply additional styles
+    class checkFinalizer,checkVeleroBackupInfo,waitForVBDeletion decision
+    class createDeleteBackupRequest,removeNABFinalizer process
+    class updateDBRStatus update
+    class endDeleteBackup endpoint
 
-createVBObject{{"Create New Velero Backup Object"}};
+    %% Styling
+    classDef decision fill:#ffeb99,stroke:#333,stroke-width:2px
+    classDef process fill:#b3d9ff,stroke:#333,stroke-width:2px
+    classDef endpoint fill:#d9f2d9,stroke:#333,stroke-width:2px
+    classDef update fill:#ff9999,stroke:#333,stroke-width:2px
+    classDef refetch fill:#99ccff,stroke:#333,stroke-width:2px
+    classDef phase fill:#ffb366,stroke:#333,stroke-width:2px
+    classDef condition fill:#99ff99,stroke:#333,stroke-width:2px
+    classDef statusCheck fill:#ff99cc,stroke:#333,stroke-width:2px
+    classDef deleteProcess fill:#ffcccc,stroke:#333,stroke-width:2px
+    classDef waitState fill:#ccccff,stroke:#333,stroke-width:2px
 
-
-getUUIDMatchingVeleroBackup("Get Velero Backup with label openshift.io/oadp-nab-origin-nameuuid matching status.VeleroBackup.NameUUID");
-
-statusPhaseSetToNew["Set status.phase to: **New**"];
-statusPhaseStatusSetToBackingOff["Set status.phase: **BackingOff**
- and status.conditions[Accepted]: **False** ?"];
-statusConditionSetAcceptedToTrue["Set status.conditions[Accepted] to **True**"];
-statusPhaseStatusSetToCreated["Set status.phase: **Created**
- and status.conditions[BackupScheduled]: **True** ?"];
-statusSetVeleroBackupUUID["Generate a NameUUID and set it as status.VeleroBackup.NameUUID"];
-statusNabStatusUpdateFromVB["Update NonAdminBackup status from Velero Backup"];
-
-predicateCreateNabEvent --> reconcileStartAcceptedPredicate;
-predicateUpdateNabEvent --> reconcileStartAcceptedPredicate;
-predicateUpdateVBEvent --> reconcileStartAcceptedPredicate;
-
-reconcileStartAcceptedPredicate --> questionPhaseStatusSetToNew;
-questionPhaseStatusSetToNew -- No --> statusPhaseSetToNew;
-questionPhaseStatusSetToNew -- Yes --> questionIsNabValid;
-
-statusPhaseSetToNew --> questionSuccess;
-questionSuccess -- No --> requeueFalseErr;
-questionSuccess -- Yes --> requeueTrueNil;
-
-requeueTrueNil --> reconcileStartAcceptedPredicate;
-
-questionIsNabValid -- No --> questionPhaseStatusSetToBackingOff;
-questionIsNabValid -- Yes --> questionConditionAcceptedTrue;
-
-questionConditionAcceptedTrue -- No --> statusConditionSetAcceptedToTrue;
-questionConditionAcceptedTrue -- Yes --> questionStatusVeleroBackupUUID;
-
-questionStatusVeleroBackupUUID -- No --> statusSetVeleroBackupUUID;
-questionStatusVeleroBackupUUID -- Yes --> getUUIDMatchingVeleroBackup;
-
-statusSetVeleroBackupUUID --> questionSuccess;
-
-statusConditionSetAcceptedToTrue --> questionSuccess;
-
-
-questionPhaseStatusSetToBackingOff -- No --> statusPhaseStatusSetToBackingOff;
-questionPhaseStatusSetToBackingOff -- Yes --> requeueFalseTerminalErr;
-statusPhaseStatusSetToBackingOff --> questionSuccessWithTerminalError;
-
-questionSuccessWithTerminalError -- No --> requeueFalseErr;
-questionSuccessWithTerminalError -- Yes --> requeueFalseTerminalErr;
-
-getUUIDMatchingVeleroBackup --> questionSuccessGetVB;
-
-questionSuccessGetVB -- No --> questionGetSingleVB;
-questionSuccessGetVB -- Yes --> requeueFalseErr;
-
-questionGetSingleVB -- No --> createVBObject;
-questionGetSingleVB -- Yes --> questionPhaseStatusSetToCreated;
-createVBObject --> questionSuccessCreateVB;
-
-questionSuccessCreateVB -- No --> requeueFalseErr;
-questionSuccessCreateVB -- Yes --> questionPhaseStatusSetToCreated;
-
-questionPhaseStatusSetToCreated -- No --> statusPhaseStatusSetToCreated;
-questionPhaseStatusSetToCreated -- Yes --> questionNabStatusUpdateFromVB;
-statusPhaseStatusSetToCreated --> questionSuccessWithNoRequeue;
-
-questionSuccessWithNoRequeue -- No --> requeueFalseErr;
-questionSuccessWithNoRequeue -- Yes --> requeueFalseNil;
-
-questionNabStatusUpdateFromVB -- No --> requeueFalseNil;
-
-questionNabStatusUpdateFromVB -- Yes --> statusNabStatusUpdateFromVB;
-
-statusNabStatusUpdateFromVB --> questionSuccessWithNoRequeue;
+    %% Apply styles to all nodes
+    class SWITCH,initNabCreate,validateSpec,setFinalizer,createVB,checkVeleroBackup,validateDelete,checkDeletionTimestamp,checkDeletionTimestampDelete,checkRequeueFlagDelete,checkVeleroObjects,checkRequeueFlag,checkStatusChanged,checkStatusChangedDelete,checkDeleteBackupRequest decision
+    class start,CREATE_UPDATE,NAB_API_DELETE,FORCE_DELETE,DELETE_BACKUP,generateNACUUID,createNewVB,removeBackup,initiateForceDelete,deleteVeleroObjects,initiateDelete process
+    class terminalError,endCreateUpdate,endDelete,endForce,endDeleteBackup endpoint
+    class setNewPhase,setBackingOffPhase,setCreatedPhase,setPhase,setDeletePhase,setDeletionPhase,setDeletingPhase,setDeletingPhaseDelete phase
+    class setInitialCondition,setInvalidCondition,setAcceptedCondition,setQueuedCondition,setCondition,setDeletingCondition,setDeletingConditionDelete condition
+    class updateFromVB,updateNABStatus,addFinalizer,removeFinalizer update
+    class refetchNAB refetch
+    class setDeleteStatus,createDBR,updateStatus deleteProcess
+    class waitForDeletion waitState
 
 ```
+

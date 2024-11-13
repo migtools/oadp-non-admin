@@ -77,9 +77,9 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup) error {
 	return nil
 }
 
-// GenerateNacObjectNameWithUUID generates a unique name based on the provided namespace and object origin name.
+// GenerateNacObjectUUID generates a unique name based on the provided namespace and object origin name.
 // It includes a UUID suffix. If the name exceeds the maximum length, it truncates nacName first, then namespace.
-func GenerateNacObjectNameWithUUID(namespace, nacName string) string {
+func GenerateNacObjectUUID(namespace, nacName string) string {
 	// Generate UUID suffix
 	uuidSuffix := uuid.New().String()
 
@@ -147,7 +147,7 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	veleroBackupList := &velerov1.BackupList{}
 
 	// Call the generic ListLabeledObjectsInNamespace function
-	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNameUUIDLabel, labelValue, veleroBackupList); err != nil {
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabOriginNACUUIDLabel, labelValue, veleroBackupList); err != nil {
 		return nil, err
 	}
 
@@ -157,7 +157,28 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	case 1:
 		return &veleroBackupList.Items[0], nil // Found 1 matching VeleroBackup
 	default:
-		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNameUUIDLabel, labelValue, namespace)
+		return nil, fmt.Errorf("multiple VeleroBackup objects found with label %s=%s in namespace '%s'", constant.NabOriginNACUUIDLabel, labelValue, namespace)
+	}
+}
+
+// GetVeleroDeleteBackupRequestByLabel retrieves a DeleteBackupRequest object based on a specified label within a given namespace.
+// It returns the DeleteBackupRequest only when exactly one object is found, throws an error if multiple backups are found,
+// or returns nil if no matches are found.
+func GetVeleroDeleteBackupRequestByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.DeleteBackupRequest, error) {
+	veleroDeleteBackupRequestList := &velerov1.DeleteBackupRequestList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, velerov1.BackupNameLabel, labelValue, veleroDeleteBackupRequestList); err != nil {
+		return nil, err
+	}
+
+	switch len(veleroDeleteBackupRequestList.Items) {
+	case 0:
+		return nil, nil // No matching DeleteBackupRequest found
+	case 1:
+		return &veleroDeleteBackupRequestList.Items[0], nil // Found 1 matching DeleteBackupRequest
+	default:
+		return nil, fmt.Errorf("multiple DeleteBackupRequest objects found with label %s=%s in namespace '%s'", velerov1.BackupNameLabel, labelValue, namespace)
 	}
 }
 
@@ -171,7 +192,7 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 
-	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNameUUIDLabel) {
+	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabOriginNACUUIDLabel) {
 		return false
 	}
 

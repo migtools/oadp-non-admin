@@ -27,10 +27,12 @@ import (
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -39,14 +41,17 @@ import (
 )
 
 type nonAdminBackupSingleReconcileScenario struct {
-	resultError                  error
-	nonAdminBackupPriorStatus    *nacv1alpha1.NonAdminBackupStatus
-	nonAdminBackupSpec           nacv1alpha1.NonAdminBackupSpec
-	nonAdminBackupExpectedStatus nacv1alpha1.NonAdminBackupStatus
-	result                       reconcile.Result
-	createVeleroBackup           bool
-	uuidCreatedByReconcile       bool
-	uuidFromTestCase             bool
+	resultError                   error
+	nonAdminBackupPriorStatus     *nacv1alpha1.NonAdminBackupStatus
+	nonAdminBackupSpec            nacv1alpha1.NonAdminBackupSpec
+	nonAdminBackupExpectedStatus  nacv1alpha1.NonAdminBackupStatus
+	result                        reconcile.Result
+	createVeleroBackup            bool
+	addFinalizer                  bool
+	uuidCreatedByReconcile        bool
+	uuidFromTestCase              bool
+	nonAdminBackupExpectedDeleted bool
+	addNabDeletionTimestamp       bool
 }
 
 type nonAdminBackupFullReconcileScenario struct {
@@ -70,8 +75,8 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 	}
 
 	if nonAdminBackup.Status.VeleroBackup != nil {
-		if nonAdminBackup.Status.VeleroBackup.NameUUID == "" {
-			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is 0 length string", nonAdminBackup.Status.VeleroBackup.NameUUID)
+		if nonAdminBackup.Status.VeleroBackup.NACUUID == "" {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackupName %v is 0 length string", nonAdminBackup.Status.VeleroBackup.NACUUID)
 		}
 
 		if expectedStatus.VeleroBackup != nil {
@@ -152,7 +157,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		nonAdminObjectName      string
 		nonAdminObjectNamespace string
 		oadpNamespace           string
-		veleroBackupNameUUID    string
+		veleroBackupNACUUID     string
 		counter                 = 0
 	)
 	ginkgo.BeforeEach(func() {
@@ -160,7 +165,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		nonAdminObjectName = fmt.Sprintf("nab-object-%v", counter)
 		nonAdminObjectNamespace = fmt.Sprintf("test-nab-reconcile-%v", counter)
 		oadpNamespace = nonAdminObjectNamespace + "-oadp"
-		veleroBackupNameUUID = function.GenerateNacObjectNameWithUUID(nonAdminObjectNamespace, nonAdminObjectName)
+		veleroBackupNACUUID = function.GenerateNacObjectUUID(nonAdminObjectNamespace, nonAdminObjectName)
 		gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 	})
 	ginkgo.AfterEach(func() {
@@ -209,12 +214,18 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 				nonAdminBackupAfterCreate,
 			)).To(gomega.Succeed())
+			if scenario.addFinalizer {
+				if !controllerutil.ContainsFinalizer(nonAdminBackupAfterCreate, constant.NabFinalizerName) {
+					controllerutil.AddFinalizer(nonAdminBackupAfterCreate, constant.NabFinalizerName)
+					gomega.Expect(k8sClient.Update(ctx, nonAdminBackupAfterCreate)).To(gomega.Succeed())
+				}
+			}
 			if scenario.nonAdminBackupPriorStatus != nil {
 				nonAdminBackupAfterCreate.Status = *scenario.nonAdminBackupPriorStatus
 
 				if scenario.uuidFromTestCase {
 					nonAdminBackupAfterCreate.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
-						NameUUID:  veleroBackupNameUUID,
+						NACUUID:   veleroBackupNACUUID,
 						Namespace: oadpNamespace,
 					}
 				}
@@ -223,12 +234,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			if scenario.createVeleroBackup {
 				veleroBackup := &velerov1.Backup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+						Name:      nonAdminBackupAfterCreate.Status.VeleroBackup.NACUUID,
 						Namespace: oadpNamespace,
 						Labels: map[string]string{
-							constant.OadpLabel:              constant.OadpLabelValue,
-							constant.ManagedByLabel:         constant.ManagedByLabelValue,
-							constant.NabOriginNameUUIDLabel: nonAdminBackupAfterCreate.Status.VeleroBackup.NameUUID,
+							constant.OadpLabel:             constant.OadpLabelValue,
+							constant.ManagedByLabel:        constant.ManagedByLabelValue,
+							constant.NabOriginNACUUIDLabel: nonAdminBackupAfterCreate.Status.VeleroBackup.NACUUID,
 						},
 						Annotations: function.GetNonAdminBackupAnnotations(nonAdminBackup.ObjectMeta),
 					},
@@ -238,6 +249,14 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				}
 				gomega.Expect(k8sClient.Create(ctx, veleroBackup)).To(gomega.Succeed())
 			}
+
+			// We allow to have deleteNonAdminBackup and forceDeleteNonAdminBackup set to true at the same time
+			if scenario.addNabDeletionTimestamp {
+				// DeletionTimestamp is immutable and can only be set by the API server
+				// We need to use Delete() instead of trying to set it directly
+				gomega.Expect(k8sClient.Delete(ctx, nonAdminBackupAfterCreate)).To(gomega.Succeed())
+			}
+
 			// easy hack to test that only one update call happens per reconcile
 			// priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
@@ -260,33 +279,298 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring(scenario.resultError.Error()))
 			}
 			nonAdminBackupAfterReconcile := &nacv1alpha1.NonAdminBackup{}
-			gomega.Expect(k8sClient.Get(
-				ctx,
-				types.NamespacedName{
-					Name:      nonAdminObjectName,
-					Namespace: nonAdminObjectNamespace,
-				},
-				nonAdminBackupAfterReconcile,
-			)).To(gomega.Succeed())
-			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackupAfterReconcile, scenario.nonAdminBackupExpectedStatus, oadpNamespace)).To(gomega.Succeed())
-			// TODO: Include the following check in the checkTestNonAdminBackupStatus. Note that there is a challenge where variables are used in the scenario
-			//       data within nonAdminBackupExpectedStatus. Currently the data there needs to be static.
-			if scenario.uuidCreatedByReconcile {
-				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NameUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
-				gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
+			if !scenario.nonAdminBackupExpectedDeleted {
+				gomega.Expect(k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminObjectName,
+						Namespace: nonAdminObjectNamespace,
+					},
+					nonAdminBackupAfterReconcile,
+				)).To(gomega.Succeed())
+				gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackupAfterReconcile, scenario.nonAdminBackupExpectedStatus, oadpNamespace)).To(gomega.Succeed())
+				// TODO: Include the following check in the checkTestNonAdminBackupStatus. Note that there is a challenge where variables are used in the scenario
+				//       data within nonAdminBackupExpectedStatus. Currently the data there needs to be static.
+				if scenario.uuidCreatedByReconcile {
+					gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NACUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
+					gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
+				}
+			} else {
+				// Fetch the nonAdminBackup after the delete event and ensure it is deleted by checking for NotFound error
+				err = k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminObjectName,
+						Namespace: nonAdminObjectNamespace,
+					},
+					nonAdminBackupAfterReconcile,
+				)
+				gomega.Expect(errors.IsNotFound(err)).To(gomega.BeTrue())
 			}
 			// easy hack to test that only one update call happens per reconcile
 			// currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			// gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
-		ginkgo.Entry("When triggered by NonAdminBackup Create event, should update NonAdminBackup phase to new and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by NonAdminBackup Create event without BackupSpec, should update NonAdminBackup phase to BackingOff and exit with terminal error", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
+				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionFalse,
+						Reason:  "InvalidBackupSpec",
+						Message: "BackupSpec is not defined",
+					},
+				},
 			},
-			result: reconcile.Result{Requeue: true},
+			resultError: reconcile.TerminalError(fmt.Errorf("BackupSpec is not defined")),
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new), should update NonAdminBackup Condition to Accepted True and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field when BackupSpec is invalid, should delete NonAdminBackup without error", nonAdminBackupSingleReconcileScenario{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				DeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionFalse,
+						Reason:             "InvalidBackupSpec",
+						Message:            "BackupSpec is not defined",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedDeleted: true,
+			result:                        reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field with Finalizer set, should not delete NonAdminBackup as it's waiting for finalizer to be removed", nonAdminBackupSingleReconcileScenario{
+			addFinalizer: true,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				DeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionQueued),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionQueued),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionDeleting),
+						Status:  metav1.ConditionTrue,
+						Reason:  "DeletionPending",
+						Message: "backup accepted for deletion",
+					},
+				},
+			},
+			nonAdminBackupExpectedDeleted: false,
+			result:                        reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field with Finalizer persisting, should not delete NonAdminBackup as it's waiting for Velero Backup object to be deleted", nonAdminBackupSingleReconcileScenario{
+			createVeleroBackup: true,
+			addFinalizer:       true,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec:   &velerov1.BackupSpec{},
+				DeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionQueued),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionDeleting),
+						Status:             metav1.ConditionTrue,
+						Reason:             "DeletionPending",
+						Message:            "backup accepted for deletion",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionQueued),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionDeleting),
+						Status:  metav1.ConditionTrue,
+						Reason:  "DeletionPending",
+						Message: "backup accepted for deletion",
+					},
+				},
+			},
+			uuidFromTestCase:              true,
+			nonAdminBackupExpectedDeleted: false,
+			result:                        reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field with Finalizer unset, should delete NonAdminBackup", nonAdminBackupSingleReconcileScenario{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				DeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionQueued),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedDeleted: true,
+			result:                        reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup forceDeleteNonAdmin spec field with Finalizer set and NonAdminBackup phase Created without DeletionTimestamp, should trigger delete NonAdminBackup and requeue", nonAdminBackupSingleReconcileScenario{
+			addFinalizer:            true,
+			addNabDeletionTimestamp: false,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				ForceDeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionQueued),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionQueued),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionDeleting),
+						Status:  metav1.ConditionTrue,
+						Reason:  "DeletionPending",
+						Message: "backup accepted for deletion",
+					},
+				},
+			},
+			nonAdminBackupExpectedDeleted: false,
+			result:                        reconcile.Result{Requeue: true},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup forceDeleteNonAdmin spec field with Finalizer set, should delete NonAdminBackup and exit", nonAdminBackupSingleReconcileScenario{
+			addFinalizer:            true,
+			addNabDeletionTimestamp: true,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec:        &velerov1.BackupSpec{},
+				ForceDeleteBackup: true,
+			},
+			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionQueued),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionDeleting),
+						Status:             metav1.ConditionTrue,
+						Reason:             "DeletionPending",
+						Message:            "backup accepted for deletion",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			createVeleroBackup:            true,
+			uuidFromTestCase:              true,
+			nonAdminBackupExpectedDeleted: true,
+			result:                        reconcile.Result{Requeue: false},
+		}),
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new), should update NonAdminBackup Phase to Created and Condition to Accepted True and NOT Requeue", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -294,19 +578,25 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
 			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				Conditions: []metav1.Condition{
 					{
-						Type:    "Accepted",
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 						Status:  metav1.ConditionTrue,
 						Reason:  "BackupAccepted",
 						Message: "backup accepted",
 					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionQueued),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
 				},
 			},
-			result: reconcile.Result{Requeue: true},
+			result: reconcile.Result{Requeue: false},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup Status generated UUID for VeleroBackup and Requeue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True), should update NonAdminBackup Status generated UUID for VeleroBackup and NOT Requeue", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -323,7 +613,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseNew,
+				Phase: nacv1alpha1.NonAdminBackupPhaseCreated,
 				Conditions: []metav1.Condition{
 					{
 						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
@@ -331,12 +621,19 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Reason:  "BackupAccepted",
 						Message: "backup accepted",
 					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
 				},
 			},
 			uuidCreatedByReconcile: true,
-			result:                 reconcile.Result{Requeue: true},
+			result:                 reconcile.Result{Requeue: false},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NameUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NACUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit", nonAdminBackupSingleReconcileScenario{
+			addFinalizer: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -374,6 +671,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		}),
 		ginkgo.Entry("When triggered by VeleroBackup Update event, should update NonAdminBackup VeleroBackupStatus and Exit", nonAdminBackupSingleReconcileScenario{
 			createVeleroBackup: true,
+			addFinalizer:       true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
@@ -530,7 +828,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			gomega.Expect(checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, oadpNamespace)).To(gomega.Succeed())
 
-			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NameUUID) > 0 {
+			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NACUUID) > 0 {
 				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminBackup.Spec,
@@ -543,7 +841,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
 					types.NamespacedName{
-						Name:      nonAdminBackup.Status.VeleroBackup.NameUUID,
+						Name:      nonAdminBackup.Status.VeleroBackup.NACUUID,
 						Namespace: oadpNamespace,
 					},
 					veleroBackup,
