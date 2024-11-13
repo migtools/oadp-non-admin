@@ -51,6 +51,7 @@ type nonAdminBackupSingleReconcileScenario struct {
 	uuidCreatedByReconcile        bool
 	uuidFromTestCase              bool
 	nonAdminBackupExpectedDeleted bool
+	addNabDeletionTimestamp       bool
 }
 
 type nonAdminBackupFullReconcileScenario struct {
@@ -250,7 +251,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			}
 
 			// We allow to have deleteNonAdminBackup and forceDeleteNonAdminBackup set to true at the same time
-			if scenario.nonAdminBackupSpec.ForceDeleteBackup {
+			if scenario.addNabDeletionTimestamp {
 				// DeletionTimestamp is immutable and can only be set by the API server
 				// We need to use Delete() instead of trying to set it directly
 				gomega.Expect(k8sClient.Delete(ctx, nonAdminBackupAfterCreate)).To(gomega.Succeed())
@@ -481,7 +482,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			result:                        reconcile.Result{Requeue: true},
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup forceDeleteNonAdmin spec field with Finalizer set and NonAdminBackup phase Created without DeletionTimestamp, should trigger delete NonAdminBackup and requeue", nonAdminBackupSingleReconcileScenario{
-			addFinalizer: true,
+			addFinalizer:            true,
+			addNabDeletionTimestamp: false,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				ForceDeleteBackup: true,
 			},
@@ -531,7 +533,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			result:                        reconcile.Result{Requeue: true},
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup forceDeleteNonAdmin spec field with Finalizer set, should delete NonAdminBackup and exit", nonAdminBackupSingleReconcileScenario{
-			addFinalizer: true,
+			addFinalizer:            true,
+			addNabDeletionTimestamp: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec:        &velerov1.BackupSpec{},
 				ForceDeleteBackup: true,
