@@ -39,13 +39,13 @@ Choose one of the authentication method sections to follow.
   oc create namespace <non-admin-user-namespace>
   ```
 - Ensure non admin user have appropriate permissions in its namespace, i.e., non admin user have editor roles for the following objects
-  - `nonadminbackups.nac.oadp.openshift.io`
+  - `nonadminbackups.oadp.openshift.io`
 
   For example
   ```yaml
     # config/rbac/nonadminbackup_editor_role.yaml
     - apiGroups:
-        - nac.oadp.openshift.io
+        - oadp.openshift.io
       resources:
         - nonadminbackups
       verbs:
@@ -57,7 +57,7 @@ Choose one of the authentication method sections to follow.
         - update
         - watch
     - apiGroups:
-        - nac.oadp.openshift.io
+        - oadp.openshift.io
       resources:
         - nonadminbackups/status
       verbs:

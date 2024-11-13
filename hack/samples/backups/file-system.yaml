@@ -3,7 +3,7 @@ kind: Template
 metadata:
   name: fs-nonadminbackup
 objects:
-  - apiVersion: nac.oadp.openshift.io/v1alpha1
+  - apiVersion: oadp.openshift.io/v1alpha1
     kind: NonAdminBackup
     metadata:
       name: nonadminbackup-sample-${SUFFIX}
