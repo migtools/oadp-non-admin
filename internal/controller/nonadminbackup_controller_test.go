@@ -562,29 +562,6 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				},
 			},
-			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
-				Phase: nacv1alpha1.NonAdminBackupPhaseDeleting,
-				Conditions: []metav1.Condition{
-					{
-						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
-						Status:  metav1.ConditionTrue,
-						Reason:  "BackupAccepted",
-						Message: "backup accepted",
-					},
-					{
-						Type:    string(nacv1alpha1.NonAdminConditionQueued),
-						Status:  metav1.ConditionTrue,
-						Reason:  "BackupScheduled",
-						Message: "Created Velero Backup object",
-					},
-					{
-						Type:    string(nacv1alpha1.NonAdminConditionDeleting),
-						Status:  metav1.ConditionTrue,
-						Reason:  "DeletionPending",
-						Message: "backup accepted for deletion",
-					},
-				},
-			},
 			createVeleroBackup:            true,
 			uuidFromTestCase:              true,
 			nonAdminBackupExpectedDeleted: true,
