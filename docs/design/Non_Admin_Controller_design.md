@@ -58,7 +58,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
     name: nonadminbackup-editor-role
     rules:
     - apiGroups:
-        - nac.oadp.openshift.io
+        - oadp.openshift.io
       resources:
         - nonadminbackups
         - nonadminrestores
@@ -72,7 +72,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
         - update
         - watch
     - apiGroups:
-        - nac.oadp.openshift.io
+        - oadp.openshift.io
       resources:
         - nonadminbackups/status
         - nonadminrestores/status
@@ -122,7 +122,7 @@ This design intends to enable non-admin users the ability to perform Backup and 
 - **Non-Admin user creates a Non-Admin backup CR:** The user creates a NonAdminBackup custom resource object in the Namespace on which the backup will run within the Kubernetes cluster. The `NonAdminBackup` schema has the `backupSpec`, which is the same as `Backup` CR from the `velero.io/v1` apiVersion.
 
     ```yaml
-    apiVersion: nac.oadp.openshift.io/v1alpha1
+    apiVersion: oadp.openshift.io/v1alpha1
     kind: NonAdminBackup
     metadata:
       name: example
