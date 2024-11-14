@@ -39,6 +39,32 @@ rules:
 - apiGroups:
   - oadp.openshift.io
   resources:
+  - nonadminbackupstoragelocations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - oadp.openshift.io
+  resources:
+  - nonadminbackupstoragelocations/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - oadp.openshift.io
+  resources:
+  - nonadminbackupstoragelocations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - oadp.openshift.io
+  resources:
   - nonadminrestores
   verbs:
   - create
