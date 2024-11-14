@@ -1,0 +1,9 @@
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminBackupStorageLocation
+metadata:
+  labels:
+    app.kubernetes.io/name: oadp-nac
+    app.kubernetes.io/managed-by: kustomize
+  name: nonadminbackupstoragelocation-sample
+spec:
+  # TODO(user): Add fields here
