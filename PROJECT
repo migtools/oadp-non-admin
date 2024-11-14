@@ -17,4 +17,13 @@ resources:
   kind: NonAdminBackup
   path: github.com/migtools/oadp-non-admin/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: openshift.io
+  group: oadp
+  kind: NonAdminRestore
+  path: github.com/migtools/oadp-non-admin/api/v1alpha1
+  version: v1alpha1
 version: "3"

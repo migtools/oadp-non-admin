@@ -43,6 +43,12 @@ kubebuilder create api \
     --version v1alpha1 \
     --kind NonAdminBackup \
     --resource --controller
+kubebuilder create api \
+    --plugins go.kubebuilder.io/v4 \
+    --group oadp \
+    --version v1alpha1 \
+    --kind NonAdminRestore \
+    --resource --controller
 make manifests
 ```
 > **NOTE:** The information about plugin and project version, as well as project name, repo and domain, is stored in [PROJECT](../PROJECT) file
