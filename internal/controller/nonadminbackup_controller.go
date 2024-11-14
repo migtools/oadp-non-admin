@@ -53,7 +53,7 @@ type NonAdminBackupReconciler struct {
 	OADPNamespace      string
 }
 
-type reconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
+type nonAdminBackupReconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
 
 const (
 	veleroReferenceUpdated = "NonAdminBackup - Status Updated with UUID reference"
@@ -92,14 +92,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Determine which path to take
-	var reconcileSteps []reconcileStepFunction
+	var reconcileSteps []nonAdminBackupReconcileStepFunction
 
 	// First switch statement takes precedence over the next one
 	switch {
 	case nab.Spec.ForceDeleteBackup:
 		// Force delete path - immediately removes both VeleroBackup and DeleteBackupRequest
 		logger.V(1).Info("Executing force delete path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusAndConditionForDeletionAndCallDelete,
 			r.deleteVeleroBackupAndDeleteBackupRequestObjects,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
@@ -108,7 +108,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	case nab.Spec.DeleteBackup:
 		// Standard delete path - creates DeleteBackupRequest and waits for VeleroBackup deletion
 		logger.V(1).Info("Executing standard delete path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusAndConditionForDeletionAndCallDelete,
 			r.createVeleroDeleteBackupRequest,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
@@ -119,14 +119,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// Initializes deletion of the NonAdminBackup object without removing
 		// dependent VeleroBackup object
 		logger.V(1).Info("Executing direct deletion path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusForDirectKubernetesAPIDeletion,
 		}
 
 	default:
 		// Standard creation/update path
 		logger.V(1).Info("Executing nab creation/update path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.initNabCreate,
 			r.validateSpec,
 			r.setBackupUUIDInStatus,
@@ -688,7 +688,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
-		WithEventFilter(predicate.CompositePredicate{
+		WithEventFilter(predicate.CompositeBackupPredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupQueuePredicate: predicate.VeleroBackupQueuePredicate{
 				OADPNamespace: r.OADPNamespace,

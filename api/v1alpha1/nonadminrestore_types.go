@@ -17,25 +17,43 @@ limitations under the License.
 package v1alpha1
 
 import (
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NonAdminRestoreSpec defines the desired state of NonAdminRestore
 type NonAdminRestoreSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// restoreSpec defines the specification for a Velero restore.
+	RestoreSpec *velerov1.RestoreSpec `json:"restoreSpec"`
+}
 
-	// Foo is an example field of NonAdminRestore. Edit nonadminrestore_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+// VeleroRestore contains information of the related Velero restore object.
+type VeleroRestore struct {
+	// status captures the current status of the Velero restore.
+	// +optional
+	Status *velerov1.RestoreStatus `json:"status,omitempty"`
+
+	// references the Velero Restore object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero Restore exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // NonAdminRestoreStatus defines the observed state of NonAdminRestore
 type NonAdminRestoreStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +optional
+	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
+
+	// +optional
+	UUID string `json:"uuid,omitempty"`
+
+	// phase is a simple one high-level summary of the lifecycle of an NonAdminRestore.
+	Phase NonAdminPhase `json:"phase,omitempty"`
+
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 //+kubebuilder:object:root=true

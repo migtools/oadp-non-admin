@@ -26,6 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,11 +46,24 @@ func GetNonAdminLabels() map[string]string {
 	}
 }
 
+func GetNonAdminRestoreLabels(uuid string) map[string]string {
+	nonAdminLabels := GetNonAdminLabels()
+	nonAdminLabels[constant.NarOriginNACUUIDLabel] = uuid
+	return nonAdminLabels
+}
+
 // GetNonAdminBackupAnnotations return the required Non Admin annotations
 func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{
 		constant.NabOriginNamespaceAnnotation: objectMeta.Namespace,
 		constant.NabOriginNameAnnotation:      objectMeta.Name,
+	}
+}
+
+func GetNonAdminRestoreAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
+	return map[string]string{
+		constant.NonAdminRestoreOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NonAdminRestoreOriginNameAnnotation:      objectMeta.Name,
 	}
 }
 
@@ -99,6 +113,22 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 	return nil
 }
 
+func ValidateRestoreSpec(nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
+	// TODO check NonAdminBackup with nonAdminRestore.Spec.RestoreSpec.BackupName name exist in NonAdminRestore namespace
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ScheduleName is not used? (we do not plan to have schedules now, right?)
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.IncludedNamespaces does not contain anything other than its own namespace?
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ExcludedNamespaces is not set? (to avoid empty restores)
+
+	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
+
+	// TODO enforce Restore Spec
+
+	return nil
+}
+
 // GenerateNacObjectUUID generates a unique name based on the provided namespace and object origin name.
 // It includes a UUID suffix. If the name exceeds the maximum length, it truncates nacName first, then namespace.
 func GenerateNacObjectUUID(namespace, nacName string) string {
@@ -139,6 +169,19 @@ func GenerateNacObjectUUID(namespace, nacName string) string {
 	}
 
 	return nacObjectName
+}
+
+func GetGenerateNamePrefix(namespace string, name string) string {
+	remainingLength := constant.MaximumNacObjectNameLength - 5 - len("--")
+	if len(namespace+name) > remainingLength {
+		if len(namespace) >= remainingLength {
+			return fmt.Sprintf("%s-", namespace[:remainingLength])
+		}
+		remainingLength := remainingLength - len(namespace)
+		return fmt.Sprintf("%s-%s-", name[:remainingLength], namespace)
+	}
+
+	return fmt.Sprintf("%s-%s-", namespace, name)
 }
 
 // ListObjectsByLabel retrieves a list of Kubernetes objects in a specified namespace
@@ -274,6 +317,22 @@ func GetVeleroDeleteBackupRequestByLabel(ctx context.Context, clientInstance cli
 		return &veleroDeleteBackupRequestList.Items[0], nil // Found 1 matching DeleteBackupRequest
 	default:
 		return nil, fmt.Errorf("multiple DeleteBackupRequest objects found with label %s=%s in namespace '%s'", velerov1.BackupNameLabel, labelValue, namespace)
+	}
+}
+
+func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.Restore, error) {
+	veleroRestoreList := &velerov1.RestoreList{}
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NarOriginNACUUIDLabel, labelValue, veleroRestoreList); err != nil {
+		return nil, err
+	}
+
+	switch len(veleroRestoreList.Items) {
+	case 0:
+		return nil, apierrors.NewNotFound(velerov1.Resource("restores"), "")
+	case 1:
+		return &veleroRestoreList.Items[0], nil
+	default:
+		return nil, fmt.Errorf("multiple Velero Restore objects found with label %s=%s in namespace '%s'", constant.NabOriginNACUUIDLabel, labelValue, namespace)
 	}
 }
 

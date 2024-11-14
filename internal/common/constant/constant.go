@@ -24,15 +24,20 @@ import "k8s.io/apimachinery/pkg/util/validation"
 // Annotations on the other hand should be used to define ownership
 // of the specific Object, such as Backup/Restore.
 const (
-	OadpLabel                    = "openshift.io/oadp" // TODO import?
-	OadpLabelValue               = TrueString
-	ManagedByLabel               = "app.kubernetes.io/managed-by"
-	ManagedByLabelValue          = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
-	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
-	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NabOriginNACUUIDLabel        = "openshift.io/oadp-nab-origin-nacuuid"
-	NarOriginNACUUIDLabel        = "openshift.io/oadp-nar-origin-nacuuid"
+	OadpLabel             = "openshift.io/oadp" // TODO import?
+	OadpLabelValue        = TrueString
+	ManagedByLabel        = "app.kubernetes.io/managed-by"
+	ManagedByLabelValue   = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
+	NabOriginNACUUIDLabel = "openshift.io/oadp-nab-origin-nacuuid"
+	NarOriginNACUUIDLabel = "openshift.io/oadp-nar-origin-nacuuid"
+
+	NabOriginNameAnnotation                  = "openshift.io/oadp-nab-origin-name"
+	NabOriginNamespaceAnnotation             = "openshift.io/oadp-nab-origin-namespace"
+	NonAdminRestoreOriginNameAnnotation      = "openshift.io/oadp-nar-origin-name"
+	NonAdminRestoreOriginNamespaceAnnotation = "openshift.io/oadp-nar-origin-namespace"
+
 	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
+	NonAdminRestoreFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
