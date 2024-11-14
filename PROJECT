@@ -2,7 +2,7 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-domain: oadp.openshift.io
+domain: openshift.io
 layout:
 - go.kubebuilder.io/v4
 projectName: oadp-nac
@@ -12,8 +12,8 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: oadp.openshift.io
-  group: nac
+  domain: openshift.io
+  group: oadp
   kind: NonAdminBackup
   path: github.com/migtools/oadp-non-admin/api/v1alpha1
   version: v1alpha1

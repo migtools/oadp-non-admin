@@ -36,10 +36,10 @@ kubebuilder init \
     --project-version 3 \
     --project-name=oadp-nac \
     --repo=github.com/migtools/oadp-non-admin \
-    --domain=oadp.openshift.io
+    --domain=openshift.io
 kubebuilder create api \
     --plugins go.kubebuilder.io/v4 \
-    --group nac \
+    --group oadp \
     --version v1alpha1 \
     --kind NonAdminBackup \
     --resource --controller
