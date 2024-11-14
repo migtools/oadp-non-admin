@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
 // NonAdminBackupStorageLocationReconciler reconciles a NonAdminBackupStorageLocation object
@@ -57,6 +57,6 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 // SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminBackupStorageLocationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&oadpv1alpha1.NonAdminBackupStorageLocation{}).
+		For(&nacv1alpha1.NonAdminBackupStorageLocation{}).
 		Complete(r)
 }
