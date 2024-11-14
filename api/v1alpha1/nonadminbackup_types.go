@@ -21,19 +21,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NonAdminBackupPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
+// NonAdminPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
 // +kubebuilder:validation:Enum=New;BackingOff;Created;Deleting
-type NonAdminBackupPhase string
+type NonAdminPhase string
 
 const (
-	// NonAdminBackupPhaseNew - NonAdminBackup resource was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController
-	NonAdminBackupPhaseNew NonAdminBackupPhase = "New"
-	// NonAdminBackupPhaseBackingOff - Velero Backup object was not created due to NonAdminBackup error (configuration or similar)
-	NonAdminBackupPhaseBackingOff NonAdminBackupPhase = "BackingOff"
-	// NonAdminBackupPhaseCreated - Velero Backup was created. The Phase will not have additional informations about the Backup.
-	NonAdminBackupPhaseCreated NonAdminBackupPhase = "Created"
-	// NonAdminBackupPhaseDeleting - Velero Backup is pending deletion. The Phase will not have additional informations about the Backup.
-	NonAdminBackupPhaseDeleting NonAdminBackupPhase = "Deleting"
+	// NonAdminPhaseNew - NonAdmin object was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController
+	NonAdminPhaseNew NonAdminPhase = "New"
+	// NonAdminPhaseBackingOff - Velero object was not created due to NonAdmin object error (configuration or similar)
+	NonAdminPhaseBackingOff NonAdminPhase = "BackingOff"
+	// NonAdminPhaseCreated - Velero object was created. The Phase will not have additional information about it.
+	NonAdminPhaseCreated NonAdminPhase = "Created"
+	// NonAdminPhaseDeleting - Velero object is pending deletion. The Phase will not have additional information about it.
+	NonAdminPhaseDeleting NonAdminPhase = "Deleting"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -106,8 +106,10 @@ type NonAdminBackupStatus struct {
 	// +optional
 	QueueInfo *QueueInfo `json:"queueInfo,omitempty"`
 
-	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
-	Conditions []metav1.Condition  `json:"conditions,omitempty"`
+	// phase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
+	Phase NonAdminPhase `json:"phase,omitempty"`
+
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // QueueInfo holds the queue position for a specific VeleroBackup.
