@@ -622,7 +622,7 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 			labelValue:    testAppStr,
 			mockBackups:   []velerov1.Backup{},
 			expected:      nil,
-			expectedError: errors.New("invalid input: namespace, labelKey, and labelValue must not be empty"),
+			expectedError: errors.New("invalid input: namespace=\"\", labelKey=\"openshift.io/oadp-nab-origin-nacuuid\", labelValue=\"test-app\""),
 		},
 	}
 
@@ -872,7 +872,7 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 			labelValue:    testAppStr,
 			mockRequests:  []velerov1.DeleteBackupRequest{},
 			expected:      nil,
-			expectedError: errors.New("invalid input: namespace, labelKey, and labelValue must not be empty"),
+			expectedError: errors.New("invalid input: namespace=\"\", labelKey=\"velero.io/backup-name\", labelValue=\"test-app\""),
 		},
 	}
 

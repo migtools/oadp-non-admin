@@ -61,7 +61,6 @@ const (
 	statusUpdateError      = "Failed to update NonAdminBackup Status"
 	findSingleVBError      = "Error encountered while retrieving VeleroBackup for NAB during the Delete operation"
 	findSingleVDBRError    = "Error encountered while retrieving DeleteBackupRequest for NAB during the Delete operation"
-	uuidString             = "UUID"
 	nameString             = "name"
 )
 
@@ -262,7 +261,7 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 
 	if err != nil {
 		// Log error if multiple VeleroBackup objects are found
-		logger.Error(err, findSingleVBError, uuidString, veleroBackupNACUUID)
+		logger.Error(err, findSingleVBError, constant.UUIDString, veleroBackupNACUUID)
 		return false, err
 	}
 
@@ -274,7 +273,7 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 	deleteBackupRequest, err := function.GetVeleroDeleteBackupRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNACUUID)
 	if err != nil {
 		// Log error if multiple DeleteBackupRequest objects are found
-		logger.Error(err, findSingleVDBRError, uuidString, veleroBackupNACUUID)
+		logger.Error(err, findSingleVDBRError, constant.UUIDString, veleroBackupNACUUID)
 		return false, err
 	}
 
@@ -346,7 +345,7 @@ func (r *NonAdminBackupReconciler) deleteVeleroBackupAndDeleteBackupRequestObjec
 	if err != nil {
 		// Case where more than one VeleroBackup is found with the same label UUID
 		// TODO (migi): Determine if all objects with this UUID should be deleted
-		logger.Error(err, findSingleVBError, uuidString, veleroBackupNACUUID)
+		logger.Error(err, findSingleVBError, constant.UUIDString, veleroBackupNACUUID)
 		return false, err
 	}
 
@@ -363,7 +362,7 @@ func (r *NonAdminBackupReconciler) deleteVeleroBackupAndDeleteBackupRequestObjec
 	deleteBackupRequest, err := function.GetVeleroDeleteBackupRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNACUUID)
 	if err != nil {
 		// Log error if multiple DeleteBackupRequest objects are found
-		logger.Error(err, findSingleVDBRError, uuidString, veleroBackupNACUUID)
+		logger.Error(err, findSingleVDBRError, constant.UUIDString, veleroBackupNACUUID)
 		return false, err
 	}
 	if deleteBackupRequest != nil {
@@ -408,7 +407,7 @@ func (r *NonAdminBackupReconciler) removeNabFinalizerUponVeleroBackupDeletion(ct
 			if err != nil {
 				// Case in which more then one VeleroBackup is found with the same label UUID
 				// TODO (migi): Should we delete all of the objects with such UUID ?
-				logger.Error(err, findSingleVBError, uuidString, veleroBackupNACUUID)
+				logger.Error(err, findSingleVBError, constant.UUIDString, veleroBackupNACUUID)
 				return false, err
 			}
 
@@ -596,12 +595,12 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 
 	if err != nil {
 		// Case in which more then one VeleroBackup is found with the same label UUID
-		logger.Error(err, findSingleVBError, uuidString, veleroBackupNACUUID)
+		logger.Error(err, findSingleVBError, constant.UUIDString, veleroBackupNACUUID)
 		return false, err
 	}
 
 	if veleroBackup == nil {
-		logger.Info("VeleroBackup with label not found, creating one", uuidString, veleroBackupNACUUID)
+		logger.Info("VeleroBackup with label not found, creating one", constant.UUIDString, veleroBackupNACUUID)
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
@@ -726,11 +725,21 @@ func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupSt
 	if status.VeleroBackup == nil {
 		status.VeleroBackup = &nacv1alpha1.VeleroBackup{}
 	}
-	if status.VeleroBackup.Status == nil || !reflect.DeepEqual(status.VeleroBackup.Status, veleroBackup.Status) {
-		status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
-		return true
+
+	// Treat nil as equivalent to a zero-value struct
+	currentStatus := velerov1.BackupStatus{}
+	if status.VeleroBackup.Status != nil {
+		currentStatus = *status.VeleroBackup.Status
 	}
-	return false
+
+	// Return false if both statuses are equivalent
+	if reflect.DeepEqual(currentStatus, veleroBackup.Status) {
+		return false
+	}
+
+	// Update and return true if they differ
+	status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
+	return true
 }
 
 // updateNonAdminBackupDeleteBackupRequestStatus sets the VeleroDeleteBackupRequest status field in NonAdminBackup object status and returns true
@@ -742,9 +751,19 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 	if status.VeleroDeleteBackupRequest == nil {
 		status.VeleroDeleteBackupRequest = &nacv1alpha1.VeleroDeleteBackupRequest{}
 	}
-	if status.VeleroDeleteBackupRequest.Status == nil || !reflect.DeepEqual(status.VeleroDeleteBackupRequest.Status, veleroDeleteBackupRequest.Status) {
-		status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
-		return true
+
+	// Treat nil as equivalent to a zero-value struct
+	currentStatus := velerov1.DeleteBackupRequestStatus{}
+	if status.VeleroDeleteBackupRequest.Status != nil {
+		currentStatus = *status.VeleroDeleteBackupRequest.Status
 	}
-	return false
+
+	// Return false if both statuses are equivalent
+	if reflect.DeepEqual(currentStatus, veleroDeleteBackupRequest.Status) {
+		return false
+	}
+
+	// Update and return true if they differ
+	status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
+	return true
 }

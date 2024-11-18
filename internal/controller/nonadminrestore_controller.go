@@ -169,7 +169,7 @@ func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, log
 
 	if err != nil {
 		// Case in which more then one VeleroRestore is found with the same label NACUUID
-		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 		return false, err
 	}
 
@@ -196,7 +196,7 @@ func (r *NonAdminRestoreReconciler) removeNarFinalizerUponVeleroRestoreDeletion(
 			veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
 			if err != nil {
 				// Case in which more then one VeleroRestore is found with the same label UUID
-				logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+				logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 				return false, err
 			}
 
@@ -330,12 +330,12 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	if err != nil {
 		// Case in which more then one VeleroBackup is found with the same label UUID
-		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 		return false, err
 	}
 
 	if veleroRestore == nil {
-		logger.Info("VeleroRestore with label not found, creating one", uuidString, veleroRestoreNACUUID)
+		logger.Info("VeleroRestore with label not found, creating one", constant.UUIDString, veleroRestoreNACUUID)
 		nab := &nacv1alpha1.NonAdminBackup{}
 		err = r.Get(ctx, types.NamespacedName{Name: nar.Spec.RestoreSpec.BackupName, Namespace: nar.Namespace}, nab)
 		if err != nil {

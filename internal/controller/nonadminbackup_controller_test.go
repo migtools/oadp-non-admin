@@ -715,10 +715,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				QueueInfo: &nacv1alpha1.QueueInfo{
 					EstimatedQueuePosition: 1,
 				},
-				Phase: nacv1alpha1.NonAdminPhaseCreated,
-				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Status: &velerov1.BackupStatus{},
-				},
+				Phase:        nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{},
 				Conditions: []metav1.Condition{
 					{
 						Type:    "Accepted",

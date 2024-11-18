@@ -24,20 +24,24 @@ import "k8s.io/apimachinery/pkg/util/validation"
 // Annotations on the other hand should be used to define ownership
 // of the specific Object, such as Backup/Restore.
 const (
-	OadpLabel             = "openshift.io/oadp" // TODO import?
-	OadpLabelValue        = TrueString
-	ManagedByLabel        = "app.kubernetes.io/managed-by"
-	ManagedByLabelValue   = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
-	NabOriginNACUUIDLabel = "openshift.io/oadp-nab-origin-nacuuid"
-	NarOriginNACUUIDLabel = "openshift.io/oadp-nar-origin-nacuuid"
+	OadpLabel               = "openshift.io/oadp" // TODO import?
+	OadpLabelValue          = TrueString
+	ManagedByLabel          = "app.kubernetes.io/managed-by"
+	ManagedByLabelValue     = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
+	NabOriginNACUUIDLabel   = "openshift.io/oadp-nab-origin-nacuuid"
+	NarOriginNACUUIDLabel   = "openshift.io/oadp-nar-origin-nacuuid"
+	NabslOriginNACUUIDLabel = "openshift.io/oadp-nabsl-origin-nacuuid"
 
-	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
-	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NarOriginNameAnnotation      = "openshift.io/oadp-nar-origin-name"
-	NarOriginNamespaceAnnotation = "openshift.io/oadp-nar-origin-namespace"
+	NabOriginNameAnnotation        = "openshift.io/oadp-nab-origin-name"
+	NabOriginNamespaceAnnotation   = "openshift.io/oadp-nab-origin-namespace"
+	NarOriginNameAnnotation        = "openshift.io/oadp-nar-origin-name"
+	NarOriginNamespaceAnnotation   = "openshift.io/oadp-nar-origin-namespace"
+	NabslOriginNameAnnotation      = "openshift.io/oadp-nabsl-origin-name"
+	NabslOriginNamespaceAnnotation = "openshift.io/oadp-nabsl-origin-namespace"
 
 	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
 	NonAdminRestoreFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"
+	NabslFinalizerName           = "nabsl.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
@@ -56,6 +60,15 @@ const TrueString = "True"
 
 // NamespaceString defines a constant for the Namespace string
 const NamespaceString = "Namespace"
+
+// NameString defines a constant for the Name string
+const NameString = "name"
+
+// CurrentPhaseString defines a constant for the Current Phase string
+const CurrentPhaseString = "currentPhase"
+
+// UUIDString defines a constant for the UUID string
+const UUIDString = "UUID"
 
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
