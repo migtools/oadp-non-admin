@@ -18,8 +18,8 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -49,11 +49,11 @@ type NonAdminRestoreReconciler struct {
 	OADPNamespace string
 }
 
-type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error)
+type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error
 
-//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
 
 // +kubebuilder:rbac:groups=velero.io,resources=restores,verbs=get;list;watch;create;update;patch;delete
 
@@ -87,7 +87,7 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		)
 		if updatedPhase || updatedCondition {
 			if err := r.Status().Update(ctx, nar); err != nil {
-				logger.Error(err, statusUpdateError)
+				logger.Error(err, "Failed to update NonAdminRestore Status")
 				return ctrl.Result{}, err
 			}
 			logger.V(1).Info("NonAdminRestore status marked for deletion")
@@ -96,31 +96,25 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 
 		veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nar.Status.UUID)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.Error(err, "Unable to fetch Velero Restore")
-				return ctrl.Result{}, err
-			}
-		} else {
-			// 	TODO when/why Velero Restore has finalizer?
-			// 	TODO how to safely remove Velero Restore with finalizer?
-			for _, finalizer := range veleroRestore.GetFinalizers() {
-				controllerutil.RemoveFinalizer(veleroRestore, finalizer)
-			}
-			// TODO does this change generation? need to refetch?
-			if err := r.Update(ctx, veleroRestore); err != nil {
-				return ctrl.Result{}, err
-			}
+		if err == nil {
+			// TODO any problem in calling delete on something being deleted?
 			err = r.Delete(ctx, veleroRestore)
 			if err != nil {
 				logger.Error(err, "Unable to delete Velero Restore")
 				return ctrl.Result{}, err
 			}
+			// wait Velero delete restore object
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		if !apierrors.IsNotFound(err) {
+			logger.Error(err, "Unable to fetch Velero Restore")
+			return ctrl.Result{}, err
 		}
 
 		controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
 		// TODO does this change generation? need to refetch?
 		if err := r.Update(ctx, nar); err != nil {
+			logger.Error(err, "Unable to remove NonAdminRestore finalizer")
 			return ctrl.Result{}, err
 		}
 		logger.V(1).Info("NonAdminRestore Reconcile exit")
@@ -135,35 +129,32 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.createVeleroRestore,
 	}
 	for _, step := range reconcileSteps {
-		requeue, err := step(ctx, logger, nar)
+		err := step(ctx, logger, nar)
 		if err != nil {
 			return ctrl.Result{}, err
-		} else if requeue {
-			// TODO needed?
-			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 	logger.V(1).Info("NonAdminRestore Reconcile exit")
 	return ctrl.Result{}, nil
 }
 
-func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
 	if nar.Status.Phase == constant.EmptyString {
 		if updated := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
 			if err := r.Status().Update(ctx, nar); err != nil {
-				logger.Error(err, statusUpdateError)
-				return false, err
+				logger.Error(err, "Failed to update NonAdminRestore Status")
+				return err
 			}
 			logger.V(1).Info("NonAdminRestore Phase set to New")
 		}
 	} else {
 		logger.V(1).Info("NonAdminRestore Phase already initialized")
 	}
-	return false, nil
+	return nil
 }
 
-func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
-	err := function.ValidateRestoreSpec(nar)
+func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+	err := function.ValidateRestoreSpec(ctx, r.Client, nar)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
@@ -176,11 +167,11 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 		)
 		if updatedPhase || updatedCondition {
 			if updateErr := r.Status().Update(ctx, nar); updateErr != nil {
-				logger.Error(updateErr, statusUpdateError)
-				return false, updateErr
+				logger.Error(updateErr, "Failed to update NonAdminRestore Status")
+				return updateErr
 			}
 		}
-		return false, reconcile.TerminalError(err)
+		return reconcile.TerminalError(err)
 	}
 	logger.V(1).Info("NonAdminRestore Spec validated")
 
@@ -194,69 +185,63 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 	)
 	if updated {
 		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, statusUpdateError)
-			return false, err
+			logger.Error(err, "Failed to update NonAdminRestore Status")
+			return err
 		}
 		logger.V(1).Info("NonAdminRestore condition set to Accepted")
 	}
-	return false, nil
+	return nil
 }
 
-func (r *NonAdminRestoreReconciler) setUUID(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+func (r *NonAdminRestoreReconciler) setUUID(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
 	if nar.Status.UUID == constant.EmptyString {
 		// TODO handle panic
 		nar.Status.UUID = uuid.New().String()
 		if err := r.Status().Update(ctx, nar); err != nil {
 			logger.Error(err, statusUpdateError)
-			return false, err
+			return err
 		}
-		logger.V(1).Info(veleroReferenceUpdated)
+		logger.V(1).Info("NonAdminRestore UUID created")
 	} else {
-		logger.V(1).Info("NonAdminRestore already contains NAC UUID")
+		logger.V(1).Info("NonAdminRestore already contains UUID")
 	}
-	return false, nil
+	return nil
 }
 
-func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
 	added := controllerutil.AddFinalizer(nar, constant.NonAdminRestoreFinalizerName)
 	if added {
 		if err := r.Update(ctx, nar); err != nil {
 			logger.Error(err, "Failed to add finalizer")
-			return false, err
+			return err
 		}
 		// TODO does this change generation? need to refetch?
 		logger.V(1).Info("Finalizer added to NonAdminRestore", "finalizer", constant.NonAdminRestoreFinalizerName)
 	} else {
 		logger.V(1).Info("Finalizer already exists on NonAdminRestore", "finalizer", constant.NonAdminRestoreFinalizerName)
 	}
-	return false, nil
+	return nil
 }
 
-func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
 	nacUUID := nar.Status.UUID
 	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nacUUID)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return false, err
+			return err
 		}
 
-		// TODO how to add this to validation without doing GET call for NAB/Velero backup twice? add field in status?
 		restoreSpec := nar.Spec.RestoreSpec.DeepCopy()
+
+		// TODO already did this get call in ValidateRestoreSpec!
 		nab := &nacv1alpha1.NonAdminBackup{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: nar.Namespace, Name: nar.Spec.RestoreSpec.BackupName}, nab)
-		if err != nil {
-			return false, err
-		}
-		// TODO better way to check readiness? simplify and ask user to pass velero backup name? (user has access to this info in nonAdminBackup status)
-		if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
-			return false, fmt.Errorf("NonAdminBackup is not ready to use for restore")
-		}
-		veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, nab.Status.VeleroBackup.NACUUID)
-		if err != nil || veleroBackup == nil {
-			return false, fmt.Errorf("velero Backup does not exist or multiple exist")
-		}
-		// TODO does velero validate if backup is ready to be restored?
-		restoreSpec.BackupName = veleroBackup.Name
+		_ = r.Get(ctx, types.NamespacedName{
+			Name:      nar.Spec.RestoreSpec.BackupName,
+			Namespace: nar.Namespace,
+		}, nab)
+		restoreSpec.BackupName = nab.Status.VeleroBackup.Name
+
+		// TODO enforce Restore Spec
 
 		veleroRestore = &velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
@@ -267,7 +252,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 				GenerateName: function.GetGenerateNamePrefix(nar.Namespace, nar.Name),
 				Namespace:    r.OADPNamespace,
 				Labels:       function.GetNonAdminRestoreLabels(nar.Status.UUID),
-				Annotations:  function.GetNonAdminRestoreAnnotations(nab.ObjectMeta),
+				Annotations:  function.GetNonAdminRestoreAnnotations(nar.ObjectMeta),
 			},
 			Spec: *restoreSpec,
 		}
@@ -275,7 +260,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		err = r.Create(ctx, veleroRestore)
 		if err != nil {
 			logger.Error(err, "Failed to create Velero Restore")
-			return false, err
+			return err
 		}
 		logger.Info("Velero Restore successfully created")
 	}
@@ -293,15 +278,15 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
 	if updatedPhase || updatedCondition || updatedVeleroStatus {
 		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, statusUpdateError)
-			return false, err
+			logger.Error(err, "Failed to update NonAdminRestore Status")
+			return err
 		}
 		logger.V(1).Info("NonAdminRestore Status updated successfully")
 	} else {
 		logger.V(1).Info("NonAdminRestore Status unchanged during Velero Restore reconciliation")
 	}
 
-	return false, nil
+	return nil
 }
 
 func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, veleroRestore *velerov1.Restore) bool {

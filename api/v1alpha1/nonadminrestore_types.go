@@ -56,8 +56,9 @@ type NonAdminRestoreStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:path=nonadminrestores,shortName=nar
 
 // NonAdminRestore is the Schema for the nonadminrestores API
 type NonAdminRestore struct {
@@ -68,7 +69,7 @@ type NonAdminRestore struct {
 	Status NonAdminRestoreStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NonAdminRestoreList contains a list of NonAdminRestore
 type NonAdminRestoreList struct {

@@ -35,7 +35,7 @@ type CompositeRestorePredicate struct {
 // Create event filter only accepts NonAdminRestore create events
 func (p CompositeRestorePredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
-	case *nacv1alpha1.NonAdminBackup:
+	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Create(p.Context, evt)
 	default:
 		return false
@@ -45,9 +45,9 @@ func (p CompositeRestorePredicate) Create(evt event.CreateEvent) bool {
 // Update event filter accepts both NonAdminRestore and Velero Restore update events
 func (p CompositeRestorePredicate) Update(evt event.UpdateEvent) bool {
 	switch evt.ObjectNew.(type) {
-	case *nacv1alpha1.NonAdminBackup:
+	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Update(p.Context, evt)
-	case *velerov1.Backup:
+	case *velerov1.Restore:
 		return p.VeleroRestorePredicate.Update(p.Context, evt)
 	default:
 		return false
@@ -57,7 +57,7 @@ func (p CompositeRestorePredicate) Update(evt event.UpdateEvent) bool {
 // Delete event filter only accepts NonAdminRestore delete events
 func (p CompositeRestorePredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
-	case *nacv1alpha1.NonAdminBackup:
+	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Delete(p.Context, evt)
 	default:
 		return false

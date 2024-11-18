@@ -31,14 +31,14 @@ type NonAdminRestorePredicate struct{}
 
 // Create event filter accepts all NonAdminRestore create events
 func (NonAdminRestorePredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
-	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
+	logger := function.GetLogger(ctx, evt.Object, nonAdminRestorePredicateKey)
 	logger.V(1).Info("Accepted Create event")
 	return true
 }
 
 // Update event filter only accepts NonAdminRestore update events that include generation change
 func (NonAdminRestorePredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
-	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupPredicateKey)
+	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminRestorePredicateKey)
 
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
 		logger.V(1).Info("Accepted Update event")
@@ -51,7 +51,7 @@ func (NonAdminRestorePredicate) Update(ctx context.Context, evt event.UpdateEven
 
 // Delete event filter accepts all NonAdminRestore delete events
 func (NonAdminRestorePredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
-	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
+	logger := function.GetLogger(ctx, evt.Object, nonAdminRestorePredicateKey)
 	logger.V(1).Info("Accepted Delete event")
 	return true
 }

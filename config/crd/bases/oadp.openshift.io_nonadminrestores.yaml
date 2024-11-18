@@ -11,6 +11,8 @@ spec:
     kind: NonAdminRestore
     listKind: NonAdminRestoreList
     plural: nonadminrestores
+    shortNames:
+    - nar
     singular: nonadminrestore
   scope: Namespaced
   versions:

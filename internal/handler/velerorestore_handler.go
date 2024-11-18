@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	// "github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
@@ -40,14 +40,13 @@ func (VeleroRestoreHandler) Create(_ context.Context, _ event.CreateEvent, _ wor
 func (VeleroRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroRestoreHandler")
 
-	// TODO
-	// annotations := evt.ObjectNew.GetAnnotations()
-	// nabOriginNamespace := annotations[constant.NabOriginNamespaceAnnotation]
-	// nabOriginName := annotations[constant.NabOriginNameAnnotation]
+	annotations := evt.ObjectNew.GetAnnotations()
+	nonAdminRestoreName := annotations[constant.NonAdminRestoreOriginNameAnnotation]
+	nonAdminRestoreNamespace := annotations[constant.NonAdminRestoreOriginNamespaceAnnotation]
 
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-		Name:      "",
-		Namespace: "",
+		Name:      nonAdminRestoreName,
+		Namespace: nonAdminRestoreNamespace,
 	}})
 	logger.V(1).Info("Handled Update event")
 }

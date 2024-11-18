@@ -46,9 +46,9 @@ func GetNonAdminLabels() map[string]string {
 	}
 }
 
-func GetNonAdminRestoreLabels(uuid string) map[string]string {
+func GetNonAdminRestoreLabels(uniqueIdentifier string) map[string]string {
 	nonAdminLabels := GetNonAdminLabels()
-	nonAdminLabels[constant.NarOriginNACUUIDLabel] = uuid
+	nonAdminLabels[constant.NarOriginNACUUIDLabel] = uniqueIdentifier
 	return nonAdminLabels
 }
 
@@ -113,8 +113,20 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 	return nil
 }
 
-func ValidateRestoreSpec(nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
-	// TODO check NonAdminBackup with nonAdminRestore.Spec.RestoreSpec.BackupName name exist in NonAdminRestore namespace
+func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
+	nab := &nacv1alpha1.NonAdminBackup{}
+	err := clientInstance.Get(ctx, types.NamespacedName{
+		Name:      nonAdminRestore.Spec.RestoreSpec.BackupName,
+		Namespace: nonAdminRestore.Namespace,
+	}, nab)
+	if err != nil {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: %v", err)
+	}
+	// TODO better way to check readiness? simplify and ask user to pass velero backup name? (user has access to this info in nonAdminBackup status)
+	if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
+	}
+	// TODO does velero validate if backup is ready to be restored?
 
 	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ScheduleName is not used? (we do not plan to have schedules now, right?)
 
@@ -177,7 +189,7 @@ func GetGenerateNamePrefix(namespace string, name string) string {
 		if len(namespace) >= remainingLength {
 			return fmt.Sprintf("%s-", namespace[:remainingLength])
 		}
-		remainingLength := remainingLength - len(namespace)
+		remainingLength = remainingLength - len(namespace)
 		return fmt.Sprintf("%s-%s-", name[:remainingLength], namespace)
 	}
 
@@ -355,6 +367,30 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
+		return false
+	}
+
+	return true
+}
+
+func CheckVeleroRestoreMetadata(obj client.Object) bool {
+	objLabels := obj.GetLabels()
+	if !checkLabelValue(objLabels, constant.OadpLabel, constant.OadpLabelValue) {
+		return false
+	}
+	if !checkLabelValue(objLabels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+		return false
+	}
+	_, err := uuid.Parse(objLabels[constant.NarOriginNACUUIDLabel])
+	if err != nil {
+		return false
+	}
+
+	annotations := obj.GetAnnotations()
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NonAdminRestoreOriginNamespaceAnnotation) {
+		return false
+	}
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NonAdminRestoreOriginNameAnnotation) {
 		return false
 	}
 

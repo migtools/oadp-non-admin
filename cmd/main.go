@@ -157,8 +157,9 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminRestoreReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminRestore")
 		os.Exit(1)

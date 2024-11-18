@@ -36,8 +36,7 @@ func (p VeleroRestorePredicate) Update(ctx context.Context, evt event.UpdateEven
 
 	namespace := evt.ObjectNew.GetNamespace()
 	if namespace == p.OADPNamespace {
-		// TODO
-		if function.CheckVeleroBackupMetadata(evt.ObjectNew) {
+		if function.CheckVeleroRestoreMetadata(evt.ObjectNew) {
 			logger.V(1).Info("Accepted Update event")
 			return true
 		}

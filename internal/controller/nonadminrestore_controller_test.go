@@ -18,142 +18,317 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"reflect"
+	"strings"
+	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"k8s.io/apimachinery/pkg/util/wait"
+	ctrl "sigs.k8s.io/controller-runtime"
 
-	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-var _ = ginkgo.Describe("NonAdminRestore Controller", func() {
-	ginkgo.Context("When reconciling a resource", func() {
-		const (
-			resourceName      = "test-restore-resource-name"
-			resourceNamespace = "test-restore-resource-namespace"
+type nonAdminRestoreFullReconcileScenario struct {
+	spec         nacv1alpha1.NonAdminRestoreSpec
+	status       nacv1alpha1.NonAdminRestoreStatus
+	backupStatus nacv1alpha1.NonAdminBackupStatus
+}
 
-			nonAdminBackupResourceName = "test-non-admin-backup-resource-name"
+func buildTestNonAdminRestore(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminRestoreSpec) *nacv1alpha1.NonAdminRestore {
+	return &nacv1alpha1.NonAdminRestore{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nonAdminName,
+			Namespace: nonAdminNamespace,
+		},
+		Spec: spec,
+	}
+}
 
-			TestUUID = "test-123456789"
+func checkTestNonAdminRestoreStatus(nonAdminRestore *nacv1alpha1.NonAdminRestore, expectedStatus nacv1alpha1.NonAdminRestoreStatus) error {
+	if nonAdminRestore.Status.Phase != expectedStatus.Phase {
+		return fmt.Errorf("NonAdminRestore Status Phase %v is not equal to expected %v", nonAdminRestore.Status.Phase, expectedStatus.Phase)
+	}
 
-			oadpNamespace = "test-restore-oadp-namespace"
-		)
-
-		ctx := context.Background()
-
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: resourceNamespace,
+	if nonAdminRestore.Status.VeleroRestore != nil {
+		if nonAdminRestore.Status.UUID == constant.EmptyString {
+			return fmt.Errorf("NonAdminRestore Status UUID not set")
 		}
-		nonadminrestore := &oadpv1alpha1.NonAdminRestore{}
-
-		ginkgo.BeforeEach(func() {
-			ginkgo.By("creating namespaces")
-			err := createTestNamespaces(ctx, resourceNamespace, oadpNamespace)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			ginkgo.By("creating the custom resource for the Kind NonAdminBackup")
-			nonAdminBackupResource := &oadpv1alpha1.NonAdminBackup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      nonAdminBackupResourceName,
-					Namespace: resourceNamespace,
-				},
-				Spec: oadpv1alpha1.NonAdminBackupSpec{
-					BackupSpec: &velerov1.BackupSpec{
-						IncludedNamespaces: []string{resourceNamespace},
-					},
-				},
-			}
-			gomega.Expect(k8sClient.Create(ctx, nonAdminBackupResource)).To(gomega.Succeed())
-			nonAdminBackupResource.Status.Phase = oadpv1alpha1.NonAdminPhaseCreated
-			nonAdminBackupResource.Status.VeleroBackup = &oadpv1alpha1.VeleroBackup{}
-			nonAdminBackupResource.Status.VeleroBackup.NACUUID = TestUUID
-			gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackupResource)).To(gomega.Succeed())
-
-			ginkgo.By("creating the custom resource for the Kind Velero Backup")
-			backupResource := &velerov1.Backup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "does-not-matter",
-					Namespace: oadpNamespace,
-					Labels: map[string]string{
-						constant.NabOriginNACUUIDLabel: TestUUID,
-					},
-				},
-			}
-			gomega.Expect(k8sClient.Create(ctx, backupResource)).To(gomega.Succeed())
-
-			ginkgo.By("creating the custom resource for the Kind NonAdminRestore")
-			err = k8sClient.Get(ctx, typeNamespacedName, nonadminrestore)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &oadpv1alpha1.NonAdminRestore{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: resourceNamespace,
-					},
-					Spec: oadpv1alpha1.NonAdminRestoreSpec{
-						RestoreSpec: &velerov1.RestoreSpec{
-							BackupName: nonAdminBackupResourceName,
-						},
-					},
+		if nonAdminRestore.Status.VeleroRestore.Namespace == constant.EmptyString {
+			return fmt.Errorf("NonAdminRestore status.veleroRestore.namespace is not set")
+		}
+		if nonAdminRestore.Status.VeleroRestore.Name == constant.EmptyString {
+			return fmt.Errorf("NonAdminRestore status.veleroRestore.name is not set")
+		}
+		if expectedStatus.VeleroRestore != nil {
+			if expectedStatus.VeleroRestore.Status != nil {
+				if !reflect.DeepEqual(nonAdminRestore.Status.VeleroRestore.Status, expectedStatus.VeleroRestore.Status) {
+					return fmt.Errorf("NonAdminRestore status.veleroRestore.status %v is not equal to expected %v", nonAdminRestore.Status.VeleroRestore.Status, expectedStatus.VeleroRestore.Status)
 				}
-				gomega.Expect(k8sClient.Create(ctx, resource)).To(gomega.Succeed())
-
-				p, _ := json.MarshalIndent(resource, "", "\t")
-				fmt.Printf("%s\n", p)
 			}
-		})
+		}
+	}
 
-		ginkgo.AfterEach(func() {
-			resource := &oadpv1alpha1.NonAdminRestore{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	if len(nonAdminRestore.Status.Conditions) != len(expectedStatus.Conditions) {
+		return fmt.Errorf("NonAdminRestore Status has %v Condition(s), expected to have %v", len(nonAdminRestore.Status.Conditions), len(expectedStatus.Conditions))
+	}
+	for index := range nonAdminRestore.Status.Conditions {
+		if nonAdminRestore.Status.Conditions[index].Type != expectedStatus.Conditions[index].Type {
+			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Type %v is not equal to expected %v", index, nonAdminRestore.Status.Conditions[index].Type, expectedStatus.Conditions[index].Type)
+		}
+		if nonAdminRestore.Status.Conditions[index].Status != expectedStatus.Conditions[index].Status {
+			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Status %v is not equal to expected %v", index, nonAdminRestore.Status.Conditions[index].Status, expectedStatus.Conditions[index].Status)
+		}
+		if nonAdminRestore.Status.Conditions[index].Reason != expectedStatus.Conditions[index].Reason {
+			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Reason %v is not equal to expected %v", index, nonAdminRestore.Status.Conditions[index].Reason, expectedStatus.Conditions[index].Reason)
+		}
+		if !strings.Contains(nonAdminRestore.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message) {
+			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Message %v does not contain expected message %v", index, nonAdminRestore.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
+		}
+	}
+	return nil
+}
 
-			p, _ := json.MarshalIndent(resource, "", "\t")
-			fmt.Printf("%s\n", p)
+var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller", func() {
+	var (
+		ctx                      context.Context
+		cancel                   context.CancelFunc
+		nonAdminRestoreName      string
+		nonAdminRestoreNamespace string
+		oadpNamespace            string
+		counter                  int
+	)
 
-			ginkgo.By("Cleanup the specific resource instance NonAdminRestore")
-			gomega.Expect(k8sClient.Delete(ctx, resource)).To(gomega.Succeed())
-
-			ginkgo.By("Finalizer should not allow NonAdminRestore deletion")
-			err = k8sClient.Get(ctx, typeNamespacedName, resource)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			controllerReconciler := &NonAdminRestoreReconciler{
-				Client:        k8sClient,
-				Scheme:        k8sClient.Scheme(),
-				OADPNamespace: oadpNamespace,
-			}
-			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			ginkgo.By("After reconcile should allow NonAdminRestore deletion")
-			err = k8sClient.Get(ctx, typeNamespacedName, resource)
-			gomega.Expect(apierrors.IsNotFound(err)).To(gomega.BeTrue())
-		})
-		ginkgo.It("should successfully reconcile the resource", func() {
-			ginkgo.By("Reconciling the created resource")
-			controllerReconciler := &NonAdminRestoreReconciler{
-				Client:        k8sClient,
-				Scheme:        k8sClient.Scheme(),
-				OADPNamespace: oadpNamespace,
-			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
-		})
+	ginkgo.BeforeEach(func() {
+		counter++
+		nonAdminRestoreName = fmt.Sprintf("non-admin-restore-object-%v", counter)
+		nonAdminRestoreNamespace = fmt.Sprintf("test-non-admin-restore-reconcile-full-%v", counter)
+		oadpNamespace = nonAdminRestoreNamespace + "-oadp"
 	})
+
+	ginkgo.AfterEach(func() {
+		gomega.Expect(deleteTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
+
+		cancel()
+		// wait cancel
+		time.Sleep(1 * time.Second)
+	})
+
+	ginkgo.DescribeTable("Reconcile triggered by NonAdminRestore Create event",
+		func(scenario nonAdminRestoreFullReconcileScenario) {
+			ctx, cancel = context.WithCancel(context.Background())
+
+			gomega.Expect(createTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
+
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminRestoreNamespace, scenario.spec.RestoreSpec.BackupName, nacv1alpha1.NonAdminBackupSpec{})
+			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
+			nonAdminBackup.Status = scenario.backupStatus
+			gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
+
+			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Scheme: k8sClient.Scheme(),
+			})
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+			err = (&NonAdminRestoreReconciler{
+				Client:        k8sManager.GetClient(),
+				Scheme:        k8sManager.GetScheme(),
+				OADPNamespace: oadpNamespace,
+			}).SetupWithManager(k8sManager)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+			go func() {
+				defer ginkgo.GinkgoRecover()
+				err = k8sManager.Start(ctx)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred(), "failed to run manager")
+			}()
+			// wait manager start
+			managerStartTimeout := 10 * time.Second
+			pollInterval := 100 * time.Millisecond
+			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
+			defer cancel()
+
+			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				default:
+					// Check if the manager has started by verifying if the client is initialized
+					return k8sManager.GetClient() != nil, nil
+				}
+			})
+			// Check if the context timeout or another error occurred
+			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Manager failed to start within the timeout period")
+
+			ginkgo.By("Waiting Reconcile of create event")
+			nonAdminRestore := buildTestNonAdminRestore(nonAdminRestoreNamespace, nonAdminRestoreName, scenario.spec)
+			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminRestore)).To(gomega.Succeed())
+			// wait NonAdminRestore reconcile
+			time.Sleep(2 * time.Second)
+
+			ginkgo.By("Fetching NonAdminRestore after Reconcile")
+			gomega.Expect(k8sClient.Get(
+				ctxTimeout,
+				types.NamespacedName{
+					Name:      nonAdminRestoreName,
+					Namespace: nonAdminRestoreNamespace,
+				},
+				nonAdminRestore,
+			)).To(gomega.Succeed())
+
+			ginkgo.By("Validating NonAdminRestore Status")
+
+			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
+
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.UUID) > 0 {
+				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
+				gomega.Expect(reflect.DeepEqual(
+					nonAdminRestore.Spec,
+					scenario.spec,
+				)).To(gomega.BeTrue())
+
+				ginkgo.By("Simulating Velero Restore update to finished state")
+
+				veleroRestore := &velerov1.Restore{}
+				gomega.Expect(k8sClient.Get(
+					ctxTimeout,
+					types.NamespacedName{
+						Name:      nonAdminRestore.Status.VeleroRestore.Name,
+						Namespace: oadpNamespace,
+					},
+					veleroRestore,
+				)).To(gomega.Succeed())
+
+				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
+				veleroRestore.Status = velerov1.RestoreStatus{
+					Phase: velerov1.RestorePhaseCompleted,
+				}
+				gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
+
+				ginkgo.By("Velero Restore updated")
+
+				// wait NonAdminRestore reconcile
+				gomega.Eventually(func() (bool, error) {
+					err := k8sClient.Get(
+						ctxTimeout,
+						types.NamespacedName{
+							Name:      nonAdminRestoreName,
+							Namespace: nonAdminRestoreNamespace,
+						},
+						nonAdminRestore,
+					)
+					if err != nil {
+						return false, err
+					}
+					if nonAdminRestore == nil || nonAdminRestore.Status.VeleroRestore == nil || nonAdminRestore.Status.VeleroRestore.Status == nil {
+						return false, nil
+					}
+					return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted, nil
+				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			}
+
+			ginkgo.By("Waiting NonAdminRestore deletion")
+			gomega.Expect(k8sClient.Delete(ctxTimeout, nonAdminRestore)).To(gomega.Succeed())
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctxTimeout,
+					types.NamespacedName{
+						Name:      nonAdminRestoreName,
+						Namespace: nonAdminRestoreNamespace,
+					},
+					nonAdminRestore,
+				)
+				if apierrors.IsNotFound(err) {
+					return true, nil
+				}
+				return false, err
+			}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+		},
+		ginkgo.Entry("Should update NonAdminRestore until Velero Restore completes and then delete it", nonAdminRestoreFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminRestoreSpec{
+				RestoreSpec: &velerov1.RestoreSpec{
+					BackupName: "test",
+				},
+			},
+			backupStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Status: nil,
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Accepted",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               "Queued",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			status: nacv1alpha1.NonAdminRestoreStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroRestore: &nacv1alpha1.VeleroRestore{
+					Status: nil,
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionTrue,
+						Reason:  "RestoreAccepted",
+						Message: "restore accepted",
+					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "RestoreScheduled",
+						Message: "Created Velero Restore object",
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("Should update NonAdminRestore until it invalidates and then delete it", nonAdminRestoreFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminRestoreSpec{
+				RestoreSpec: &velerov1.RestoreSpec{
+					BackupName: "non-admin-backup-with-phase-backing-off",
+				},
+			},
+			backupStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Accepted",
+						Status:             metav1.ConditionFalse,
+						Reason:             "InvalidBackupSpec",
+						Message:            "spec.backupSpec.IncludedNamespaces can not contain namespaces other than:",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			status: nacv1alpha1.NonAdminRestoreStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionFalse,
+						Reason:  "InvalidRestoreSpec",
+						Message: "NonAdminRestore spec.restoreSpec.backupName is invalid: ",
+					},
+				},
+			},
+		}),
+	)
 })
