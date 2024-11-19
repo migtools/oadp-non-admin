@@ -33,6 +33,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -112,27 +113,10 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 
-	dpaClientScheme := runtime.NewScheme()
-	utilruntime.Must(v1alpha1.AddToScheme(dpaClientScheme))
-	dpaClient, err := client.New(restConfig, client.Options{
-		Scheme: dpaClientScheme,
-	})
+	enforcedBackupSpec, err := getEnforcedSpec(restConfig, oadpNamespace)
 	if err != nil {
-		setupLog.Error(err, "unable to create Kubernetes client")
+		setupLog.Error(err, "unable to get enforced spec")
 		os.Exit(1)
-	}
-	// TODO we could pass DPA name as env var and do a get call directly. Better?
-	dpaList := &v1alpha1.DataProtectionApplicationList{}
-	err = dpaClient.List(context.Background(), dpaList)
-	if err != nil {
-		setupLog.Error(err, "unable to list DPAs")
-		os.Exit(1)
-	}
-	enforcedBackupSpec := &velerov1.BackupSpec{}
-	for _, dpa := range dpaList.Items {
-		if dpa.Namespace == oadpNamespace {
-			enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
-		}
 	}
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
@@ -188,4 +172,28 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func getEnforcedSpec(restConfig *rest.Config, oadpNamespace string) (*velerov1.BackupSpec, error) {
+	dpaClientScheme := runtime.NewScheme()
+	utilruntime.Must(v1alpha1.AddToScheme(dpaClientScheme))
+	dpaClient, err := client.New(restConfig, client.Options{
+		Scheme: dpaClientScheme,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// TODO we could pass DPA name as env var and do a get call directly. Better?
+	dpaList := &v1alpha1.DataProtectionApplicationList{}
+	err = dpaClient.List(context.Background(), dpaList)
+	if err != nil {
+		return nil, err
+	}
+	enforcedBackupSpec := &velerov1.BackupSpec{}
+	for _, dpa := range dpaList.Items {
+		if dpa.Namespace == oadpNamespace {
+			enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
+		}
+	}
+	return enforcedBackupSpec, nil
 }
