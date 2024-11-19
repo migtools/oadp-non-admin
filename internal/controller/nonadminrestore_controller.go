@@ -125,7 +125,6 @@ func (r *NonAdminRestoreReconciler) delete(ctx context.Context, logger logr.Logg
 
 	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nar.Status.UUID)
 	if err == nil {
-		// TODO any problem in calling delete on something being deleted?
 		err = r.Delete(ctx, veleroRestore)
 		if err != nil {
 			logger.Error(err, "Unable to delete Velero Restore")
