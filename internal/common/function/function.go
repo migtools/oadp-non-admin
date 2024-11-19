@@ -75,6 +75,11 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
 		}
 	}
+	if enforcedBackupSpec.IncludedNamespaces != nil {
+		if !containsOnlyNamespace(enforcedBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
+			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces enforced value by admin user violates NAC usage")
+		}
+	}
 
 	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
 	for index := range enforcedSpec.NumField() {

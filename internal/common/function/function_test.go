@@ -130,8 +130,6 @@ func TestValidateBackupSpec(t *testing.T) {
 func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 	all := "*"
 
-	nonEnforcedBackupSpecFields := []string{"IncludedNamespaces"}
-
 	tests := []struct {
 		enforcedValue any
 		overrideValue any
@@ -152,10 +150,11 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			},
 		},
 		{
-			name: "IncludedNamespaces",
+			name:          "IncludedNamespaces",
+			enforcedValue: []string{"self-service-namespace"},
+			overrideValue: []string{"openshift-adp"},
 		},
 		{
-			// should not be enforced?
 			name:          "ExcludedNamespaces",
 			enforcedValue: []string{"openshift-adp"},
 			overrideValue: []string{"cherry"},
@@ -258,13 +257,11 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			},
 		},
 		{
-			// should not be enforced?
 			name:          "StorageLocation",
 			enforcedValue: "default",
 			overrideValue: "lemon",
 		},
 		{
-			// should not be enforced?
 			name:          "VolumeSnapshotLocations",
 			enforcedValue: []string{"aws"},
 			overrideValue: []string{"gcp"},
@@ -326,33 +323,32 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if slices.Contains(nonEnforcedBackupSpecFields, test.name) {
-				return
-			}
-
 			enforcedSpec := &velerov1.BackupSpec{}
 			reflect.ValueOf(enforcedSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
 
 			userNonAdminBackup := &nacv1alpha1.NonAdminBackup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "self-service-namespace",
+				},
 				Spec: nacv1alpha1.NonAdminBackupSpec{
 					BackupSpec: &velerov1.BackupSpec{},
 				},
 			}
 			err := ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
 			if err != nil {
-				t.Errorf("not setting backup spec field '%v' test failed", test.name)
+				t.Errorf("not setting backup spec field '%v' test failed: %v", test.name, err)
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
 			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
 			if err != nil {
-				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed", test.name)
+				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
 			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
 			if err == nil {
-				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed", test.name)
+				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
 			}
 		})
 	}
