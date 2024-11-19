@@ -26,6 +26,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,6 +36,10 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
+
+type nonAdminRestoreClusterValidationScenario struct {
+	spec nacv1alpha1.NonAdminRestoreSpec
+}
 
 type nonAdminRestoreFullReconcileScenario struct {
 	spec         nacv1alpha1.NonAdminRestoreSpec
@@ -95,6 +100,50 @@ func checkTestNonAdminRestoreStatus(nonAdminRestore *nacv1alpha1.NonAdminRestore
 	}
 	return nil
 }
+
+var _ = ginkgo.Describe("Test NonAdminRestore in cluster validation", func() {
+	var (
+		ctx                      context.Context
+		nonAdminRestoreName      string
+		nonAdminRestoreNamespace string
+		counter                  int
+	)
+
+	ginkgo.BeforeEach(func() {
+		ctx = context.Background()
+		counter++
+		nonAdminRestoreName = fmt.Sprintf("non-admin-restore-object-%v", counter)
+		nonAdminRestoreNamespace = fmt.Sprintf("test-non-admin-restore-cluster-validation-%v", counter)
+
+		nonAdminNamespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nonAdminRestoreNamespace,
+			},
+		}
+		gomega.Expect(k8sClient.Create(ctx, nonAdminNamespace)).To(gomega.Succeed())
+	})
+
+	ginkgo.AfterEach(func() {
+		nonAdminNamespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nonAdminRestoreNamespace,
+			},
+		}
+		gomega.Expect(k8sClient.Delete(ctx, nonAdminNamespace)).To(gomega.Succeed())
+	})
+
+	ginkgo.DescribeTable("Validation is false",
+		func(scenario nonAdminRestoreClusterValidationScenario) {
+			nonAdminRestore := buildTestNonAdminRestore(nonAdminRestoreNamespace, nonAdminRestoreName, scenario.spec)
+			err := k8sClient.Create(ctx, nonAdminRestore)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Required value"))
+		},
+		ginkgo.Entry("Should NOT create NonAdminRestore without spec.restoreSpec", nonAdminRestoreClusterValidationScenario{
+			spec: nacv1alpha1.NonAdminRestoreSpec{},
+		}),
+	)
+})
 
 var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller", func() {
 	var (

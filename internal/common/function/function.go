@@ -114,6 +114,10 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 }
 
 func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
+	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
+	}
+
 	nab := &nacv1alpha1.NonAdminBackup{}
 	err := clientInstance.Get(ctx, types.NamespacedName{
 		Name:      nonAdminRestore.Spec.RestoreSpec.BackupName,

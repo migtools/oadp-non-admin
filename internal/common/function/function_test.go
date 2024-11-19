@@ -375,6 +375,104 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 	})
 }
 
+func TestValidateRestoreSpec(t *testing.T) {
+	tests := []struct {
+		name            string
+		errorMessage    string
+		nonAdminRestore *nacv1alpha1.NonAdminRestore
+		objects         []client.Object
+	}{
+		{
+			name: "[invalid] spec.restoreSpec.backupName not set",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{},
+				},
+			},
+			errorMessage: "NonAdminRestore spec.restoreSpec.backupName is not set",
+		},
+		{
+			name: "[invalid] spec.restoreSpec.backupName does not exist",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName: "john",
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore spec.restoreSpec.backupName is invalid: nonadminbackups.oadp.openshift.io \"john\" not found",
+		},
+		{
+			name: "[invalid] spec.restoreSpec.backupName not ready",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultStr,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName: "peter",
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "peter",
+						Namespace: defaultStr,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored",
+		},
+		{
+			name: "[valid] spec.restoreSpec.backupName is ready",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultStr,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName: "steve",
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "steve",
+						Namespace: defaultStr,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fakeScheme := runtime.NewScheme()
+			if err := nacv1alpha1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register NAC type: %v", err)
+			}
+			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(test.objects...).Build()
+			err := ValidateRestoreSpec(context.Background(), fakeClient, test.nonAdminRestore)
+			if err != nil {
+				if test.errorMessage != err.Error() {
+					t.Errorf("test '%s' failed: error messages differ. Expected %v, got %v", test.name, test.errorMessage, err)
+				}
+				return
+			}
+			if test.errorMessage != constant.EmptyString {
+				t.Errorf("test '%s' failed: expected test to error with '%v'", test.name, err)
+			}
+		})
+	}
+}
+
 func TestGenerateNacObjectNameWithUUID(t *testing.T) {
 	tests := []struct {
 		name      string
