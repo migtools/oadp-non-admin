@@ -236,6 +236,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
 
+			veleroRestore := &velerov1.Restore{}
 			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.UUID) > 0 {
 				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
@@ -245,7 +246,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 				ginkgo.By("Simulating Velero Restore update to finished state")
 
-				veleroRestore := &velerov1.Restore{}
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
 					types.NamespacedName{
@@ -299,6 +299,22 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				}
 				return false, err
 			}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.UUID) > 0 {
+				gomega.Eventually(func() (bool, error) {
+					err := k8sClient.Get(
+						ctxTimeout,
+						types.NamespacedName{
+							Name:      nonAdminRestore.Status.VeleroRestore.Name,
+							Namespace: oadpNamespace,
+						},
+						veleroRestore,
+					)
+					if apierrors.IsNotFound(err) {
+						return true, nil
+					}
+					return false, err
+				}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			}
 		},
 		ginkgo.Entry("Should update NonAdminRestore until Velero Restore completes and then delete it", nonAdminRestoreFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminRestoreSpec{
