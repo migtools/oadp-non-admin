@@ -245,14 +245,10 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 		veleroRestore = &velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
-				// TODO even though Kubernetes object name can be up to 253 char length
-				// using generate name, object name will be 63 char length
-				// it will add a random 5 char length to GenerateName prefix
-				// if prefix is more than 58 char length, it is truncated
-				GenerateName: function.GetGenerateNamePrefix(nar.Namespace, nar.Name),
-				Namespace:    r.OADPNamespace,
-				Labels:       function.GetNonAdminRestoreLabels(nar.Status.UUID),
-				Annotations:  function.GetNonAdminRestoreAnnotations(nar.ObjectMeta),
+				Name:        function.GenerateNacObjectUUID(nar.Namespace, nar.Name),
+				Namespace:   r.OADPNamespace,
+				Labels:      function.GetNonAdminRestoreLabels(nar.Status.UUID),
+				Annotations: function.GetNonAdminRestoreAnnotations(nar.ObjectMeta),
 			},
 			Spec: *restoreSpec,
 		}

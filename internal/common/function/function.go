@@ -187,18 +187,18 @@ func GenerateNacObjectUUID(namespace, nacName string) string {
 	return nacObjectName
 }
 
-func GetGenerateNamePrefix(namespace string, name string) string {
-	remainingLength := constant.MaximumNacObjectNameLength - 5 - len("--")
-	if len(namespace+name) > remainingLength {
-		if len(namespace) >= remainingLength {
-			return fmt.Sprintf("%s-", namespace[:remainingLength])
-		}
-		remainingLength = remainingLength - len(namespace)
-		return fmt.Sprintf("%s-%s-", name[:remainingLength], namespace)
-	}
+// func GetGenerateNamePrefix(namespace string, name string) string {
+// 	remainingLength := constant.MaximumNacObjectNameLength - 5 - len("--")
+// 	if len(namespace+name) > remainingLength {
+// 		if len(namespace) >= remainingLength {
+// 			return fmt.Sprintf("%s-", namespace[:remainingLength])
+// 		}
+// 		remainingLength = remainingLength - len(namespace)
+// 		return fmt.Sprintf("%s-%s-", name[:remainingLength], namespace)
+// 	}
 
-	return fmt.Sprintf("%s-%s-", namespace, name)
-}
+// 	return fmt.Sprintf("%s-%s-", namespace, name)
+// }
 
 // ListObjectsByLabel retrieves a list of Kubernetes objects in a specified namespace
 // that match a given label key-value pair.

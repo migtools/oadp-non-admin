@@ -61,15 +61,12 @@ const NamespaceString = "Namespace"
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
 
-// NonAdminCondition are used for more detailed information supporting NonAdminPhase state.
-type NonAdminCondition string
-
 // Predefined conditions for NonAdmin object.
 // One NonAdmin object may have multiple conditions.
 // It is more granular knowledge of the NonAdmin object and represents the
 // array of the conditions through which the NonAdmin object has or has not passed
 const (
-	NonAdminConditionAccepted NonAdminCondition = "Accepted"
-	NonAdminConditionQueued   NonAdminCondition = "Queued"
-	NonAdminConditionDeleting NonAdminCondition = "Deleting"
+	NonAdminConditionAccepted = "Accepted"
+	NonAdminConditionQueued   = "Queued"
+	NonAdminConditionDeleting = "Deleting"
 )
