@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"reflect"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -51,6 +50,8 @@ type NonAdminRestoreReconciler struct {
 
 type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error
 
+const nonAdminRestoreStatusUpdateFailureMessage = "Failed to update NonAdminRestore Status"
+
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
@@ -75,58 +76,22 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	if !nar.DeletionTimestamp.IsZero() {
-		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
-		updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
-			metav1.Condition{
-				Type:    string(constant.NonAdminConditionDeleting),
-				Status:  metav1.ConditionTrue,
-				Reason:  "DeletionPending",
-				Message: "restore accepted for deletion",
-			},
-		)
-		if updatedPhase || updatedCondition {
-			if err := r.Status().Update(ctx, nar); err != nil {
-				logger.Error(err, "Failed to update NonAdminRestore Status")
-				return ctrl.Result{}, err
-			}
-			logger.V(1).Info("NonAdminRestore status marked for deletion")
-		} else {
-			logger.V(1).Info("NonAdminRestore status unchanged during deletion")
+	var reconcileSteps []nonAdminRestoreReconcileStepFunction
+	switch {
+	case !nar.DeletionTimestamp.IsZero():
+		logger.V(1).Info("Executing delete path")
+		reconcileSteps = []nonAdminRestoreReconcileStepFunction{
+			r.delete,
 		}
-
-		veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nar.Status.UUID)
-		if err == nil {
-			// TODO any problem in calling delete on something being deleted?
-			err = r.Delete(ctx, veleroRestore)
-			if err != nil {
-				logger.Error(err, "Unable to delete Velero Restore")
-				return ctrl.Result{}, err
-			}
-			// wait Velero delete restore object
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	default:
+		logger.V(1).Info("Executing creation/update path")
+		reconcileSteps = []nonAdminRestoreReconcileStepFunction{
+			r.init,
+			r.validateSpec,
+			r.setUUID,
+			r.setFinalizer,
+			r.createVeleroRestore,
 		}
-		if !apierrors.IsNotFound(err) {
-			logger.Error(err, "Unable to fetch Velero Restore")
-			return ctrl.Result{}, err
-		}
-
-		controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
-		// TODO does this change generation? need to refetch?
-		if err := r.Update(ctx, nar); err != nil {
-			logger.Error(err, "Unable to remove NonAdminRestore finalizer")
-			return ctrl.Result{}, err
-		}
-		logger.V(1).Info("NonAdminRestore Reconcile exit")
-		return ctrl.Result{}, nil
-	}
-
-	reconcileSteps := []nonAdminRestoreReconcileStepFunction{
-		r.init,
-		r.validateSpec,
-		r.setUUID,
-		r.setFinalizer,
-		r.createVeleroRestore,
 	}
 	for _, step := range reconcileSteps {
 		err := step(ctx, logger, nar)
@@ -138,11 +103,56 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
+func (r *NonAdminRestoreReconciler) delete(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
+	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
+		metav1.Condition{
+			Type:    string(constant.NonAdminConditionDeleting),
+			Status:  metav1.ConditionTrue,
+			Reason:  "DeletionPending",
+			Message: "restore accepted for deletion",
+		},
+	)
+	if updatedPhase || updatedCondition {
+		if err := r.Status().Update(ctx, nar); err != nil {
+			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
+			return err
+		}
+		logger.V(1).Info("NonAdminRestore status marked for deletion")
+	} else {
+		logger.V(1).Info("NonAdminRestore status unchanged during deletion")
+	}
+
+	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nar.Status.UUID)
+	if err == nil {
+		// TODO any problem in calling delete on something being deleted?
+		err = r.Delete(ctx, veleroRestore)
+		if err != nil {
+			logger.Error(err, "Unable to delete Velero Restore")
+			return err
+		}
+		logger.V(1).Info("Waiting Velero Restore be deleted")
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		logger.Error(err, "Unable to fetch Velero Restore")
+		return err
+	}
+
+	controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
+	// TODO does this change generation? need to refetch?
+	if err := r.Update(ctx, nar); err != nil {
+		logger.Error(err, "Unable to remove NonAdminRestore finalizer")
+		return err
+	}
+	return nil
+}
+
 func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
 	if nar.Status.Phase == constant.EmptyString {
 		if updated := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
 			if err := r.Status().Update(ctx, nar); err != nil {
-				logger.Error(err, "Failed to update NonAdminRestore Status")
+				logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
 				return err
 			}
 			logger.V(1).Info("NonAdminRestore Phase set to New")
@@ -167,7 +177,7 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 		)
 		if updatedPhase || updatedCondition {
 			if updateErr := r.Status().Update(ctx, nar); updateErr != nil {
-				logger.Error(updateErr, "Failed to update NonAdminRestore Status")
+				logger.Error(updateErr, nonAdminRestoreStatusUpdateFailureMessage)
 				return updateErr
 			}
 		}
@@ -185,7 +195,7 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 	)
 	if updated {
 		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, "Failed to update NonAdminRestore Status")
+			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
 			return err
 		}
 		logger.V(1).Info("NonAdminRestore condition set to Accepted")
@@ -216,9 +226,9 @@ func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger log
 			return err
 		}
 		// TODO does this change generation? need to refetch?
-		logger.V(1).Info("Finalizer added to NonAdminRestore", "finalizer", constant.NonAdminRestoreFinalizerName)
+		logger.V(1).Info("Finalizer added to NonAdminRestore")
 	} else {
-		logger.V(1).Info("Finalizer already exists on NonAdminRestore", "finalizer", constant.NonAdminRestoreFinalizerName)
+		logger.V(1).Info("Finalizer already exists on NonAdminRestore")
 	}
 	return nil
 }
@@ -229,6 +239,15 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
+		}
+		if nar.Status.Phase == nacv1alpha1.NonAdminPhaseCreated {
+			logger.V(1).Info("Velero Restore was deleted, deleting NonAdminRestore")
+			err = r.delete(ctx, logger, nar)
+			if err != nil {
+				logger.Error(err, "Failed to delete NonAdminRestore")
+				return err
+			}
+			return nil
 		}
 
 		restoreSpec := nar.Spec.RestoreSpec.DeepCopy()
@@ -270,11 +289,10 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 			Message: "Created Velero Restore object",
 		},
 	)
-	// TODO need to refetch velero restore because of generate name?
 	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
 	if updatedPhase || updatedCondition || updatedVeleroStatus {
 		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, "Failed to update NonAdminRestore Status")
+			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
 			return err
 		}
 		logger.V(1).Info("NonAdminRestore Status updated successfully")

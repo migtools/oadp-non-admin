@@ -45,3 +45,20 @@ func (p VeleroRestorePredicate) Update(ctx context.Context, evt event.UpdateEven
 	logger.V(1).Info("Rejected Update event")
 	return false
 }
+
+// Delete event filter only accepts Velero Restore delete events from OADP namespace
+// and from Velero Restores that have required metadata
+func (p VeleroRestorePredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
+	logger := function.GetLogger(ctx, evt.Object, "VeleroRestorePredicate")
+
+	namespace := evt.Object.GetNamespace()
+	if namespace == p.OADPNamespace {
+		if function.CheckVeleroRestoreMetadata(evt.Object) {
+			logger.V(1).Info("Accepted Delete event")
+			return true
+		}
+	}
+
+	logger.V(1).Info("Rejected Delete event")
+	return false
+}

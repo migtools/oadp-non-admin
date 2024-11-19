@@ -59,6 +59,8 @@ func (p CompositeRestorePredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Delete(p.Context, evt)
+	case *velerov1.Restore:
+		return p.VeleroRestorePredicate.Delete(p.Context, evt)
 	default:
 		return false
 	}

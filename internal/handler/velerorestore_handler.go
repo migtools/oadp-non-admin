@@ -52,8 +52,18 @@ func (VeleroRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 }
 
 // Delete event handler
-func (VeleroRestoreHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
-	// Delete event handler for the Restore object
+func (VeleroRestoreHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	logger := function.GetLogger(ctx, evt.Object, "VeleroRestoreHandler")
+
+	annotations := evt.Object.GetAnnotations()
+	nonAdminRestoreName := annotations[constant.NonAdminRestoreOriginNameAnnotation]
+	nonAdminRestoreNamespace := annotations[constant.NonAdminRestoreOriginNamespaceAnnotation]
+
+	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+		Name:      nonAdminRestoreName,
+		Namespace: nonAdminRestoreNamespace,
+	}})
+	logger.V(1).Info("Handled Delete event")
 }
 
 // Generic event handler
