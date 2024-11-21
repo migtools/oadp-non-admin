@@ -19,17 +19,22 @@ package function
 import (
 	"context"
 	"errors"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/assert"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -92,7 +97,7 @@ func TestValidateBackupSpec(t *testing.T) {
 			spec: &velerov1.BackupSpec{
 				IncludedNamespaces: []string{"namespace1", "namespace2", "namespace3"},
 			},
-			errMessage: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than: non-admin-backup-namespace",
+			errMessage: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: non-admin-backup-namespace",
 		},
 		{
 			name: "valid spec",
@@ -111,7 +116,7 @@ func TestValidateBackupSpec(t *testing.T) {
 					BackupSpec: test.spec,
 				},
 			}
-			err := ValidateBackupSpec(nonAdminBackup)
+			err := ValidateBackupSpec(nonAdminBackup, &velerov1.BackupSpec{})
 			if len(test.errMessage) == 0 {
 				assert.NoError(t, err)
 			} else {
@@ -120,6 +125,250 @@ func TestValidateBackupSpec(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateBackupSpecEnforcedFields(t *testing.T) {
+	all := "*"
+
+	tests := []struct {
+		enforcedValue any
+		overrideValue any
+		name          string
+	}{
+		{
+			name: "Metadata",
+			enforcedValue: velerov1.Metadata{
+				Labels: map[string]string{
+					constant.OadpLabel: constant.TrueString,
+				},
+			},
+			overrideValue: velerov1.Metadata{
+				Labels: map[string]string{
+					"openshift/banana": "false",
+					constant.OadpLabel: constant.TrueString,
+				},
+			},
+		},
+		{
+			name:          "IncludedNamespaces",
+			enforcedValue: []string{"self-service-namespace"},
+			overrideValue: []string{"openshift-adp"},
+		},
+		{
+			name:          "ExcludedNamespaces",
+			enforcedValue: []string{"openshift-adp"},
+			overrideValue: []string{"cherry"},
+		},
+		{
+			name:          "IncludedResources",
+			enforcedValue: []string{"pods"},
+			overrideValue: []string{"secrets"},
+		},
+		{
+			name:          "ExcludedResources",
+			enforcedValue: []string{"nonadminbackups.nac.oadp.openshift.io"},
+			overrideValue: []string{},
+		},
+		{
+			name:          "IncludedClusterScopedResources",
+			enforcedValue: []string{},
+			overrideValue: []string{all},
+		},
+		{
+			name:          "ExcludedClusterScopedResources",
+			enforcedValue: []string{all},
+			overrideValue: []string{},
+		},
+		{
+			name:          "IncludedNamespaceScopedResources",
+			enforcedValue: []string{},
+			overrideValue: []string{all},
+		},
+		{
+			name:          "ExcludedNamespaceScopedResources",
+			enforcedValue: []string{all},
+			overrideValue: []string{},
+		},
+		{
+			name: "LabelSelector",
+			enforcedValue: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"grapes": constant.TrueString,
+				},
+			},
+			overrideValue: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					constant.OadpLabel: constant.TrueString,
+				},
+			},
+		},
+		{
+			name: "OrLabelSelectors",
+			enforcedValue: []*metav1.LabelSelector{
+				{
+					MatchLabels: map[string]string{
+						"kiwi": constant.TrueString,
+					},
+				},
+				{
+					MatchLabels: map[string]string{
+						"green": "false",
+					},
+				},
+			},
+			overrideValue: []*metav1.LabelSelector{
+				{
+					MatchLabels: map[string]string{
+						constant.OadpLabel: constant.TrueString,
+					},
+				},
+			},
+		},
+		{
+			name:          "SnapshotVolumes",
+			enforcedValue: ptr.To(false),
+			overrideValue: ptr.To(true),
+		},
+		{
+			name:          "TTL",
+			enforcedValue: metav1.Duration{Duration: 12 * time.Hour},      //nolint:revive // just test
+			overrideValue: metav1.Duration{Duration: 30 * 24 * time.Hour}, //nolint:revive // just test
+		},
+		{
+			name:          "IncludeClusterResources",
+			enforcedValue: ptr.To(true),
+			overrideValue: ptr.To(false),
+		},
+		{
+			name: "Hooks",
+			enforcedValue: velerov1.BackupHooks{
+				Resources: []velerov1.BackupResourceHookSpec{
+					{
+						Name: "test",
+					},
+				},
+			},
+			overrideValue: velerov1.BackupHooks{
+				Resources: []velerov1.BackupResourceHookSpec{
+					{
+						Name: "another",
+					},
+				},
+			},
+		},
+		{
+			name:          "StorageLocation",
+			enforcedValue: "default",
+			overrideValue: "lemon",
+		},
+		{
+			name:          "VolumeSnapshotLocations",
+			enforcedValue: []string{"aws"},
+			overrideValue: []string{"gcp"},
+		},
+		{
+			name:          "DefaultVolumesToRestic",
+			enforcedValue: ptr.To(true),
+			overrideValue: ptr.To(false),
+		},
+		{
+			name:          "DefaultVolumesToFsBackup",
+			enforcedValue: ptr.To(false),
+			overrideValue: ptr.To(true),
+		},
+		{
+			name: "OrderedResources",
+			enforcedValue: map[string]string{
+				"pods": "ns1/pod1,ns2/pod2",
+			},
+			overrideValue: map[string]string{},
+		},
+		{
+			name:          "CSISnapshotTimeout",
+			enforcedValue: metav1.Duration{Duration: 3 * time.Minute},  //nolint:revive // just test
+			overrideValue: metav1.Duration{Duration: 30 * time.Minute}, //nolint:revive // just test
+		},
+		{
+			name:          "ItemOperationTimeout",
+			enforcedValue: metav1.Duration{Duration: 30 * time.Minute}, //nolint:revive // just test
+			overrideValue: metav1.Duration{Duration: time.Hour},
+		},
+		{
+			name: "ResourcePolicy",
+			enforcedValue: &corev1.TypedLocalObjectReference{
+				Kind: "test",
+				Name: "example",
+			},
+			overrideValue: &corev1.TypedLocalObjectReference{},
+		},
+		{
+			name:          "SnapshotMoveData",
+			enforcedValue: ptr.To(false),
+			overrideValue: ptr.To(true),
+		},
+		{
+			name:          "DataMover",
+			enforcedValue: "OADP",
+			overrideValue: "third-party",
+		},
+		{
+			name: "UploaderConfig",
+			enforcedValue: &velerov1.UploaderConfigForBackup{
+				ParallelFilesUpload: 2, //nolint:revive // just test
+			},
+			overrideValue: &velerov1.UploaderConfigForBackup{
+				ParallelFilesUpload: 32, //nolint:revive // just test
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			enforcedSpec := &velerov1.BackupSpec{}
+			reflect.ValueOf(enforcedSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
+
+			userNonAdminBackup := &nacv1alpha1.NonAdminBackup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "self-service-namespace",
+				},
+				Spec: nacv1alpha1.NonAdminBackupSpec{
+					BackupSpec: &velerov1.BackupSpec{},
+				},
+			}
+			err := ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+			if err != nil {
+				t.Errorf("not setting backup spec field '%v' test failed: %v", test.name, err)
+			}
+
+			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
+			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+			if err != nil {
+				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
+			}
+
+			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
+			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+			if err == nil {
+				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
+			}
+		})
+	}
+
+	t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
+		backupSpecFields := []string{}
+		for _, test := range tests {
+			backupSpecFields = append(backupSpecFields, test.name)
+		}
+		backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
+
+		for index := 0; index < backupSpec.NumField(); index++ {
+			if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
+				t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
+			}
+		}
+		if backupSpec.NumField() != len(tests) {
+			t.Errorf("list of tests have different number of elements")
+		}
+	})
 }
 
 func TestGenerateNacObjectNameWithUUID(t *testing.T) {

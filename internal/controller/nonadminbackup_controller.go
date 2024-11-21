@@ -48,8 +48,9 @@ import (
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
 type NonAdminBackupReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	OADPNamespace string
+	Scheme             *runtime.Scheme
+	EnforcedBackupSpec *velerov1.BackupSpec
+	OADPNamespace      string
 }
 
 type reconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
@@ -477,7 +478,7 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition Accepted to "False".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition Accepted to "True".
 func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	err := function.ValidateBackupSpec(nab)
+	err := function.ValidateBackupSpec(nab, r.EnforcedBackupSpec)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
@@ -604,6 +605,16 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
+
+		enforcedSpec := reflect.ValueOf(r.EnforcedBackupSpec).Elem()
+		for index := 0; index < enforcedSpec.NumField(); index++ {
+			enforcedField := enforcedSpec.Field(index)
+			enforcedFieldName := enforcedSpec.Type().Field(index).Name
+			currentField := reflect.ValueOf(backupSpec).Elem().FieldByName(enforcedFieldName)
+			if !enforcedField.IsZero() && currentField.IsZero() {
+				currentField.Set(enforcedField)
+			}
+		}
 
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{

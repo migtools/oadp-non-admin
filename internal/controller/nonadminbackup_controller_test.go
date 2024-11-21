@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -55,8 +56,9 @@ type nonAdminBackupSingleReconcileScenario struct {
 }
 
 type nonAdminBackupFullReconcileScenario struct {
-	spec   nacv1alpha1.NonAdminBackupSpec
-	status nacv1alpha1.NonAdminBackupStatus
+	enforcedBackupSpec *velerov1.BackupSpec
+	spec               nacv1alpha1.NonAdminBackupSpec
+	status             nacv1alpha1.NonAdminBackupStatus
 }
 
 func buildTestNonAdminBackup(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminBackupSpec) *nacv1alpha1.NonAdminBackup {
@@ -261,9 +263,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			// priorResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			result, err := (&NonAdminBackupReconciler{
-				Client:        k8sClient,
-				Scheme:        testEnv.Scheme,
-				OADPNamespace: oadpNamespace,
+				Client:             k8sClient,
+				Scheme:             testEnv.Scheme,
+				OADPNamespace:      oadpNamespace,
+				EnforcedBackupSpec: &velerov1.BackupSpec{},
 			}).Reconcile(
 				context.Background(),
 				reconcile.Request{NamespacedName: types.NamespacedName{
@@ -734,11 +737,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Type:    "Accepted",
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than:",
+						Message: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than:",
 					},
 				},
 			},
-			resultError: reconcile.TerminalError(fmt.Errorf("spec.backupSpec.IncludedNamespaces can not contain namespaces other than: ")),
+			resultError: reconcile.TerminalError(fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ")),
 		}))
 })
 
@@ -778,10 +781,15 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
+			enforcedBackupSpec := &velerov1.BackupSpec{}
+			if scenario.enforcedBackupSpec != nil {
+				enforcedBackupSpec = scenario.enforcedBackupSpec
+			}
 			err = (&NonAdminBackupReconciler{
-				Client:        k8sManager.GetClient(),
-				Scheme:        k8sManager.GetScheme(),
-				OADPNamespace: oadpNamespace,
+				Client:             k8sManager.GetClient(),
+				Scheme:             k8sManager.GetScheme(),
+				OADPNamespace:      oadpNamespace,
+				EnforcedBackupSpec: enforcedBackupSpec,
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -835,8 +843,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					scenario.spec,
 				)).To(gomega.BeTrue())
 
-				ginkgo.By("Simulating VeleroBackup update to finished state")
-
 				veleroBackup := &velerov1.Backup{}
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
@@ -847,11 +853,20 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					veleroBackup,
 				)).To(gomega.Succeed())
 
-				// can not call .Status().Update() for veleroBackup object https://github.com/vmware-tanzu/velero/issues/8285
+				if scenario.enforcedBackupSpec != nil {
+					ginkgo.By("Validating Velero Backup Spec")
+					expectedSpec := scenario.enforcedBackupSpec.DeepCopy()
+					expectedSpec.IncludedNamespaces = []string{nonAdminObjectNamespace}
+					gomega.Expect(reflect.DeepEqual(veleroBackup.Spec, *expectedSpec)).To(gomega.BeTrue())
+				}
+
+				ginkgo.By("Simulating VeleroBackup update to finished state")
+
 				veleroBackup.Status = velerov1.BackupStatus{
 					Phase: velerov1.BackupPhaseCompleted,
 				}
 
+				// can not call .Status().Update() for veleroBackup object https://github.com/vmware-tanzu/velero/issues/8285
 				gomega.Expect(k8sClient.Update(ctxTimeout, veleroBackup)).To(gomega.Succeed())
 
 				ginkgo.By("VeleroBackup updated")
@@ -906,11 +921,18 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					},
 				},
 			},
+			enforcedBackupSpec: &velerov1.BackupSpec{
+				SnapshotVolumes: ptr.To(false),
+				TTL: metav1.Duration{
+					Duration: 36 * time.Hour,
+				},
+				DefaultVolumesToFsBackup: ptr.To(true),
+			},
 		}),
 		ginkgo.Entry("Should update NonAdminBackup until it invalidates and then delete it", nonAdminBackupFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{
-					IncludedNamespaces: []string{"not-valid"},
+					SnapshotVolumes: ptr.To(true),
 				},
 			},
 			status: nacv1alpha1.NonAdminBackupStatus{
@@ -920,9 +942,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						Type:    "Accepted",
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "spec.backupSpec.IncludedNamespaces can not contain namespaces other than:",
+						Message: "spec.backupSpec.snapshotVolumes field value is enforced by admin user",
 					},
 				},
+			},
+			enforcedBackupSpec: &velerov1.BackupSpec{
+				SnapshotVolumes: ptr.To(false),
 			},
 		}),
 	)

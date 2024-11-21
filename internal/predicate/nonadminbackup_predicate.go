@@ -40,7 +40,6 @@ func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent
 func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupPredicateKey)
 
-	// spec change
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
 		logger.V(1).Info("Accepted Update event")
 		return true
