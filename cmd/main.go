@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -192,7 +193,9 @@ func getEnforcedSpec(restConfig *rest.Config, oadpNamespace string) (*velerov1.B
 	enforcedBackupSpec := &velerov1.BackupSpec{}
 	for _, dpa := range dpaList.Items {
 		if dpa.Namespace == oadpNamespace {
-			enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
+			if dpa.Spec.NonAdmin != nil && dpa.Spec.NonAdmin.EnforceBackupSpec != nil {
+				enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
+			}
 		}
 	}
 	return enforcedBackupSpec, nil
