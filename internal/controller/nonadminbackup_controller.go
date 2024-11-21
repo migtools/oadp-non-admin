@@ -644,6 +644,19 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 
 	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupNACUUID, Namespace: r.OADPNamespace})
 
+	updatedQueueInfo := false
+
+	// Determine how many Backups are scheduled before the given VeleroBackup in the OADP namespace.
+	queueInfo, err := function.GetBackupQueueInfo(ctx, r.Client, r.OADPNamespace, veleroBackup)
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error as it's just
+		// about the Velero Backup queue position information
+		logger.Error(err, "Failed to get the queue position for the VeleroBackup")
+	} else {
+		nab.Status.QueueInfo = &queueInfo
+		updatedQueueInfo = true
+	}
+
 	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseCreated)
 
 	updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
@@ -655,7 +668,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		},
 	)
 
-	if updatedPhase || updatedCondition {
+	if updatedPhase || updatedCondition || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
@@ -689,12 +702,19 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&nacv1alpha1.NonAdminBackup{}).
 		WithEventFilter(predicate.CompositePredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
+			VeleroBackupQueuePredicate: predicate.VeleroBackupQueuePredicate{
+				OADPNamespace: r.OADPNamespace,
+			},
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
 				OADPNamespace: r.OADPNamespace,
 			},
 		}).
 		// handler runs after predicate
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
+		Watches(&velerov1.Backup{}, &handler.VeleroBackupQueueHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
 		Complete(r)
 }
 

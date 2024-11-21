@@ -619,6 +619,17 @@ spec:
                 - Created
                 - Deleting
                 type: string
+              queueInfo:
+                description: |-
+                  QueueInfo holds the queue position for a specific VeleroBackup.
+                  It is used to determine how many backups are scheduled before the given VeleroBackup in the OADP namespace.
+                  and counts only VeleroBackups that are still subject to be handled by OADP/Velero.
+                properties:
+                  currentQueuePosition:
+                    type: integer
+                required:
+                - currentQueuePosition
+                type: object
               veleroBackup:
                 description: VeleroBackup contains information of the related Velero
                   backup object.

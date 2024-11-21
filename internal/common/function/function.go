@@ -183,6 +183,62 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 	}
 }
 
+// GetActiveVeleroBackupsByLabel retrieves all VeleroBackup objects based on a specified label within a given namespace.
+// It returns a slice of VeleroBackup objects or nil if none are found.
+func GetActiveVeleroBackupsByLabel(ctx context.Context, clientInstance client.Client, namespace, labelKey, labelValue string) ([]velerov1.Backup, error) {
+	var veleroBackupList velerov1.BackupList
+	// TODO: filter out velero backups that already were served.
+	labelSelector := client.MatchingLabels{labelKey: labelValue}
+
+	if err := clientInstance.List(ctx, &veleroBackupList, client.InNamespace(namespace), labelSelector); err != nil {
+		return nil, err
+	}
+
+	if len(veleroBackupList.Items) == 0 {
+		return nil, nil
+	}
+
+	return veleroBackupList.Items, nil
+}
+
+// GetBackupQueueInfo determines the queue position of the specified VeleroBackup.
+// It calculates how many queued Backups exist in the namespace that were created before this one.
+func GetBackupQueueInfo(ctx context.Context, clientInstance client.Client, namespace string, targetBackup *velerov1.Backup) (nacv1alpha1.QueueInfo, error) {
+	var queueInfo nacv1alpha1.QueueInfo
+
+	// If the target backup has no valid CreationTimestamp, it means that it's not yet reconciled by OADP/Velero.
+	// In this case, we can't determine its queue position, so we return nil.
+	if targetBackup == nil || targetBackup.CreationTimestamp.IsZero() {
+		return queueInfo, nil
+	}
+
+	// List all Backup objects in the namespace
+	var backupList velerov1.BackupList
+	if err := clientInstance.List(ctx, &backupList, client.InNamespace(namespace)); err != nil {
+		return queueInfo, err
+	}
+
+	// Extract the target backup's creation timestamp
+	targetTimestamp := targetBackup.CreationTimestamp.Time
+
+	// Iterate through backups and calculate position
+	for i := range backupList.Items {
+		backup := &backupList.Items[i]
+
+		// Skip backups that have CompletionTimestamp set. This means that the Velero won't be further processing this backup.
+		if backup.Status.CompletionTimestamp != nil {
+			continue
+		}
+
+		// Count backups created earlier than the target backup
+		if backup.CreationTimestamp.Time.Before(targetTimestamp) {
+			queueInfo.CurrentQueuePosition++
+		}
+	}
+
+	return queueInfo, nil
+}
+
 // GetVeleroDeleteBackupRequestByLabel retrieves a DeleteBackupRequest object based on a specified label within a given namespace.
 // It returns the DeleteBackupRequest only when exactly one object is found, throws an error if multiple backups are found,
 // or returns nil if no matches are found.
