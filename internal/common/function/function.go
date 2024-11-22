@@ -187,18 +187,25 @@ func GetVeleroBackupByLabel(ctx context.Context, clientInstance client.Client, n
 // It returns a slice of VeleroBackup objects or nil if none are found.
 func GetActiveVeleroBackupsByLabel(ctx context.Context, clientInstance client.Client, namespace, labelKey, labelValue string) ([]velerov1.Backup, error) {
 	var veleroBackupList velerov1.BackupList
-	// TODO: filter out velero backups that already were served.
 	labelSelector := client.MatchingLabels{labelKey: labelValue}
 
 	if err := clientInstance.List(ctx, &veleroBackupList, client.InNamespace(namespace), labelSelector); err != nil {
 		return nil, err
 	}
 
-	if len(veleroBackupList.Items) == 0 {
+	// Filter out backups with a CompletionTimestamp
+	var activeBackups []velerov1.Backup
+	for _, backup := range veleroBackupList.Items {
+		if backup.Status.CompletionTimestamp == nil {
+			activeBackups = append(activeBackups, backup)
+		}
+	}
+
+	if len(activeBackups) == 0 {
 		return nil, nil
 	}
 
-	return veleroBackupList.Items, nil
+	return activeBackups, nil
 }
 
 // GetBackupQueueInfo determines the queue position of the specified VeleroBackup.
