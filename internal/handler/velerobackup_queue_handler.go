@@ -61,16 +61,26 @@ func (h VeleroBackupQueueHandler) Update(ctx context.Context, evt event.UpdateEv
 		// object that has a new CompletionTimestamp.
 		logger.V(1).Info("No pending velero backups found in namespace.", "Namespace", h.OADPNamespace)
 	} else {
+		nabEventAnnotations := evt.ObjectNew.GetAnnotations()
+		nabEventOriginNamespace := nabEventAnnotations[constant.NabOriginNamespaceAnnotation]
+		nabEventOriginName := nabEventAnnotations[constant.NabOriginNameAnnotation]
+
 		for _, backup := range backups {
 			annotations := backup.GetAnnotations()
 			nabOriginNamespace := annotations[constant.NabOriginNamespaceAnnotation]
 			nabOriginName := annotations[constant.NabOriginNameAnnotation]
 
-			logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", "Name", backup.Name, "Namespace", backup.Namespace, "CreatedAt", backup.CreationTimestamp)
-			q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-				Name:      nabOriginName,
-				Namespace: nabOriginNamespace,
-			}})
+			// This object is within current queue, so there is no need to trigger changes to it.
+			// The VeleroBackupHandler will serve for that.
+			if nabOriginNamespace != nabEventOriginNamespace || nabOriginName != nabEventOriginName {
+				logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", "Name", backup.Name, "Namespace", backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+					Name:      nabOriginName,
+					Namespace: nabOriginNamespace,
+				}})
+			} else {
+				logger.V(1).Info("Ignoring Queue update for the NonAdmin Backup that triggered this event", "Name", backup.Name, "Namespace", backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+			}
 		}
 	}
 }
