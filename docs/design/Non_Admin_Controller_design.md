@@ -92,11 +92,13 @@ This design intends to enable non-admin users the ability to perform Backup and 
         - Listen to requests pertaining to Non-Admin Backup CRD
         - Process requests pertaining to Non-Admin Backup CRD
         - Update Non-Admin Backup CR status with the status/events from Velero Backup CR
+        - Update Non-Admin Backup CR status with the estimated queue position from the Velero Backup CRs
         - Cascade Any actions performed on Non-Admin Backup CR to corresponding Velero backup CR
     - **Non-Admin Restore (NAR) Controller:** The responsibilities of the NAR controller are:
         - Listen to requests pertaining to Non-Admin Restore CRD
         - Process requests pertaining to Non-Admin Restore CRD
         - Update Non-Admin Backup CR status with the status/events from Velero Restore CR
+        - Update Non-Admin Backup CR status with the estimated queue position from the Velero Restore CRs
         - Cascade Any actions performed on Non-Admin Restore CR to corresponding Velero restore CR
     - **Non-Admin BackupStorageLocation (NABSL) controller:** The responsibilities of the NABSL controller are:
         - Listen to requests pertaining to Non-Admin BSL CRD

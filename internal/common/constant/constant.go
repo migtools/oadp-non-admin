@@ -49,6 +49,9 @@ const NameDelimiter = "-"
 // TrueString defines a constant for the True string
 const TrueString = "True"
 
+// NamespaceString defines a constant for the Namespace string
+const NamespaceString = "Namespace"
+
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
