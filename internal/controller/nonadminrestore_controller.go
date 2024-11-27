@@ -253,10 +253,13 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 		// TODO already did this get call in ValidateRestoreSpec!
 		nab := &nacv1alpha1.NonAdminBackup{}
-		_ = r.Get(ctx, types.NamespacedName{
+		if err = r.Get(ctx, types.NamespacedName{
 			Name:      nar.Spec.RestoreSpec.BackupName,
 			Namespace: nar.Namespace,
-		}, nab)
+		}, nab); err != nil {
+			logger.Error(err, "Failed to get NonAdminBackup")
+			return err
+		}
 		restoreSpec.BackupName = nab.Status.VeleroBackup.Name
 
 		// TODO enforce Restore Spec

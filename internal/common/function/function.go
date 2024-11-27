@@ -46,6 +46,7 @@ func GetNonAdminLabels() map[string]string {
 	}
 }
 
+// GetNonAdminRestoreLabels return the required Non Admin restore labels
 func GetNonAdminRestoreLabels(uniqueIdentifier string) map[string]string {
 	nonAdminLabels := GetNonAdminLabels()
 	nonAdminLabels[constant.NarOriginNACUUIDLabel] = uniqueIdentifier
@@ -60,6 +61,7 @@ func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]strin
 	}
 }
 
+// GetNonAdminRestoreAnnotations return the required Non Admin restore annotations
 func GetNonAdminRestoreAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{
 		constant.NonAdminRestoreOriginNamespaceAnnotation: objectMeta.Namespace,
@@ -113,6 +115,7 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 	return nil
 }
 
+// ValidateRestoreSpec return nil, if NonAdminRestore is valid; error otherwise
 func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
 	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
@@ -323,6 +326,9 @@ func GetVeleroDeleteBackupRequestByLabel(ctx context.Context, clientInstance cli
 	}
 }
 
+// GetVeleroRestoreByLabel retrieves a VeleroRestore object based on a specified label within a given namespace.
+// It returns the VeleroRestore only when exactly one object is found, throws an error if multiple restores are found,
+// or returns nil if no matches are found.
 func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.Restore, error) {
 	veleroRestoreList := &velerov1.RestoreList{}
 	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NarOriginNACUUIDLabel, labelValue, veleroRestoreList); err != nil {
@@ -364,6 +370,7 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 	return true
 }
 
+// CheckVeleroRestoreMetadata return true if Velero Restore object has required Non Admin labels and annotations, false otherwise
 func CheckVeleroRestoreMetadata(obj client.Object) bool {
 	objLabels := obj.GetLabels()
 	if !checkLabelValue(objLabels, constant.OadpLabel, constant.OadpLabelValue) {
