@@ -47,10 +47,14 @@ import (
 var _ = ginkgo.Describe("PLACEHOLDER", func() {})
 
 const (
-	testNonAdminBackupNamespace = "non-admin-backup-namespace"
-	testNonAdminBackupName      = "non-admin-backup-name"
-	testNonAdminBackupUUID      = "12345678-1234-1234-1234-123456789abc"
-	defaultStr                  = "default"
+	testNonAdminBackupNamespace  = "non-admin-backup-namespace"
+	testNonAdminBackupName       = "non-admin-backup-name"
+	testNonAdminSecondBackupName = "non-admin-second-backup-name"
+	testNonAdminBackupUUID       = "12345678-1234-1234-1234-123456789abc"
+	defaultStr                   = "default"
+	expectedIntZero              = 0
+	expectedIntOne               = 1
+	expectedIntTwo               = 2
 )
 
 func TestGetNonAdminLabels(t *testing.T) {
@@ -455,9 +459,8 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 	scheme := runtime.NewScheme()
 	const testAppStr = "test-app"
 
-	// Register VeleroBackup type with the scheme
 	if err := velerov1.AddToScheme(scheme); err != nil {
-		t.Fatalf("Failed to register VeleroBackup type: %v", err)
+		t.Fatalf("Failed to register VeleroBackup type in TestGetVeleroBackupByLabel: %v", err)
 	}
 
 	tests := []struct {
@@ -700,9 +703,8 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 	scheme := runtime.NewScheme()
 	const testAppStr = "test-app"
 
-	// Register DeleteBackupRequest type with the scheme
 	if err := velerov1.AddToScheme(scheme); err != nil {
-		t.Fatalf("Failed to register DeleteBackupRequest type: %v", err)
+		t.Fatalf("Failed to register DeleteBackupRequest type in TestGetVeleroDeleteBackupRequestByLabel: %v", err)
 	}
 
 	tests := []struct {
@@ -799,6 +801,185 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 					assert.Nil(t, result, "Expected result should be nil")
 				}
 			}
+		})
+	}
+}
+
+func TestGetActiveVeleroBackupsByLabel(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+
+	if err := velerov1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register VeleroBackup type in TestGetActiveVeleroBackupsByLabel: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		labelKey      string
+		labelValue    string
+		mockBackups   []velerov1.Backup
+		expectedCount int
+	}{
+		{
+			name:       "No active backups",
+			namespace:  defaultStr,
+			labelKey:   constant.NabOriginNACUUIDLabel,
+			labelValue: testNonAdminBackupUUID,
+			mockBackups: []velerov1.Backup{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      testNonAdminBackupName,
+						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+					Status: velerov1.BackupStatus{
+						CompletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
+				},
+			},
+			expectedCount: expectedIntZero,
+		},
+		{
+			name:       "One active backup",
+			namespace:  defaultStr,
+			labelKey:   constant.NabOriginNACUUIDLabel,
+			labelValue: testNonAdminBackupUUID,
+			mockBackups: []velerov1.Backup{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      testNonAdminBackupName,
+						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+			},
+			expectedCount: expectedIntOne,
+		},
+		{
+			name:       "Multiple active backups",
+			namespace:  defaultStr,
+			labelKey:   constant.NabOriginNACUUIDLabel,
+			labelValue: testNonAdminBackupUUID,
+			mockBackups: []velerov1.Backup{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      testNonAdminBackupName,
+						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      testNonAdminSecondBackupName,
+						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+			},
+			expectedCount: expectedIntTwo,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, backup := range tt.mockBackups {
+				backupCopy := backup // Create a copy to avoid memory aliasing
+				objects = append(objects, &backupCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			result, err := GetActiveVeleroBackupsByLabel(ctx, client, tt.namespace, tt.labelKey, tt.labelValue)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedCount, len(result))
+		})
+	}
+}
+
+func TestGetBackupQueueInfo(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+
+	if err := velerov1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register VeleroBackup type in TestGetBackupQueueInfo: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		targetBackup  *velerov1.Backup
+		mockBackups   []velerov1.Backup
+		expectedQueue int
+	}{
+		{
+			name:      "No backups in queue",
+			namespace: defaultStr,
+			targetBackup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminBackupName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+			},
+			mockBackups:   []velerov1.Backup{},
+			expectedQueue: expectedIntOne,
+		},
+		{
+			name:      "One backup ahead in queue",
+			namespace: defaultStr,
+			targetBackup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminSecondBackupName,
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1 * time.Hour)},
+				},
+			},
+			mockBackups: []velerov1.Backup{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         defaultStr,
+						Name:              testNonAdminBackupName,
+						CreationTimestamp: metav1.Time{Time: time.Now()},
+					},
+				},
+			},
+			expectedQueue: expectedIntTwo,
+		},
+		{
+			name:      "Target backup already completed",
+			namespace: defaultStr,
+			targetBackup: &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminBackupName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+				Status: velerov1.BackupStatus{
+					CompletionTimestamp: &metav1.Time{Time: time.Now()},
+				},
+			},
+			mockBackups:   []velerov1.Backup{},
+			expectedQueue: expectedIntZero,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, backup := range tt.mockBackups {
+				backupCopy := backup
+				objects = append(objects, &backupCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			queueInfo, err := GetBackupQueueInfo(ctx, client, tt.namespace, tt.targetBackup)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
 		})
 	}
 }

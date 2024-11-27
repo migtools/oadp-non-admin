@@ -6,12 +6,11 @@ This document outlines the design around updating NonAdminBackup (NAB) and NonAd
 
 ## NonAdminBackup and NonAdminRestore Status
 
-The `status` field of NAB and NAR objects contains the following fields:
+The `status` field of NAB and NAR objects contains the following fields, which are updated by NAB and NAR controllers:
 - `phase`
 - `conditions`
 - `veleroBackup` for NAB and `veleroRestore` for NAR, which contains name, namespace and status of the related Velero object.
-
-which are updated by NAB and NAR controllers.
+- `queueInfo` contains estimatedQueuePosition, which is best effort estimation of the position of the NAB/NAR in the Velero queue.
 
 Any reconciliation function that depends on data stored in the `status` field must ensure it operates on the most recent version of that field from the cluster before proceeding.
 
@@ -118,6 +117,99 @@ status:
   phase: Created
 ```
 
+### Queue Info
+
+`queueInfo` contains `estimatedQueuePosition`, which represents the number of other Velero backups that need to be processed by Velero before the current NonAdminBackup (NAB) or NonAdminRestore (NAR) is handled. This estimate is accurate when the Velero pod is running continuously. However, it may become very inaccurate if the Velero pod was restarted or started after the Velero backups already existed in the cluster.
+In the future the queueInfo may be extended with more fields to provide more information about the Velero queue such as time or size of the backups in the queue.
+
+```yaml
+status:
+  conditions:
+    - lastTransitionTime: '2024-11-25T18:34:01Z'
+      message: backup accepted
+      reason: BackupAccepted
+      status: 'True'
+      type: Accepted
+    - lastTransitionTime: '2024-11-25T18:34:01Z'
+      message: Created Velero Backup object
+      reason: BackupScheduled
+      status: 'True'
+      type: Queued
+  phase: Created
+  queueInfo:
+    estimatedQueuePosition: 12
+  veleroBackup:
+    nacuuid: mongo-persistent-anotherte-0d0b7b2c-ee76-412d-a867-2c23b8aa51ab
+    name: mongo-persistent-anotherte-0d0b7b2c-ee76-412d-a867-2c23b8aa51ab
+    namespace: openshift-adp
+    status: {}
+```
+
+When the Backup is InProgress, the status will be updated with the `estimatedQueuePosition` being set to 1 and the `veleroBackup` phase being set to InProgress.
+
+```yaml
+status:
+  conditions:
+    - lastTransitionTime: '2024-11-27T10:47:49Z'
+      message: backup accepted
+      reason: BackupAccepted
+      status: 'True'
+      type: Accepted
+    - lastTransitionTime: '2024-11-27T10:47:50Z'
+      message: Created Velero Backup object
+      reason: BackupScheduled
+      status: 'True'
+      type: Queued
+  phase: Created
+  queueInfo:
+    estimatedQueuePosition: 1
+  veleroBackup:
+    nacuuid: mongo-persistent-c95bc62d-f40c-47b8-8a28-0dd7addb4930
+    name: mongo-persistent-anotherte-c95bc62d-f40c-47b8-8a28-0dd7addb4930
+    namespace: openshift-adp
+    status:
+      expiration: '2024-12-27T10:48:45Z'
+      formatVersion: 1.1.0
+      phase: InProgress
+      startTimestamp: '2024-11-27T10:48:45Z'
+      version: 1
+```
+After the Backup is successfull, the `veleroBackup` phase will be set to Completed with additional information about the backup and the `estimatedQueuePosition` will be set to 0.
+
+```yaml
+status:
+  conditions:
+    - lastTransitionTime: '2024-11-27T10:47:49Z'
+      message: backup accepted
+      reason: BackupAccepted
+      status: 'True'
+      type: Accepted
+    - lastTransitionTime: '2024-11-27T10:47:50Z'
+      message: Created Velero Backup object
+      reason: BackupScheduled
+      status: 'True'
+      type: Queued
+  phase: Created
+  queueInfo:
+    estimatedQueuePosition: 0
+  veleroBackup:
+    nacuuid: mongo-persistent-anotherte-c95bc62d-f40c-47b8-8a28-0dd7addb4930
+    name: mongo-persistent-anotherte-c95bc62d-f40c-47b8-8a28-0dd7addb4930
+    namespace: openshift-adp
+    status:
+      completionTimestamp: '2024-11-27T10:48:50Z'
+      expiration: '2024-12-27T10:48:45Z'
+      formatVersion: 1.1.0
+      hookStatus: {}
+      phase: Completed
+      progress:
+        itemsBackedUp: 56
+        totalItems: 56
+      startTimestamp: '2024-11-27T10:48:45Z'
+      version: 1
+```
+
+
 ## Status Update scenarios
 
 The following graph shows the lifecycle of a NonAdminBackup.
@@ -159,7 +251,7 @@ flowchart TD
     createVB -->|No| createNewVB[Create VeleroBackup]
     createNewVB  --> setCreatedPhase[NAB Phase: **Created**]
     setCreatedPhase --> setQueuedCondition[NAB Condition:: Queued=True<br>Reason: BackupScheduled<br>Message: Created Velero Backup object]
-    createVB -->|Yes| updateFromVB[Update NAB Status from VeleroBackup:<br>Phase, Start Time, Completion Time,<br>Expiration, Errors, Warnings,<br>Progress, ValidationErrors]
+    createVB -->|Yes| updateFromVB[Update NAB Status from VeleroBackup:<br>Phase, Start Time, Completion Time,<br>Expiration, Errors, Warnings,<br>Progress, ValidationErrors<br>Queue Info: estimatedQueuePosition]
     setQueuedCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endCreateUpdate[End Create/Update]
     updateFromVB -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endCreateUpdate
 

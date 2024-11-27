@@ -642,8 +642,6 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		logger.Info("VeleroBackup successfully created")
 	}
 
-	veleroBackupLogger := logger.WithValues("VeleroBackup", types.NamespacedName{Name: veleroBackupNACUUID, Namespace: r.OADPNamespace})
-
 	updatedQueueInfo := false
 
 	// Determine how many Backups are scheduled before the given VeleroBackup in the OADP namespace.
@@ -668,29 +666,19 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		},
 	)
 
-	if updatedPhase || updatedCondition || updatedQueueInfo {
+	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
+	// with the VeleroBackup. Any required updates to the NonAdminBackup
+	// Status will be applied based on the current state of the VeleroBackup.
+	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, veleroBackup)
+
+	if updated || updatedPhase || updatedCondition || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
 		logger.V(1).Info(statusUpdateExit)
-		return false, nil // TODO (migi): We probably can safely continue with the reconciliation here
-	}
-
-	logger.V(1).Info("NonAdminBackup status unchanged during VeleroBackup reconciliation")
-
-	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
-	// with the VeleroBackup. Any required updates to the NonAdminBackup
-	// Status will be applied based on the current state of the VeleroBackup.
-	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, veleroBackup)
-	if updated {
-		if err := r.Status().Update(ctx, nab); err != nil {
-			veleroBackupLogger.Error(err, "Failed to update NonAdminBackup Status after VeleroBackup reconciliation")
-			return false, err
-		}
-		logger.V(1).Info("NonAdminBackup Status updated successfully")
 	} else {
-		logger.V(1).Info("NonAdminBackup Status unchanged during VeleroBackup reconciliation")
+		logger.V(1).Info("NonAdminBackup status unchanged during VeleroBackup reconciliation")
 	}
 
 	return false, nil

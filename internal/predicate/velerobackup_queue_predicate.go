@@ -19,10 +19,10 @@ package predicate
 import (
 	"context"
 
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 // VeleroBackupQueuePredicate contains event filters for Velero Backup objects
@@ -42,7 +42,7 @@ func (p VeleroBackupQueuePredicate) Update(ctx context.Context, evt event.Update
 	oldBackup, okOld := evt.ObjectOld.(*velerov1.Backup)
 
 	if !okNew || !okOld {
-		logger.V(1).Info("Rejected Update event: invalid object type")
+		logger.V(1).Info("Rejected Backup Update event: invalid object type")
 		return false
 	}
 
@@ -50,11 +50,11 @@ func (p VeleroBackupQueuePredicate) Update(ctx context.Context, evt event.Update
 
 	if namespace == p.OADPNamespace {
 		if oldBackup.Status.CompletionTimestamp == nil && newBackup.Status.CompletionTimestamp != nil {
-			logger.V(1).Info("Accepted Update event: new completion timestamp")
+			logger.V(1).Info("Accepted Backup Update event: new completion timestamp")
 			return true
 		}
 	}
 
-	logger.V(1).Info("Rejected Update event: no changes to the CompletionTimestamp in the VeleroBackup object")
+	logger.V(1).Info("Rejected Backup Update event: no changes to the CompletionTimestamp in the VeleroBackup object")
 	return false
 }

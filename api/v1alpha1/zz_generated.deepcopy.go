@@ -118,17 +118,17 @@ func (in *NonAdminBackupStatus) DeepCopyInto(out *NonAdminBackupStatus) {
 		*out = new(VeleroDeleteBackupRequest)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.QueueInfo != nil {
+		in, out := &in.QueueInfo, &out.QueueInfo
+		*out = new(QueueInfo)
+		**out = **in
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]metav1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
-	}
-	if in.QueueInfo != nil {
-		in, out := &in.QueueInfo, &out.QueueInfo
-		*out = new(QueueInfo)
-		**out = **in
 	}
 }
 

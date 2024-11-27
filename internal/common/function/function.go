@@ -219,6 +219,12 @@ func GetBackupQueueInfo(ctx context.Context, clientInstance client.Client, names
 		return queueInfo, nil
 	}
 
+	// If the target backup has a CompletionTimestamp, it means that it's already served.
+	if targetBackup.Status.CompletionTimestamp != nil {
+		queueInfo.EstimatedQueuePosition = 0
+		return queueInfo, nil
+	}
+
 	// List all Backup objects in the namespace
 	var backupList velerov1.BackupList
 	if err := clientInstance.List(ctx, &backupList, client.InNamespace(namespace)); err != nil {
@@ -227,6 +233,10 @@ func GetBackupQueueInfo(ctx context.Context, clientInstance client.Client, names
 
 	// Extract the target backup's creation timestamp
 	targetTimestamp := targetBackup.CreationTimestamp.Time
+
+	// The target backup is always in queue at least in the first position
+	// 0 is reserved for the backups that are already served.
+	queueInfo.EstimatedQueuePosition = 1
 
 	// Iterate through backups and calculate position
 	for i := range backupList.Items {
@@ -239,7 +249,7 @@ func GetBackupQueueInfo(ctx context.Context, clientInstance client.Client, names
 
 		// Count backups created earlier than the target backup
 		if backup.CreationTimestamp.Time.Before(targetTimestamp) {
-			queueInfo.CurrentQueuePosition++
+			queueInfo.EstimatedQueuePosition++
 		}
 	}
 

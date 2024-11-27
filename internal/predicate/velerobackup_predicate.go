@@ -37,11 +37,11 @@ func (p VeleroBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	namespace := evt.ObjectNew.GetNamespace()
 	if namespace == p.OADPNamespace {
 		if function.CheckVeleroBackupMetadata(evt.ObjectNew) {
-			logger.V(1).Info("Accepted Update event")
+			logger.V(1).Info("Accepted Backup Update event")
 			return true
 		}
 	}
 
-	logger.V(1).Info("Rejected Update event")
+	logger.V(1).Info("Rejected Backup Update event")
 	return false
 }

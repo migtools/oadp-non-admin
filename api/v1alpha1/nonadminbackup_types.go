@@ -103,18 +103,20 @@ type NonAdminBackupStatus struct {
 	// +optional
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
 
-	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
-	Conditions []metav1.Condition  `json:"conditions,omitempty"`
-
 	// +optional
 	QueueInfo *QueueInfo `json:"queueInfo,omitempty"`
+
+	Phase      NonAdminBackupPhase `json:"phase,omitempty"`
+	Conditions []metav1.Condition  `json:"conditions,omitempty"`
 }
 
 // QueueInfo holds the queue position for a specific VeleroBackup.
-// It is used to determine how many backups are scheduled before the given VeleroBackup in the OADP namespace.
-// and counts only VeleroBackups that are still subject to be handled by OADP/Velero.
+// It is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
+// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when
+// Velero pod is not running or being restarted after Backup object were created.
+// It counts only VeleroBackups that are still subject to be handled by OADP/Velero.
 type QueueInfo struct {
-	CurrentQueuePosition int `json:"currentQueuePosition"` // Number of backups ahead in the queue (0 if not queued)
+	EstimatedQueuePosition int `json:"estimatedQueuePosition"` // Number of backups ahead in the queue (0 if not queued)
 }
 
 // +kubebuilder:object:root=true

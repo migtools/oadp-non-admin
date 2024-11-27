@@ -50,6 +50,7 @@ func (h VeleroBackupQueueHandler) Update(ctx context.Context, evt event.UpdateEv
 
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupQueueHandler")
 
+	// Fetching Velero Backups triggered by NonAdminBackup to optimize our reconcile cycles
 	backups, err := function.GetActiveVeleroBackupsByLabel(ctx, h.Client, h.OADPNamespace, constant.ManagedByLabel, constant.ManagedByLabelValue)
 	if err != nil {
 		logger.Error(err, "Failed to get Velero Backups by label")
@@ -59,7 +60,7 @@ func (h VeleroBackupQueueHandler) Update(ctx context.Context, evt event.UpdateEv
 	if backups == nil {
 		// That should't really be the case as our Update event was triggered by a Velero Backup
 		// object that has a new CompletionTimestamp.
-		logger.V(1).Info("No pending velero backups found in namespace.", "Namespace", h.OADPNamespace)
+		logger.V(1).Info("No pending velero backups found in namespace.", constant.NamespaceString, h.OADPNamespace)
 	} else {
 		nabEventAnnotations := evt.ObjectNew.GetAnnotations()
 		nabEventOriginNamespace := nabEventAnnotations[constant.NabOriginNamespaceAnnotation]
@@ -73,13 +74,13 @@ func (h VeleroBackupQueueHandler) Update(ctx context.Context, evt event.UpdateEv
 			// This object is within current queue, so there is no need to trigger changes to it.
 			// The VeleroBackupHandler will serve for that.
 			if nabOriginNamespace != nabEventOriginNamespace || nabOriginName != nabEventOriginName {
-				logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", "Name", backup.Name, "Namespace", backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+				logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", "Name", backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
 				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 					Name:      nabOriginName,
 					Namespace: nabOriginNamespace,
 				}})
 			} else {
-				logger.V(1).Info("Ignoring Queue update for the NonAdmin Backup that triggered this event", "Name", backup.Name, "Namespace", backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+				logger.V(1).Info("Ignoring Queue update for the NonAdmin Backup that triggered this event", "Name", backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
 			}
 		}
 	}

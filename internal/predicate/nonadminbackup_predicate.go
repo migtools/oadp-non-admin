@@ -32,7 +32,7 @@ type NonAdminBackupPredicate struct{}
 // Create event filter accepts all NonAdminBackup create events
 func (NonAdminBackupPredicate) Create(ctx context.Context, evt event.CreateEvent) bool {
 	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
-	logger.V(1).Info("Accepted Create event")
+	logger.V(1).Info("Accepted NAB Create event")
 	return true
 }
 
@@ -41,17 +41,17 @@ func (NonAdminBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupPredicateKey)
 
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
-		logger.V(1).Info("Accepted Update event")
+		logger.V(1).Info("Accepted NAB Update event")
 		return true
 	}
 
-	logger.V(1).Info("Rejected Update event")
+	logger.V(1).Info("Rejected NAB Update event")
 	return false
 }
 
 // Delete event filter accepts all NonAdminBackup delete events
 func (NonAdminBackupPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
 	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupPredicateKey)
-	logger.V(1).Info("Accepted Delete event")
+	logger.V(1).Info("Accepted NAB Delete event")
 	return true
 }
