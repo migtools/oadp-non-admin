@@ -41,6 +41,10 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
+type nonAdminBackupClusterValidationScenario struct {
+	spec nacv1alpha1.NonAdminBackupSpec
+}
+
 type nonAdminBackupSingleReconcileScenario struct {
 	resultError                   error
 	nonAdminBackupPriorStatus     *nacv1alpha1.NonAdminBackupStatus
@@ -159,6 +163,50 @@ func deleteTestNamespaces(ctx context.Context, nonAdminNamespaceName string, oad
 	}
 	return k8sClient.Delete(ctx, nonAdminNamespace)
 }
+
+var _ = ginkgo.Describe("Test NonAdminBackup in cluster validation", func() {
+	var (
+		ctx                     context.Context
+		nonAdminBackupName      string
+		nonAdminBackupNamespace string
+		counter                 int
+	)
+
+	ginkgo.BeforeEach(func() {
+		ctx = context.Background()
+		counter++
+		nonAdminBackupName = fmt.Sprintf("non-admin-backup-object-%v", counter)
+		nonAdminBackupNamespace = fmt.Sprintf("test-non-admin-backup-cluster-validation-%v", counter)
+
+		nonAdminNamespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nonAdminBackupNamespace,
+			},
+		}
+		gomega.Expect(k8sClient.Create(ctx, nonAdminNamespace)).To(gomega.Succeed())
+	})
+
+	ginkgo.AfterEach(func() {
+		nonAdminNamespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nonAdminBackupNamespace,
+			},
+		}
+		gomega.Expect(k8sClient.Delete(ctx, nonAdminNamespace)).To(gomega.Succeed())
+	})
+
+	ginkgo.DescribeTable("Validation is false",
+		func(scenario nonAdminBackupClusterValidationScenario) {
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminBackupNamespace, nonAdminBackupName, scenario.spec)
+			err := k8sClient.Create(ctx, nonAdminBackup)
+			gomega.Expect(err).To(gomega.HaveOccurred())
+			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Required value"))
+		},
+		ginkgo.Entry("Should NOT create NonAdminBackup without spec.backupSpec", nonAdminBackupClusterValidationScenario{
+			spec: nacv1alpha1.NonAdminBackupSpec{},
+		}),
+	)
+})
 
 var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile function", func() {
 	var (
@@ -322,7 +370,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
 			// gomega.Expect(currentResourceVersion - priorResourceVersion).To(gomega.Equal(1))
 		},
-		ginkgo.Entry("When triggered by NonAdminBackup Create event without BackupSpec, should update NonAdminBackup phase to BackingOff and exit with terminal error", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by NonAdminBackup Create event with invalid BackupSpec, should update NonAdminBackup phase to BackingOff and exit with terminal error", nonAdminBackupSingleReconcileScenario{
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{
+					IncludedNamespaces: []string{"wrong", "wrong-again"},
+				},
+			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
 				Conditions: []metav1.Condition{
@@ -330,14 +383,17 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Type:    string(constant.NonAdminConditionAccepted),
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "BackupSpec is not defined",
+						Message: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ",
 					},
 				},
 			},
-			resultError: reconcile.TerminalError(fmt.Errorf("BackupSpec is not defined")),
+			resultError: reconcile.TerminalError(fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ")),
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field when BackupSpec is invalid, should delete NonAdminBackup without error", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{
+					IncludedNamespaces: []string{"wrong", "wrong-again"},
+				},
 				DeleteBackup: true,
 			},
 			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
@@ -358,6 +414,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field with Finalizer set, should not delete NonAdminBackup as it's waiting for finalizer to be removed", nonAdminBackupSingleReconcileScenario{
 			addFinalizer: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec:   &velerov1.BackupSpec{},
 				DeleteBackup: true,
 			},
 			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
@@ -467,6 +524,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field with Finalizer unset, should delete NonAdminBackup", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec:   &velerov1.BackupSpec{},
 				DeleteBackup: true,
 			},
 			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{
@@ -495,6 +553,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			addFinalizer:            true,
 			addNabDeletionTimestamp: false,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec:        &velerov1.BackupSpec{},
 				ForceDeleteBackup: true,
 			},
 			nonAdminBackupPriorStatus: &nacv1alpha1.NonAdminBackupStatus{

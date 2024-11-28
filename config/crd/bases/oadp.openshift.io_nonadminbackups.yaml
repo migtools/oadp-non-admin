@@ -537,6 +537,8 @@ spec:
                 - fatal
                 - panic
                 type: string
+            required:
+            - backupSpec
             type: object
           status:
             description: NonAdminBackupStatus defines the observed state of NonAdminBackup
