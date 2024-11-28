@@ -63,8 +63,8 @@ func checkTestNonAdminRestoreStatus(nonAdminRestore *nacv1alpha1.NonAdminRestore
 	}
 
 	if nonAdminRestore.Status.VeleroRestore != nil {
-		if nonAdminRestore.Status.UUID == constant.EmptyString {
-			return fmt.Errorf("NonAdminRestore Status UUID not set")
+		if nonAdminRestore.Status.VeleroRestore.NACUUID == constant.EmptyString {
+			return fmt.Errorf("NonAdminRestore Status VeleroRestore NACUUID not set")
 		}
 		if nonAdminRestore.Status.VeleroRestore.Namespace == constant.EmptyString {
 			return fmt.Errorf("NonAdminRestore status.veleroRestore.namespace is not set")
@@ -237,7 +237,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
 
 			veleroRestore := &velerov1.Restore{}
-			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.UUID) > 0 {
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
 				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminRestore.Spec,
@@ -299,7 +299,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				}
 				return false, err
 			}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
-			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.UUID) > 0 {
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
 						ctxTimeout,

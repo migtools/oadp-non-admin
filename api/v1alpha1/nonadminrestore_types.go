@@ -37,6 +37,10 @@ type VeleroRestore struct {
 	// +optional
 	Name string `json:"name,omitempty"`
 
+	// nacuuid references the Velero Restore object by it's label containing same NACUUID.
+	// +optional
+	NACUUID string `json:"nacuuid,omitempty"`
+
 	// namespace references the Namespace in which Velero Restore exists.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
@@ -46,9 +50,6 @@ type VeleroRestore struct {
 type NonAdminRestoreStatus struct {
 	// +optional
 	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
-
-	// +optional
-	UUID string `json:"uuid,omitempty"`
 
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminRestore.
 	Phase NonAdminPhase `json:"phase,omitempty"`

@@ -26,7 +26,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -337,7 +336,7 @@ func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, 
 
 	switch len(veleroRestoreList.Items) {
 	case 0:
-		return nil, apierrors.NewNotFound(velerov1.Resource("restores"), "")
+		return nil, nil // No matching VeleroRestores found
 	case 1:
 		return &veleroRestoreList.Items[0], nil
 	default:

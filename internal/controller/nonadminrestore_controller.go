@@ -18,10 +18,10 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/go-logr/logr"
-	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -48,9 +48,13 @@ type NonAdminRestoreReconciler struct {
 	OADPNamespace string
 }
 
-type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error
+type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error)
 
-const nonAdminRestoreStatusUpdateFailureMessage = "Failed to update NonAdminRestore Status"
+const (
+	nonAdminRestoreStatusUpdateFailureMessage = "Failed to update NonAdminRestore Status"
+	veleroRestoreReferenceUpdated             = "NonAdminRestore - Status Updated with UUID reference"
+	findSingleVRError                         = "Error encountered while retrieving VeleroRestore for NAR"
+)
 
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/status,verbs=get;update;patch
@@ -77,11 +81,14 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	var reconcileSteps []nonAdminRestoreReconcileStepFunction
+
 	switch {
 	case !nar.DeletionTimestamp.IsZero():
 		logger.V(1).Info("Executing delete path")
 		reconcileSteps = []nonAdminRestoreReconcileStepFunction{
-			r.delete,
+			r.setStatusAndConditionForDeletionAndCallDelete,
+			r.deleteVeleroRestore,
+			r.removeNarFinalizerUponVeleroRestoreDeletion,
 		}
 	default:
 		logger.V(1).Info("Executing creation/update path")
@@ -93,17 +100,34 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			r.createVeleroRestore,
 		}
 	}
+
+	// Execute the selected reconciliation steps
 	for _, step := range reconcileSteps {
-		err := step(ctx, logger, nar)
+		requeue, err := step(ctx, logger, nar)
 		if err != nil {
 			return ctrl.Result{}, err
+		} else if requeue {
+			return ctrl.Result{Requeue: true}, nil
 		}
 	}
+
 	logger.V(1).Info("NonAdminRestore Reconcile exit")
 	return ctrl.Result{}, nil
 }
 
-func (r *NonAdminRestoreReconciler) delete(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+// setStatusAndConditionForDeletionAndCallDelete updates the NonAdminBackup status and conditions
+// to reflect that deletion has been initiated, and triggers the actual deletion if needed.
+//
+// Parameters:
+//   - ctx: Context for managing request lifetime.
+//   - logger: Logger instance for logging messages.
+//   - nab: Pointer to the NonAdminBackup object being processed.
+//
+// Returns:
+//   - bool: true if reconciliation should be requeued, false otherwise
+//   - error: any error encountered during the process
+func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletionAndCallDelete(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+	requeueRequired := false
 	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
 	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
@@ -115,54 +139,103 @@ func (r *NonAdminRestoreReconciler) delete(ctx context.Context, logger logr.Logg
 	)
 	if updatedPhase || updatedCondition {
 		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
-			return err
+			logger.Error(err, statusUpdateError)
+			return false, err
 		}
 		logger.V(1).Info("NonAdminRestore status marked for deletion")
+		requeueRequired = true // Requeue to ensure latest NAR object in the next reconciliation steps
 	} else {
 		logger.V(1).Info("NonAdminRestore status unchanged during deletion")
 	}
-
-	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nar.Status.UUID)
-	if err == nil {
-		err = r.Delete(ctx, veleroRestore)
-		if err != nil {
-			logger.Error(err, "Unable to delete Velero Restore")
-			return err
+	if nar.ObjectMeta.DeletionTimestamp.IsZero() {
+		logger.V(1).Info("Marking NonAdminRestore for deletion", nameString, nar.Name)
+		if err := r.Delete(ctx, nar); err != nil {
+			logger.Error(err, "Failed to call Delete on the NonAdminRestore object")
+			return false, err
 		}
-		logger.V(1).Info("Waiting Velero Restore be deleted")
-		return nil
+		requeueRequired = true // Requeue to allow deletion to proceed
 	}
-	if !apierrors.IsNotFound(err) {
-		logger.Error(err, "Unable to fetch Velero Restore")
-		return err
-	}
-
-	controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
-	// TODO does this change generation? need to refetch?
-	if err := r.Update(ctx, nar); err != nil {
-		logger.Error(err, "Unable to remove NonAdminRestore finalizer")
-		return err
-	}
-	return nil
+	return requeueRequired, nil
 }
 
-func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+	if nar.Status.VeleroRestore == nil || nar.Status.VeleroRestore.NACUUID == constant.EmptyString {
+		return false, nil
+	}
+
+	veleroRestoreNACUUID := nar.Status.VeleroRestore.NACUUID
+
+	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
+
+	if err != nil {
+		// Case in which more then one VeleroRestore is found with the same label NACUUID
+		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		return false, err
+	}
+
+	if veleroRestore != nil {
+		// All the data within VeleroRestore is stored in object storage, so veleroRestore deletion is not blocking
+		// and it will get removed by the Velero cleanup process when the restore object gets deleted
+		// https://github.com/vmware-tanzu/velero/blob/074f26539d3eb06c7b1a6af9b4975254e61b956c/pkg/cmd/cli/restore/delete.go#L122
+		if err = r.Delete(ctx, veleroRestore); err != nil {
+			logger.Error(err, "Failed to delete VeleroRestore", nameString, veleroRestore.Name)
+			return false, err
+		}
+		logger.V(1).Info("VeleroRestore deletion initiated", nameString, veleroRestore.Name)
+	} else {
+		logger.V(1).Info("VeleroRestore already deleted")
+	}
+	return false, nil // Continue
+}
+
+func (r *NonAdminRestoreReconciler) removeNarFinalizerUponVeleroRestoreDeletion(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+	if !nar.ObjectMeta.DeletionTimestamp.IsZero() {
+		if nar.Status.VeleroRestore != nil && nar.Status.VeleroRestore.NACUUID != constant.EmptyString {
+			veleroRestoreNACUUID := nar.Status.VeleroRestore.NACUUID
+
+			veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
+			if err != nil {
+				// Case in which more then one VeleroRestore is found with the same label UUID
+				logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+				return false, err
+			}
+
+			if veleroRestore != nil {
+				logger.V(1).Info("Waiting for VeleroRestore to be deleted", nameString, veleroRestoreNACUUID)
+				return true, nil // Requeue
+			}
+		}
+		// VeleroRestore is deleted, proceed with deleting the NonAdminRestore
+		logger.V(1).Info("VeleroRestore deleted, removing NonAdminRestore finalizer")
+
+		controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
+
+		if err := r.Update(ctx, nar); err != nil {
+			logger.Error(err, "Failed to remove finalizer from NonAdminRestore")
+			return false, err
+		}
+
+		logger.V(1).Info("NonAdminRestore finalizer removed and object deleted")
+	}
+	return false, nil
+}
+
+func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	if nar.Status.Phase == constant.EmptyString {
 		if updated := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
 			if err := r.Status().Update(ctx, nar); err != nil {
 				logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
-				return err
+				return false, err
 			}
 			logger.V(1).Info("NonAdminRestore Phase set to New")
 		}
 	} else {
 		logger.V(1).Info("NonAdminRestore Phase already initialized")
 	}
-	return nil
+	return false, nil
 }
 
-func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	err := function.ValidateRestoreSpec(ctx, r.Client, nar)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
@@ -177,10 +250,10 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 		if updatedPhase || updatedCondition {
 			if updateErr := r.Status().Update(ctx, nar); updateErr != nil {
 				logger.Error(updateErr, nonAdminRestoreStatusUpdateFailureMessage)
-				return updateErr
+				return false, updateErr
 			}
 		}
-		return reconcile.TerminalError(err)
+		return false, reconcile.TerminalError(err)
 	}
 	logger.V(1).Info("NonAdminRestore Spec validated")
 
@@ -195,94 +268,100 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 	if updated {
 		if err := r.Status().Update(ctx, nar); err != nil {
 			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
-			return err
+			return false, err
 		}
 		logger.V(1).Info("NonAdminRestore condition set to Accepted")
 	}
-	return nil
+	return false, nil
 }
 
-func (r *NonAdminRestoreReconciler) setUUID(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
-	if nar.Status.UUID == constant.EmptyString {
-		// TODO handle panic
-		nar.Status.UUID = uuid.New().String()
-		if err := r.Status().Update(ctx, nar); err != nil {
-			logger.Error(err, statusUpdateError)
-			return err
-		}
-		logger.V(1).Info("NonAdminRestore UUID created")
-	} else {
-		logger.V(1).Info("NonAdminRestore already contains UUID")
+func (r *NonAdminRestoreReconciler) setUUID(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+	// Get the latest version of the NAR object just before checking if the NACUUID is set
+	// to ensure we do not miss any updates to the NAR object
+	narOriginal := nar.DeepCopy()
+	if err := r.Get(ctx, types.NamespacedName{Name: narOriginal.Name, Namespace: narOriginal.Namespace}, nar); err != nil {
+		logger.Error(err, "Failed to re-fetch NonAdminRestore")
+		return false, err
 	}
-	return nil
+
+	if nar.Status.VeleroRestore == nil || nar.Status.VeleroRestore.NACUUID == constant.EmptyString {
+		veleroRestoreNACUUID := function.GenerateNacObjectUUID(nar.Namespace, nar.Name)
+		nar.Status.VeleroRestore = &nacv1alpha1.VeleroRestore{
+			NACUUID:   veleroRestoreNACUUID,
+			Namespace: r.OADPNamespace,
+			Name:      veleroRestoreNACUUID,
+		}
+		if err := r.Status().Update(ctx, nar); err != nil {
+			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
+			return false, err
+		}
+		logger.V(1).Info(veleroRestoreReferenceUpdated)
+	} else {
+		logger.V(1).Info("NonAdminRestore already contains VeleroRestore UUID reference")
+	}
+	return false, nil
 }
 
-func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
+func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	added := controllerutil.AddFinalizer(nar, constant.NonAdminRestoreFinalizerName)
 	if added {
 		if err := r.Update(ctx, nar); err != nil {
 			logger.Error(err, "Failed to add finalizer")
-			return err
+			return false, err
 		}
-		// TODO does this change generation? need to refetch?
 		logger.V(1).Info("Finalizer added to NonAdminRestore")
 	} else {
 		logger.V(1).Info("Finalizer already exists on NonAdminRestore")
 	}
-	return nil
+	return false, nil
 }
 
-func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) error {
-	nacUUID := nar.Status.UUID
-	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, nacUUID)
+func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+	if nar.Status.VeleroRestore == nil || nar.Status.VeleroRestore.NACUUID == constant.EmptyString {
+		return false, errors.New("unable to get Velero Restore UUID from NonAdminRestore Status")
+	}
+
+	veleroRestoreNACUUID := nar.Status.VeleroRestore.NACUUID
+
+	veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
+
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		if nar.Status.Phase == nacv1alpha1.NonAdminPhaseCreated {
-			logger.V(1).Info("Velero Restore was deleted, deleting NonAdminRestore")
-			err = r.delete(ctx, logger, nar)
-			if err != nil {
-				logger.Error(err, "Failed to delete NonAdminRestore")
-				return err
-			}
-			return nil
-		}
+		// Case in which more then one VeleroBackup is found with the same label UUID
+		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		return false, err
+	}
 
+	if veleroRestore == nil {
+		logger.Info("VeleroRestore with label not found, creating one", uuidString, veleroRestoreNACUUID)
 		restoreSpec := nar.Spec.RestoreSpec.DeepCopy()
-
-		// TODO already did this get call in ValidateRestoreSpec!
-		nab := &nacv1alpha1.NonAdminBackup{}
-		if err = r.Get(ctx, types.NamespacedName{
-			Name:      nar.Spec.RestoreSpec.BackupName,
-			Namespace: nar.Namespace,
-		}, nab); err != nil {
-			logger.Error(err, "Failed to get NonAdminBackup")
-			return err
-		}
-		restoreSpec.BackupName = nab.Status.VeleroBackup.Name
-
-		// TODO enforce Restore Spec
-
-		veleroRestore = &velerov1.Restore{
+		restoreSpec.IncludedNamespaces = []string{nar.Namespace}
+		veleroRestore := velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:        function.GenerateNacObjectUUID(nar.Namespace, nar.Name),
+				Name:        veleroRestoreNACUUID,
 				Namespace:   r.OADPNamespace,
-				Labels:      function.GetNonAdminRestoreLabels(nar.Status.UUID),
+				Labels:      function.GetNonAdminLabels(),
 				Annotations: function.GetNonAdminRestoreAnnotations(nar.ObjectMeta),
 			},
 			Spec: *restoreSpec,
 		}
+		// Add NonAdminRestore's veleroRestoreNACUUID as the label to the VeleroRestore object
+		veleroRestore.Labels[constant.NarOriginNACUUIDLabel] = veleroRestoreNACUUID
 
-		err = r.Create(ctx, veleroRestore)
+		err = r.Create(ctx, &veleroRestore)
+
 		if err != nil {
-			logger.Error(err, "Failed to create Velero Restore")
-			return err
+			// We do not retry here as the veleroRestoreNACUUID
+			// should be guaranteed to be unique
+			logger.Error(err, "Failed to create VeleroRestore")
+			return false, err
 		}
-		logger.Info("Velero Restore successfully created")
+		logger.Info("VeleroRestore successfully created")
 	}
 
+	// TODO(migi): do we need estimatedQueuePosition in VeleroRestoreStatus?
+
 	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseCreated)
+
 	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
 			Type:    string(constant.NonAdminConditionQueued),
@@ -291,34 +370,33 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 			Message: "Created Velero Restore object",
 		},
 	)
+
 	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
+
 	if updatedPhase || updatedCondition || updatedVeleroStatus {
 		if err := r.Status().Update(ctx, nar); err != nil {
 			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
-			return err
+			return false, err
 		}
 		logger.V(1).Info("NonAdminRestore Status updated successfully")
 	} else {
 		logger.V(1).Info("NonAdminRestore Status unchanged during Velero Restore reconciliation")
 	}
 
-	return nil
+	return false, nil
 }
 
 func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, veleroRestore *velerov1.Restore) bool {
+	if status == nil || veleroRestore == nil {
+		return false
+	}
+
 	if status.VeleroRestore == nil {
-		status.VeleroRestore = &nacv1alpha1.VeleroRestore{
-			Name:      veleroRestore.Name,
-			Namespace: veleroRestore.Namespace,
-			Status:    &veleroRestore.Status,
-		}
-		return true
-	} else if status.VeleroRestore.Name != veleroRestore.Name ||
-		status.VeleroRestore.Namespace != veleroRestore.Namespace ||
-		!reflect.DeepEqual(status.VeleroRestore.Status, &veleroRestore.Status) {
-		status.VeleroRestore.Name = veleroRestore.Name
-		status.VeleroRestore.Namespace = veleroRestore.Namespace
-		status.VeleroRestore.Status = &veleroRestore.Status
+		status.VeleroRestore = &nacv1alpha1.VeleroRestore{}
+	}
+
+	if status.VeleroRestore.Status == nil || !reflect.DeepEqual(status.VeleroRestore.Status, veleroRestore.Status) {
+		status.VeleroRestore.Status = veleroRestore.Status.DeepCopy()
 		return true
 	}
 	return false

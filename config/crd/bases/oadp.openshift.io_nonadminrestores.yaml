@@ -537,12 +537,14 @@ spec:
                 - Created
                 - Deleting
                 type: string
-              uuid:
-                type: string
               veleroRestore:
                 description: VeleroRestore contains information of the related Velero
                   restore object.
                 properties:
+                  nacuuid:
+                    description: nacuuid references the Velero Restore object by it's
+                      label containing same NACUUID.
+                    type: string
                   name:
                     description: references the Velero Restore object by it's name.
                     type: string
