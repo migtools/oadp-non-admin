@@ -237,6 +237,9 @@ func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger
 
 func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	err := function.ValidateRestoreSpec(ctx, r.Client, nar)
+
+	// TODO We allow only to reference existing NonAdminBackup object within the same namespace
+
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
@@ -333,19 +336,28 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	if veleroRestore == nil {
 		logger.Info("VeleroRestore with label not found, creating one", uuidString, veleroRestoreNACUUID)
+		nab := &nacv1alpha1.NonAdminBackup{}
+		err = r.Get(ctx, types.NamespacedName{Name: nar.Spec.RestoreSpec.BackupName, Namespace: nar.Namespace}, nab)
+		if err != nil {
+			logger.Error(err, "Failed to get NonAdminBackup referenced by NonAdminRestore")
+			return false, err
+		}
+
 		restoreSpec := nar.Spec.RestoreSpec.DeepCopy()
+
+		restoreSpec.BackupName = nab.Status.VeleroBackup.Name
+		// TODO enforce Restore Spec
+
 		restoreSpec.IncludedNamespaces = []string{nar.Namespace}
 		veleroRestore := velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroRestoreNACUUID,
 				Namespace:   r.OADPNamespace,
-				Labels:      function.GetNonAdminLabels(),
+				Labels:      function.GetNonAdminRestoreLabels(veleroRestoreNACUUID),
 				Annotations: function.GetNonAdminRestoreAnnotations(nar.ObjectMeta),
 			},
 			Spec: *restoreSpec,
 		}
-		// Add NonAdminRestore's veleroRestoreNACUUID as the label to the VeleroRestore object
-		veleroRestore.Labels[constant.NarOriginNACUUIDLabel] = veleroRestoreNACUUID
 
 		err = r.Create(ctx, &veleroRestore)
 

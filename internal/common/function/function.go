@@ -132,6 +132,8 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
 	}
+	// TODO validate that velero backup exists?
+
 	// TODO does velero validate if backup is ready to be restored?
 
 	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ScheduleName is not used? (we do not plan to have schedules now, right?)
@@ -378,8 +380,9 @@ func CheckVeleroRestoreMetadata(obj client.Object) bool {
 	if !checkLabelValue(objLabels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
 		return false
 	}
-	_, err := uuid.Parse(objLabels[constant.NarOriginNACUUIDLabel])
-	if err != nil {
+
+	labelValue, exists := objLabels[constant.NarOriginNACUUIDLabel]
+	if !exists || len(labelValue) == 0 {
 		return false
 	}
 
