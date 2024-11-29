@@ -17,24 +17,27 @@ limitations under the License.
 // Package constant contains all common constants used in the project
 package constant
 
-import "k8s.io/apimachinery/pkg/util/validation"
+import (
+	"github.com/openshift/oadp-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/validation"
+)
 
 // Common labels for objects manipulated by the Non Admin Controller
 // Labels should be used to identify the NAC object
 // Annotations on the other hand should be used to define ownership
 // of the specific Object, such as Backup/Restore.
 const (
-	OadpLabel             = "openshift.io/oadp" // TODO import?
+	OadpLabel             = v1alpha1.OadpOperatorLabel
 	OadpLabelValue        = TrueString
 	ManagedByLabel        = "app.kubernetes.io/managed-by"
 	ManagedByLabelValue   = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
-	NabOriginNACUUIDLabel = "openshift.io/oadp-nab-origin-nacuuid"
-	NarOriginNACUUIDLabel = "openshift.io/oadp-nar-origin-nacuuid"
+	NabOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nab-origin-nacuuid"
+	NarOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
 
-	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
-	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
-	NarOriginNameAnnotation      = "openshift.io/oadp-nar-origin-name"
-	NarOriginNamespaceAnnotation = "openshift.io/oadp-nar-origin-namespace"
+	NabOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
+	NabOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
+	NarOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
+	NarOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
 
 	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
 	NonAdminRestoreFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"

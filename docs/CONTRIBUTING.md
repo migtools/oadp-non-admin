@@ -10,6 +10,8 @@ If your changes involve Kubernetes objects (`config/` folder), please follow [Ku
 
 If your changes involve Velero version or its objects, please follow [Velero objects changes section](#velero-objects-changes).
 
+If you are upgrading project's OADP version, please follow [upgrade OADP version section](#upgrade-oadp-version).
+
 If you are upgrading project's kubebuilder version, please follow [upgrade kubebuilder version section](#upgrade-kubebuilder-version).
 
 > **NOTE:** Run `make help` for more information on all potential `make` targets
@@ -134,6 +136,15 @@ If Velero version or its objects needs changes, follow this workflow:
 - create pull requests in NAC
 
 [More information](architecture.md#oadp-integration).
+
+## Upgrade OADP version
+
+To upgrade OADP version, run
+```sh
+go get github.com/openshift/oadp-operator@master # or appropriate branch
+```
+
+TODO when to update oadp-operator version in go.mod?
 
 ## Upgrade kubebuilder version
 
