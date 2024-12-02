@@ -31,10 +31,10 @@ const (
 	NabOriginNACUUIDLabel = "openshift.io/oadp-nab-origin-nacuuid"
 	NarOriginNACUUIDLabel = "openshift.io/oadp-nar-origin-nacuuid"
 
-	NabOriginNameAnnotation                  = "openshift.io/oadp-nab-origin-name"
-	NabOriginNamespaceAnnotation             = "openshift.io/oadp-nab-origin-namespace"
-	NonAdminRestoreOriginNameAnnotation      = "openshift.io/oadp-nar-origin-name"
-	NonAdminRestoreOriginNamespaceAnnotation = "openshift.io/oadp-nar-origin-namespace"
+	NabOriginNameAnnotation      = "openshift.io/oadp-nab-origin-name"
+	NabOriginNamespaceAnnotation = "openshift.io/oadp-nab-origin-namespace"
+	NarOriginNameAnnotation      = "openshift.io/oadp-nar-origin-name"
+	NarOriginNamespaceAnnotation = "openshift.io/oadp-nar-origin-namespace"
 
 	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
 	NonAdminRestoreFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"

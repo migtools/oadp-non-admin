@@ -41,8 +41,8 @@ func (VeleroRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroRestoreHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
-	nonAdminRestoreName := annotations[constant.NonAdminRestoreOriginNameAnnotation]
-	nonAdminRestoreNamespace := annotations[constant.NonAdminRestoreOriginNamespaceAnnotation]
+	nonAdminRestoreName := annotations[constant.NarOriginNameAnnotation]
+	nonAdminRestoreNamespace := annotations[constant.NarOriginNamespaceAnnotation]
 
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 		Name:      nonAdminRestoreName,
@@ -56,8 +56,8 @@ func (VeleroRestoreHandler) Delete(ctx context.Context, evt event.DeleteEvent, q
 	logger := function.GetLogger(ctx, evt.Object, "VeleroRestoreHandler")
 
 	annotations := evt.Object.GetAnnotations()
-	nonAdminRestoreName := annotations[constant.NonAdminRestoreOriginNameAnnotation]
-	nonAdminRestoreNamespace := annotations[constant.NonAdminRestoreOriginNamespaceAnnotation]
+	nonAdminRestoreName := annotations[constant.NarOriginNameAnnotation]
+	nonAdminRestoreNamespace := annotations[constant.NarOriginNamespaceAnnotation]
 
 	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 		Name:      nonAdminRestoreName,

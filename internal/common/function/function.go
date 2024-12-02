@@ -63,8 +63,8 @@ func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]strin
 // GetNonAdminRestoreAnnotations return the required Non Admin restore annotations
 func GetNonAdminRestoreAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{
-		constant.NonAdminRestoreOriginNamespaceAnnotation: objectMeta.Namespace,
-		constant.NonAdminRestoreOriginNameAnnotation:      objectMeta.Name,
+		constant.NarOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NarOriginNameAnnotation:      objectMeta.Name,
 	}
 }
 
@@ -387,10 +387,10 @@ func CheckVeleroRestoreMetadata(obj client.Object) bool {
 	}
 
 	annotations := obj.GetAnnotations()
-	if !checkLabelAnnotationValueIsValid(annotations, constant.NonAdminRestoreOriginNamespaceAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NarOriginNamespaceAnnotation) {
 		return false
 	}
-	if !checkLabelAnnotationValueIsValid(annotations, constant.NonAdminRestoreOriginNameAnnotation) {
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NarOriginNameAnnotation) {
 		return false
 	}
 
