@@ -26,8 +26,8 @@ import (
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
-// CompositePredicate is a combination of NonAdminBackup and Velero Backup event filters
-type CompositePredicate struct {
+// CompositeBackupPredicate is a combination of NonAdminBackup and Velero Backup event filters
+type CompositeBackupPredicate struct {
 	Context                    context.Context
 	NonAdminBackupPredicate    NonAdminBackupPredicate
 	VeleroBackupPredicate      VeleroBackupPredicate
@@ -35,7 +35,7 @@ type CompositePredicate struct {
 }
 
 // Create event filter only accepts NonAdminBackup create events
-func (p CompositePredicate) Create(evt event.CreateEvent) bool {
+func (p CompositeBackupPredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Create(p.Context, evt)
@@ -45,7 +45,7 @@ func (p CompositePredicate) Create(evt event.CreateEvent) bool {
 }
 
 // Update event filter accepts both NonAdminBackup and Velero Backup update events
-func (p CompositePredicate) Update(evt event.UpdateEvent) bool {
+func (p CompositeBackupPredicate) Update(evt event.UpdateEvent) bool {
 	switch evt.ObjectNew.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Update(p.Context, evt)
@@ -57,7 +57,7 @@ func (p CompositePredicate) Update(evt event.UpdateEvent) bool {
 }
 
 // Delete event filter only accepts NonAdminBackup delete events
-func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
+func (p CompositeBackupPredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Delete(p.Context, evt)
@@ -67,6 +67,6 @@ func (p CompositePredicate) Delete(evt event.DeleteEvent) bool {
 }
 
 // Generic event filter does not accept any generic events
-func (CompositePredicate) Generic(_ event.GenericEvent) bool {
+func (CompositeBackupPredicate) Generic(_ event.GenericEvent) bool {
 	return false
 }

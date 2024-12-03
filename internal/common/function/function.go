@@ -45,11 +45,26 @@ func GetNonAdminLabels() map[string]string {
 	}
 }
 
+// GetNonAdminRestoreLabels return the required Non Admin restore labels
+func GetNonAdminRestoreLabels(uniqueIdentifier string) map[string]string {
+	nonAdminLabels := GetNonAdminLabels()
+	nonAdminLabels[constant.NarOriginNACUUIDLabel] = uniqueIdentifier
+	return nonAdminLabels
+}
+
 // GetNonAdminBackupAnnotations return the required Non Admin annotations
 func GetNonAdminBackupAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
 	return map[string]string{
 		constant.NabOriginNamespaceAnnotation: objectMeta.Namespace,
 		constant.NabOriginNameAnnotation:      objectMeta.Name,
+	}
+}
+
+// GetNonAdminRestoreAnnotations return the required Non Admin restore annotations
+func GetNonAdminRestoreAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
+	return map[string]string{
+		constant.NarOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NarOriginNameAnnotation:      objectMeta.Name,
 	}
 }
 
@@ -95,6 +110,41 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 			)
 		}
 	}
+
+	return nil
+}
+
+// ValidateRestoreSpec return nil, if NonAdminRestore is valid; error otherwise
+func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
+	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
+	}
+
+	nab := &nacv1alpha1.NonAdminBackup{}
+	err := clientInstance.Get(ctx, types.NamespacedName{
+		Name:      nonAdminRestore.Spec.RestoreSpec.BackupName,
+		Namespace: nonAdminRestore.Namespace,
+	}, nab)
+	if err != nil {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: %v", err)
+	}
+	// TODO better way to check readiness? simplify and ask user to pass velero backup name? (user has access to this info in nonAdminBackup status)
+	if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
+		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
+	}
+	// TODO validate that velero backup exists?
+
+	// TODO does velero validate if backup is ready to be restored?
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ScheduleName is not used? (we do not plan to have schedules now, right?)
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.IncludedNamespaces does not contain anything other than its own namespace?
+
+	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ExcludedNamespaces is not set? (to avoid empty restores)
+
+	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
+
+	// TODO enforce Restore Spec
 
 	return nil
 }
@@ -277,6 +327,25 @@ func GetVeleroDeleteBackupRequestByLabel(ctx context.Context, clientInstance cli
 	}
 }
 
+// GetVeleroRestoreByLabel retrieves a VeleroRestore object based on a specified label within a given namespace.
+// It returns the VeleroRestore only when exactly one object is found, throws an error if multiple restores are found,
+// or returns nil if no matches are found.
+func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.Restore, error) {
+	veleroRestoreList := &velerov1.RestoreList{}
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NarOriginNACUUIDLabel, labelValue, veleroRestoreList); err != nil {
+		return nil, err
+	}
+
+	switch len(veleroRestoreList.Items) {
+	case 0:
+		return nil, nil // No matching VeleroRestores found
+	case 1:
+		return &veleroRestoreList.Items[0], nil
+	default:
+		return nil, fmt.Errorf("multiple Velero Restore objects found with label %s=%s in namespace '%s'", constant.NabOriginNACUUIDLabel, labelValue, namespace)
+	}
+}
+
 // CheckVeleroBackupMetadata return true if Velero Backup object has required Non Admin labels and annotations, false otherwise
 func CheckVeleroBackupMetadata(obj client.Object) bool {
 	objLabels := obj.GetLabels()
@@ -296,6 +365,32 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNameAnnotation) {
+		return false
+	}
+
+	return true
+}
+
+// CheckVeleroRestoreMetadata return true if Velero Restore object has required Non Admin labels and annotations, false otherwise
+func CheckVeleroRestoreMetadata(obj client.Object) bool {
+	objLabels := obj.GetLabels()
+	if !checkLabelValue(objLabels, constant.OadpLabel, constant.OadpLabelValue) {
+		return false
+	}
+	if !checkLabelValue(objLabels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+		return false
+	}
+
+	labelValue, exists := objLabels[constant.NarOriginNACUUIDLabel]
+	if !exists || len(labelValue) == 0 {
+		return false
+	}
+
+	annotations := obj.GetAnnotations()
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NarOriginNamespaceAnnotation) {
+		return false
+	}
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NarOriginNameAnnotation) {
 		return false
 	}
 

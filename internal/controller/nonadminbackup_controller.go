@@ -53,7 +53,7 @@ type NonAdminBackupReconciler struct {
 	OADPNamespace      string
 }
 
-type reconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
+type nonAdminBackupReconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
 
 const (
 	veleroReferenceUpdated = "NonAdminBackup - Status Updated with UUID reference"
@@ -92,14 +92,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Determine which path to take
-	var reconcileSteps []reconcileStepFunction
+	var reconcileSteps []nonAdminBackupReconcileStepFunction
 
 	// First switch statement takes precedence over the next one
 	switch {
 	case nab.Spec.ForceDeleteBackup:
 		// Force delete path - immediately removes both VeleroBackup and DeleteBackupRequest
 		logger.V(1).Info("Executing force delete path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusAndConditionForDeletionAndCallDelete,
 			r.deleteVeleroBackupAndDeleteBackupRequestObjects,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
@@ -108,7 +108,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	case nab.Spec.DeleteBackup:
 		// Standard delete path - creates DeleteBackupRequest and waits for VeleroBackup deletion
 		logger.V(1).Info("Executing standard delete path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusAndConditionForDeletionAndCallDelete,
 			r.createVeleroDeleteBackupRequest,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
@@ -119,14 +119,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		// Initializes deletion of the NonAdminBackup object without removing
 		// dependent VeleroBackup object
 		logger.V(1).Info("Executing direct deletion path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusForDirectKubernetesAPIDeletion,
 		}
 
 	default:
 		// Standard creation/update path
 		logger.V(1).Info("Executing nab creation/update path")
-		reconcileSteps = []reconcileStepFunction{
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.initNabCreate,
 			r.validateSpec,
 			r.setBackupUUIDInStatus,
@@ -162,10 +162,10 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 //   - error: any error encountered during the process
 func (r *NonAdminBackupReconciler) setStatusAndConditionForDeletionAndCallDelete(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
 	requeueRequired := false
-	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseDeleting)
+	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
 	updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
-			Type:    string(nacv1alpha1.NonAdminConditionDeleting),
+			Type:    string(constant.NonAdminConditionDeleting),
 			Status:  metav1.ConditionTrue,
 			Reason:  "DeletionPending",
 			Message: "backup accepted for deletion",
@@ -207,10 +207,10 @@ func (r *NonAdminBackupReconciler) setStatusAndConditionForDeletionAndCallDelete
 func (r *NonAdminBackupReconciler) setStatusForDirectKubernetesAPIDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
 	// We don't need to check here if the finalizer exists as we already checked if !nab.ObjectMeta.DeletionTimestamp.IsZero()
 	// which means that something prevented the NAB object from being deleted
-	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseDeleting)
+	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
 	updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
-			Type:    string(nacv1alpha1.NonAdminConditionDeleting),
+			Type:    string(constant.NonAdminConditionDeleting),
 			Status:  metav1.ConditionTrue,
 			Reason:  "DeletionPending",
 			Message: "backup deletion requires setting spec.deleteBackup or spec.forceDeleteBackup to true or finalizer removal",
@@ -452,7 +452,7 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 	}
 
 	// Set phase to New
-	if updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseNew); updated {
+	if updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
@@ -480,10 +480,10 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
 	err := function.ValidateBackupSpec(nab, r.EnforcedBackupSpec)
 	if err != nil {
-		updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseBackingOff)
+		updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
 			metav1.Condition{
-				Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+				Type:    string(constant.NonAdminConditionAccepted),
 				Status:  metav1.ConditionFalse,
 				Reason:  "InvalidBackupSpec",
 				Message: err.Error(),
@@ -504,7 +504,7 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 
 	updated := meta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
-			Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+			Type:    string(constant.NonAdminConditionAccepted),
 			Status:  metav1.ConditionTrue,
 			Reason:  "BackupAccepted",
 			Message: "backup accepted",
@@ -655,11 +655,11 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		updatedQueueInfo = true
 	}
 
-	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminBackupPhaseCreated)
+	updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseCreated)
 
 	updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
 		metav1.Condition{
-			Type:    string(nacv1alpha1.NonAdminConditionQueued),
+			Type:    string(constant.NonAdminConditionQueued),
 			Status:  metav1.ConditionTrue,
 			Reason:  "BackupScheduled",
 			Message: "Created Velero Backup object",
@@ -688,7 +688,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackup{}).
-		WithEventFilter(predicate.CompositePredicate{
+		WithEventFilter(predicate.CompositeBackupPredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},
 			VeleroBackupQueuePredicate: predicate.VeleroBackupQueuePredicate{
 				OADPNamespace: r.OADPNamespace,
@@ -706,14 +706,9 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// updateNonAdminPhase sets the phase in NonAdminBackup object status and returns true
+// updateNonAdminPhase sets the phase in NonAdmin object status and returns true
 // if the phase is changed by this call.
-func updateNonAdminPhase(phase *nacv1alpha1.NonAdminBackupPhase, newPhase nacv1alpha1.NonAdminBackupPhase) bool {
-	// Ensure phase is valid
-	if newPhase == constant.EmptyString {
-		return false
-	}
-
+func updateNonAdminPhase(phase *nacv1alpha1.NonAdminPhase, newPhase nacv1alpha1.NonAdminPhase) bool {
 	if *phase == newPhase {
 		return false
 	}
