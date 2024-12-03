@@ -115,7 +115,7 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 }
 
 // ValidateRestoreSpec return nil, if NonAdminRestore is valid; error otherwise
-func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore) error {
+func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore, enforcedRestoreSpec *velerov1.RestoreSpec) error {
 	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
 	}
@@ -144,7 +144,20 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 
 	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
 
-	// TODO enforce Restore Spec
+	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := reflect.ValueOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
+		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+			field, _ := reflect.TypeOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
+			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			return fmt.Errorf(
+				"NonAdminRestore spec.restoreSpec.%v field value is enforced by admin user, can not override it",
+				tagName,
+			)
+		}
+	}
 
 	return nil
 }
