@@ -250,7 +250,7 @@ Before creating NonAdminRestore's related Velero Restore, apply any missing fiel
 		}
 ```
 
-For more details, check https://github.com/openshift/oadp-operator/pull/1584, https://github.com/migtools/oadp-non-admin/pull/110, https://github.com/openshift/oadp-operator/pull/1600 and .
+For more details, check https://github.com/openshift/oadp-operator/pull/1584, https://github.com/migtools/oadp-non-admin/pull/110, https://github.com/openshift/oadp-operator/pull/1600 and https://github.com/migtools/oadp-non-admin/pull/122.
 
 ## Open Issues
 
