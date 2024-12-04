@@ -41,11 +41,6 @@ type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
 	BackupSpec *velerov1.BackupSpec `json:"backupSpec"`
 
-	// NonAdminBackup log level (use debug for the most logging, leave unset for default)
-	// +optional
-	// +kubebuilder:validation:Enum=trace;debug;info;warning;error;fatal;panic
-	LogLevel string `json:"logLevel,omitempty"`
-
 	// DeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
 	// as well as the corresponding object storage
 	// +optional
