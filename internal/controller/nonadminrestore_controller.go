@@ -44,8 +44,9 @@ import (
 // NonAdminRestoreReconciler reconciles a NonAdminRestore object
 type NonAdminRestoreReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	OADPNamespace string
+	Scheme              *runtime.Scheme
+	EnforcedRestoreSpec *velerov1.RestoreSpec
+	OADPNamespace       string
 }
 
 type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error)
@@ -236,10 +237,7 @@ func (r *NonAdminRestoreReconciler) init(ctx context.Context, logger logr.Logger
 }
 
 func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
-	err := function.ValidateRestoreSpec(ctx, r.Client, nar)
-
-	// TODO We allow only to reference existing NonAdminBackup object within the same namespace
-
+	err := function.ValidateRestoreSpec(ctx, r.Client, nar, r.EnforcedRestoreSpec)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
@@ -344,11 +342,19 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		}
 
 		restoreSpec := nar.Spec.RestoreSpec.DeepCopy()
-
 		restoreSpec.BackupName = nab.Status.VeleroBackup.Name
-		// TODO enforce Restore Spec
-
 		restoreSpec.IncludedNamespaces = []string{nar.Namespace}
+
+		enforcedSpec := reflect.ValueOf(r.EnforcedRestoreSpec).Elem()
+		for index := range enforcedSpec.NumField() {
+			enforcedField := enforcedSpec.Field(index)
+			enforcedFieldName := enforcedSpec.Type().Field(index).Name
+			currentField := reflect.ValueOf(restoreSpec).Elem().FieldByName(enforcedFieldName)
+			if !enforcedField.IsZero() && currentField.IsZero() {
+				currentField.Set(enforcedField)
+			}
+		}
+
 		veleroRestore := velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroRestoreNACUUID,

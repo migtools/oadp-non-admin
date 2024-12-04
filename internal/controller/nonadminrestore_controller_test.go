@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -42,9 +43,10 @@ type nonAdminRestoreClusterValidationScenario struct {
 }
 
 type nonAdminRestoreFullReconcileScenario struct {
-	spec         nacv1alpha1.NonAdminRestoreSpec
-	status       nacv1alpha1.NonAdminRestoreStatus
-	backupStatus nacv1alpha1.NonAdminBackupStatus
+	enforcedRestoreSpec *velerov1.RestoreSpec
+	spec                nacv1alpha1.NonAdminRestoreSpec
+	status              nacv1alpha1.NonAdminRestoreStatus
+	backupStatus        nacv1alpha1.NonAdminBackupStatus
 }
 
 func buildTestNonAdminRestore(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminRestoreSpec) *nacv1alpha1.NonAdminRestore {
@@ -186,10 +188,15 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
+			enforcedRestoreSpec := &velerov1.RestoreSpec{}
+			if scenario.enforcedRestoreSpec != nil {
+				enforcedRestoreSpec = scenario.enforcedRestoreSpec
+			}
 			err = (&NonAdminRestoreReconciler{
-				Client:        k8sManager.GetClient(),
-				Scheme:        k8sManager.GetScheme(),
-				OADPNamespace: oadpNamespace,
+				Client:              k8sManager.GetClient(),
+				Scheme:              k8sManager.GetScheme(),
+				OADPNamespace:       oadpNamespace,
+				EnforcedRestoreSpec: enforcedRestoreSpec,
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -244,8 +251,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					scenario.spec,
 				)).To(gomega.BeTrue())
 
-				ginkgo.By("Simulating Velero Restore update to finished state")
-
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
 					types.NamespacedName{
@@ -255,10 +260,19 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					veleroRestore,
 				)).To(gomega.Succeed())
 
-				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
+				if scenario.enforcedRestoreSpec != nil {
+					ginkgo.By("Validating Velero Restore Spec")
+					expectedSpec := scenario.enforcedRestoreSpec.DeepCopy()
+					expectedSpec.IncludedNamespaces = []string{nonAdminRestoreNamespace}
+					gomega.Expect(reflect.DeepEqual(veleroRestore.Spec, *expectedSpec)).To(gomega.BeTrue())
+				}
+
+				ginkgo.By("Simulating Velero Restore update to finished state")
+
 				veleroRestore.Status = velerov1.RestoreStatus{
 					Phase: velerov1.RestorePhaseCompleted,
 				}
+				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
 				gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
 
 				ginkgo.By("Velero Restore updated")
@@ -362,6 +376,15 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Reason:  "RestoreScheduled",
 						Message: "Created Velero Restore object",
 					},
+				},
+			},
+			enforcedRestoreSpec: &velerov1.RestoreSpec{
+				RestorePVs: ptr.To(false),
+				ItemOperationTimeout: metav1.Duration{
+					Duration: 7 * time.Hour,
+				},
+				UploaderConfig: &velerov1.UploaderConfigForRestore{
+					WriteSparseFiles: ptr.To(true),
 				},
 			},
 		}),
