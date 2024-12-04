@@ -145,7 +145,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
 
 	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
-	for index := range enforcedSpec.NumField() {
+	for index := 0; index < enforcedSpec.NumField(); index++ {
 		enforcedField := enforcedSpec.Field(index)
 		enforcedFieldName := enforcedSpec.Type().Field(index).Name
 		currentField := reflect.ValueOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)

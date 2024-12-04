@@ -346,7 +346,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		restoreSpec.IncludedNamespaces = []string{nar.Namespace}
 
 		enforcedSpec := reflect.ValueOf(r.EnforcedRestoreSpec).Elem()
-		for index := range enforcedSpec.NumField() {
+		for index := 0; index < enforcedSpec.NumField(); index++ {
 			enforcedField := enforcedSpec.Field(index)
 			enforcedFieldName := enforcedSpec.Type().Field(index).Name
 			currentField := reflect.ValueOf(restoreSpec).Elem().FieldByName(enforcedFieldName)

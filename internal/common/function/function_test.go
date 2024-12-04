@@ -676,7 +676,7 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			restoreSpecFields = append(restoreSpecFields, test.name)
 		}
 		restoreSpec := reflect.ValueOf(&velerov1.RestoreSpec{}).Elem()
-		for index := range restoreSpec.NumField() {
+		for index := 0; index < restoreSpec.NumField(); index++ {
 			if !slices.Contains(restoreSpecFields, restoreSpec.Type().Field(index).Name) {
 				t.Errorf("restore spec field '%v' is not tested", restoreSpec.Type().Field(index).Name)
 			}
