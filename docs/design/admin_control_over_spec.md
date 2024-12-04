@@ -26,6 +26,7 @@ Also
 - Prevent non admin users to create NonAdminBackup/NonAdminRestore with overridden defaults
 - Allow admin users to set second level defaults (for example, NonAdminBackup `spec.backupSpec.labelSelector` can have a custom default value, but not just `spec.backupSpec.labelSelector.matchLabels`)
 - Check if there are on-going NAC operations prior to recreating NAC Pod
+- Allow admin users to enforce falsy values (like empty maps or empty lists) for NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields
 
 ## High-Level Design
 

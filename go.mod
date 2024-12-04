@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/oadp-operator v1.0.2-0.20241119153315-6947e30c7ec5
+	github.com/openshift/oadp-operator v1.0.2-0.20241203211837-06081c0bb045
 	github.com/stretchr/testify v1.9.0
 	github.com/vmware-tanzu/velero v1.14.0
 	k8s.io/api v0.29.0
@@ -82,5 +82,3 @@ require (
 )
 
 replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20240919150610-92244630d90b
-
-replace github.com/openshift/oadp-operator => github.com/mateusoliveira43/oadp-operator v0.0.0-20241128165459-cb4996d6a488
