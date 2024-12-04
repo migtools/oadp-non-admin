@@ -15,25 +15,23 @@ This design enables admin users to set custom default values for NonAdminBackup/
 
 Enable admin users to
 - set custom default values for NonAdminBackup spec.backupSpec fields, which can not be overridden
-- set custom default values for NonAdminRestore spec.restoreSpec fields, which can not be overridden
+- TODO restore
 
 Also
 - Show custom default values validation errors in NAC object statuses and in NAC logs
 
 ## Non Goals
 
-- Show NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields custom default values to non admin users
+- Show NonAdminBackup spec.backupSpec fields/TODO NonAdminRestore custom default values to non admin users
 - Prevent non admin users to create NonAdminBackup/NonAdminRestore with overridden defaults
 - Allow admin users to set second level defaults (for example, NonAdminBackup `spec.backupSpec.labelSelector` can have a custom default value, but not just `spec.backupSpec.labelSelector.matchLabels`)
 - Check if there are on-going NAC operations prior to recreating NAC Pod
 
 ## High-Level Design
 
-A field will be added to OADP DPA object. With it, admin users will be able to select which NonAdminBackup `spec.backupSpec` fields have custom default (and enforced) values. NAC will respect the set values. If a NonAdminBackup is created with fields overriding any enforced values, it will fail validation prior to creating an associated Velero Backup.
+A field will be added to OADP DPA object. With it, admin users will be able to select which NonAdminBackup `spec.backupSpec` fields have custom default (and enforced) values. NAC will respect the set values. If a NonAdminBackup is created with fields overriding any enforced values, it will fail validation prior to creating an associated Velero Backup. If admin user changes any enforced field value, NAC Pod is recreated to always be up to date with admin user enforcements.
 
-Another field will be added to OADP DPA object. With it, admin users will be able to select which NonAdminRestore `spec.restoreSpec` fields have custom default (and enforced) values. NAC will respect the set values. If a NonAdminRestore is created with fields overriding any enforced values, it will fail validation prior to creating an associated Velero Restore.
-
-If admin user changes any enforced field value, NAC Pod is recreated to always be up to date with admin user enforcements.
+TODO restore
 
 > **Note:** if there are on-going NAC operations prior to recreating NAC Pod, reconcile progress might get lost for NAC objects.
 
@@ -116,28 +114,28 @@ type NonAdmin struct {
 	EnforceBackupSpec *velero.BackupSpec `json:"enforceBackupSpec,omitempty"`
 }
 ```
+TODO restore
 
-Add `EnforceRestoreSpec` struct to OADP DPA `NonAdmin` struct
+Validate admin user did not enforce a field that can break NAC functionality
 ```go
-type NonAdmin struct {
-	// which restore spec field values to enforce
-	// +optional
-	EnforceBackupSpec *velero.BackupSpec `json:"enforceBackupSpec,omitempty"`
-}
+	if r.checkNonAdminEnabled() {
+		if r.dpa.Spec.NonAdmin.EnforceBackupSpec != nil {
+			if !reflect.ValueOf(r.dpa.Spec.NonAdmin.EnforceBackupSpec.IncludedNamespaces).IsZero() {
+				return false, errors.New("admin users can not set DPA spec.nonAdmin.enforceBackupSpecs.includedNamespaces field")
+			}
+		}
+	}
 ```
 
-Store previous `EnforceBackupSpec` and `EnforceRestoreSpec` value, so when admin user changes it, Deployment is also changed to trigger a Pod recreation
+Store previous `EnforceBackupSpec` value, so when admin user changes it, Deployment is also changed to trigger a Pod recreation
 ```go
 const (
 	enforcedBackupSpecKey = "enforced-backup-spec"
-    enforcedRestoreSpecKey = "enforced-restore-spec"
 )
 
 var (
-	previousEnforcedBackupSpec    *velero.BackupSpec  = nil
-	dpaBackupSpecResourceVersion                      = ""
-	previousEnforcedRestoreSpec   *velero.RestoreSpec = nil
-	dpaRestoreSpecResourceVersion                     = ""
+	previousEnforcedBackupSpec   *velero.BackupSpec = nil
+	dpaBackupSpecResourceVersion                    = ""
 )
 
 func ensureRequiredSpecs(deploymentObject *appsv1.Deployment, dpa *oadpv1alpha1.DataProtectionApplication, image string, imagePullPolicy corev1.PullPolicy) error {
@@ -145,13 +143,9 @@ func ensureRequiredSpecs(deploymentObject *appsv1.Deployment, dpa *oadpv1alpha1.
 		dpaBackupSpecResourceVersion = dpa.GetResourceVersion()
 	}
 	previousEnforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
-	if len(dpaRestoreSpecResourceVersion) == 0 || !reflect.DeepEqual(dpa.Spec.NonAdmin.EnforceRestoreSpec, previousEnforcedRestoreSpec) {
-		dpaRestoreSpecResourceVersion = dpa.GetResourceVersion()
-	}
-	previousEnforcedRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
+	// TODO same thing for restore
 	enforcedSpecAnnotation := map[string]string{
 		enforcedBackupSpecKey: dpaBackupSpecResourceVersion,
-        enforcedRestoreSpecKey: dpaRestoreSpecResourceVersion,
 	}
 
 	templateObjectAnnotations := deploymentObject.Spec.Template.GetAnnotations()
@@ -159,7 +153,7 @@ func ensureRequiredSpecs(deploymentObject *appsv1.Deployment, dpa *oadpv1alpha1.
 		deploymentObject.Spec.Template.SetAnnotations(enforcedSpecAnnotation)
 	} else {
 		templateObjectAnnotations[enforcedBackupSpecKey] = enforcedSpecAnnotation[enforcedBackupSpecKey]
-		templateObjectAnnotations[enforcedRestoreSpecKey] = enforcedSpecAnnotation[enforcedRestoreSpecKey]
+		// TODO same thing for restore
 		deploymentObject.Spec.Template.SetAnnotations(templateObjectAnnotations)
 	}
 }
@@ -186,7 +180,7 @@ During NAC startup, read OADP DPA, to be able to apply admin user enforcement
 	}
 ```
 
-Modify ValidateBackupSpec function to use `EnforceBackupSpec` and apply that to non admin users' NonAdminBackup request
+Modify ValidateSpec function to use `EnforceBackupSpec` and apply that to non admin users' NonAdminBackup request
 ```go
 func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
 	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
@@ -219,40 +213,9 @@ Before creating NonAdminBackup's related Velero Backup, apply any missing fields
 		}
 ```
 
-Modify ValidateRestoreSpec function to use `EnforceRestoreSpec` and apply that to non admin users' NonAdminBackup request
-```go
-	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
-	for index := range enforcedSpec.NumField() {
-		enforcedField := enforcedSpec.Field(index)
-		enforcedFieldName := enforcedSpec.Type().Field(index).Name
-		currentField := reflect.ValueOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
-		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
-			field, _ := reflect.TypeOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
-			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			return fmt.Errorf(
-				"NonAdminRestore spec.restoreSpec.%v field value is enforced by admin user, can not override it",
-				tagName,
-			)
-		}
-	}
-```
-
-Before creating NonAdminRestore's related Velero Restore, apply any missing fields to it that admin user has enforced
-```go
-		enforcedSpec := reflect.ValueOf(r.EnforcedRestoreSpec).Elem()
-		for index := range enforcedSpec.NumField() {
-			enforcedField := enforcedSpec.Field(index)
-			enforcedFieldName := enforcedSpec.Type().Field(index).Name
-			currentField := reflect.ValueOf(restoreSpec).Elem().FieldByName(enforcedFieldName)
-			if !enforcedField.IsZero() && currentField.IsZero() {
-				currentField.Set(enforcedField)
-			}
-		}
-```
-
-For more details, check https://github.com/openshift/oadp-operator/pull/1584, https://github.com/migtools/oadp-non-admin/pull/110, https://github.com/openshift/oadp-operator/pull/1600 and https://github.com/migtools/oadp-non-admin/pull/122.
+For more details, check https://github.com/openshift/oadp-operator/pull/1584 and https://github.com/migtools/oadp-non-admin/pull/110.
 
 ## Open Issues
 
-- Show NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields custom default values to non admin users https://github.com/migtools/oadp-non-admin/issues/111
+- Show NonAdminBackup spec.backupSpec fields/TODO NonAdminRestore custom default values to non admin users https://github.com/migtools/oadp-non-admin/issues/111
 
