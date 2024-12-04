@@ -1,0 +1,107 @@
+/*
+Copyright 2024.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha1
+
+import (
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+
+// NonAdminBackupStorageLocationPhase is a simple one high-level summary of the lifecycle of an NonAdminBackupStorageLocation.
+// +kubebuilder:validation:Enum=New;Available;Unavailable;Created;Deleting
+type NonAdminBackupStorageLocationPhase string
+
+// NonAdminBackupStorageLocationPhase constants similar to velerov1.BackupStorageLocationPhase
+const (
+	NaBSLPhaseNew         NonAdminBackupStorageLocationPhase = "New"
+	NaBSLPhaseAvailable   NonAdminBackupStorageLocationPhase = "Available"
+	NaBSLPhaseUnavailable NonAdminBackupStorageLocationPhase = "Unavailable"
+	NaBSLPhaseCreated     NonAdminBackupStorageLocationPhase = "Created"
+	NaBSLPhaseDeleting    NonAdminBackupStorageLocationPhase = "Deleting"
+)
+
+// NonAdminBSLCondition contains addition conditions to the
+// generic ones defined as NonAdminCondition
+// +kubebuilder:validation:Enum=SecretSynced;BSLSynced
+type NonAdminBSLCondition string
+
+// Predefined NonAdminBSLConditions
+const (
+	NonAdminBSLConditionSecretSynced NonAdminBSLCondition = "SecretSynced"
+	NonAdminBSLConditionBSLSynced    NonAdminBSLCondition = "BackupStorageLocationSynced"
+)
+
+// NonAdminBackupStorageLocationSpec defines the desired state of NonAdminBackupStorageLocation
+type NonAdminBackupStorageLocationSpec struct {
+	// Embeds the Velero BackupStorageLocationSpec to inherit all fields
+	velerov1.BackupStorageLocationSpec `json:",inline"`
+}
+
+// VeleroBackupStorageLocation contains information of the related Velero backup object.
+type VeleroBackupStorageLocation struct {
+	// status captures the current status of the Velero backup storage location.
+	// +optional
+	Status *velerov1.BackupStorageLocationStatus `json:"status,omitempty"`
+
+	// nacuuid references the Velero BackupStorageLocation object by it's label containing same NACUUID.
+	// +optional
+	NACUUID string `json:"nacuuid,omitempty"`
+
+	// references the Velero BackupStorageLocation object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero backup storage location exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// NonAdminBackupStorageLocationStatus defines the observed state of NonAdminBackupStorageLocation
+type NonAdminBackupStorageLocationStatus struct {
+	// Important: Run "make" to regenerate code after modifying this file
+	// +optional
+	VeleroBackupStorageLocation *VeleroBackupStorageLocation `json:"veleroBackupStorageLocation,omitempty"`
+
+	Phase      NonAdminBackupStorageLocationPhase `json:"phase,omitempty"`
+	Conditions []metav1.Condition                 `json:"conditions,omitempty"`
+}
+
+// NonAdminBackupStorageLocation is the Schema for the nonadminbackupstoragelocations API
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+type NonAdminBackupStorageLocation struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   NonAdminBackupStorageLocationSpec   `json:"spec,omitempty"`
+	Status NonAdminBackupStorageLocationStatus `json:"status,omitempty"`
+}
+
+// NonAdminBackupStorageLocationList contains a list of NonAdminBackupStorageLocation
+// +kubebuilder:object:root=true
+type NonAdminBackupStorageLocationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []NonAdminBackupStorageLocation `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&NonAdminBackupStorageLocation{}, &NonAdminBackupStorageLocationList{})
+}

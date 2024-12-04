@@ -1,0 +1,23 @@
+# permissions for end users to view nonadminbackupstoragelocations.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: oadp-nac
+    app.kubernetes.io/managed-by: kustomize
+  name: nonadminbackupstoragelocation-viewer-role
+rules:
+- apiGroups:
+  - oadp.openshift.io
+  resources:
+  - nonadminbackupstoragelocations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - oadp.openshift.io
+  resources:
+  - nonadminbackupstoragelocations/status
+  verbs:
+  - get

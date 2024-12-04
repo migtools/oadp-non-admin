@@ -2,4 +2,5 @@
 resources:
 - oadp_v1alpha1_nonadminbackup.yaml
 - oadp_v1alpha1_nonadminrestore.yaml
+- oadp_v1alpha1_nonadminbackupstoragelocation.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
