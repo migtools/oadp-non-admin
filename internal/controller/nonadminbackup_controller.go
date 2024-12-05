@@ -607,7 +607,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
 
 		enforcedSpec := reflect.ValueOf(r.EnforcedBackupSpec).Elem()
-		for index := 0; index < enforcedSpec.NumField(); index++ {
+		for index := range enforcedSpec.NumField() {
 			enforcedField := enforcedSpec.Field(index)
 			enforcedFieldName := enforcedSpec.Type().Field(index).Name
 			currentField := reflect.ValueOf(backupSpec).Elem().FieldByName(enforcedFieldName)

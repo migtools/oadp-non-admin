@@ -364,7 +364,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		}
 		backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
 
-		for index := 0; index < backupSpec.NumField(); index++ {
+		for index := range backupSpec.NumField() {
 			if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
 				t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
 			}
