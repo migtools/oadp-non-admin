@@ -97,7 +97,7 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 	}
 
 	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
-	for index := 0; index < enforcedSpec.NumField(); index++ {
+	for index := range enforcedSpec.NumField() {
 		enforcedField := enforcedSpec.Field(index)
 		enforcedFieldName := enforcedSpec.Type().Field(index).Name
 		currentField := reflect.ValueOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
