@@ -229,6 +229,11 @@ func (in *NonAdminRestoreStatus) DeepCopyInto(out *NonAdminRestoreStatus) {
 		*out = new(VeleroRestore)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.QueueInfo != nil {
+		in, out := &in.QueueInfo, &out.QueueInfo
+		*out = new(QueueInfo)
+		**out = **in
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]metav1.Condition, len(*in))
