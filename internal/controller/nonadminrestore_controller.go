@@ -376,7 +376,18 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		logger.Info("VeleroRestore successfully created")
 	}
 
-	// TODO(migi): do we need estimatedQueuePosition in VeleroRestoreStatus?
+	updatedQueueInfo := false
+
+	// Determine how many Backups are scheduled before the given VeleroRestore in the OADP namespace.
+	queueInfo, err := function.GetRestoreQueueInfo(ctx, r.Client, r.OADPNamespace, veleroRestore)
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error as it's just
+		// about the Velero Restore queue position information
+		logger.Error(err, "Failed to get the queue position for the VeleroRestore")
+	} else {
+		nar.Status.QueueInfo = &queueInfo
+		updatedQueueInfo = true
+	}
 
 	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseCreated)
 
@@ -391,7 +402,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
 
-	if updatedPhase || updatedCondition || updatedVeleroStatus {
+	if updatedPhase || updatedCondition || updatedVeleroStatus || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nar); err != nil {
 			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
 			return false, err

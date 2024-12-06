@@ -51,6 +51,13 @@ type NonAdminRestoreStatus struct {
 	// +optional
 	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
 
+	// queueInfo is used to estimate how many restores are scheduled before the given VeleroRestore in the OADP namespace.
+	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when
+	// Velero pod is not running or being restarted after Restore object were created.
+	// It counts only VeleroRestores that are still subject to be handled by OADP/Velero.
+	// +optional
+	QueueInfo *QueueInfo `json:"queueInfo,omitempty"`
+
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminRestore.
 	Phase NonAdminPhase `json:"phase,omitempty"`
 
