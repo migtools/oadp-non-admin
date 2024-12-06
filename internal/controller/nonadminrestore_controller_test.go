@@ -178,7 +178,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 			gomega.Expect(createTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
 
-			nonAdminBackup := buildTestNonAdminBackup(nonAdminRestoreNamespace, scenario.spec.RestoreSpec.BackupName, nacv1alpha1.NonAdminBackupSpec{})
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminRestoreNamespace, scenario.spec.RestoreSpec.BackupName, nacv1alpha1.NonAdminBackupSpec{BackupSpec: &velerov1.BackupSpec{}})
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
 			nonAdminBackup.Status = scenario.backupStatus
 			gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())

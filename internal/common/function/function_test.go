@@ -92,11 +92,6 @@ func TestValidateBackupSpec(t *testing.T) {
 		errMessage string
 	}{
 		{
-			name:       "nil spec",
-			spec:       nil,
-			errMessage: "BackupSpec is not defined",
-		},
-		{
 			name: "namespace different than NonAdminBackup namespace",
 			spec: &velerov1.BackupSpec{
 				IncludedNamespaces: []string{"namespace1", "namespace2", "namespace3"},

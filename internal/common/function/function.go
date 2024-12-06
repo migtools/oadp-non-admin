@@ -80,11 +80,6 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 
 // ValidateBackupSpec return nil, if NonAdminBackup is valid; error otherwise
 func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
-	// this should be Kubernetes API validation
-	if nonAdminBackup.Spec.BackupSpec == nil {
-		return fmt.Errorf("BackupSpec is not defined")
-	}
-
 	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
