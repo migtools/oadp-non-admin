@@ -314,6 +314,79 @@ func GetBackupQueueInfo(ctx context.Context, clientInstance client.Client, names
 	return queueInfo, nil
 }
 
+// GetActiveVeleroRestoresByLabel retrieves all VeleroRestore objects based on a specified label within a given namespace.
+// It returns a slice of VeleroRestore objects or nil if none are found.
+func GetActiveVeleroRestoresByLabel(ctx context.Context, clientInstance client.Client, namespace, labelKey, labelValue string) ([]velerov1.Restore, error) {
+	var veleroRestoreList velerov1.RestoreList
+	labelSelector := client.MatchingLabels{labelKey: labelValue}
+
+	if err := clientInstance.List(ctx, &veleroRestoreList, client.InNamespace(namespace), labelSelector); err != nil {
+		return nil, err
+	}
+
+	// Filter out restores with a CompletionTimestamp
+	var activeRestores []velerov1.Restore
+	for _, restore := range veleroRestoreList.Items {
+		if restore.Status.CompletionTimestamp == nil {
+			activeRestores = append(activeRestores, restore)
+		}
+	}
+
+	if len(activeRestores) == 0 {
+		return nil, nil
+	}
+
+	return activeRestores, nil
+}
+
+// GetRestoreQueueInfo determines the queue position of the specified VeleroRestore.
+// It calculates how many queued Restores exist in the namespace that were created before this one.
+func GetRestoreQueueInfo(ctx context.Context, clientInstance client.Client, namespace string, targetRestore *velerov1.Restore) (nacv1alpha1.QueueInfo, error) {
+	var queueInfo nacv1alpha1.QueueInfo
+
+	// If the target restore has no valid CreationTimestamp, it means that it's not yet reconciled by OADP/Velero.
+	// In this case, we can't determine its queue position, so we return nil.
+	if targetRestore == nil || targetRestore.CreationTimestamp.IsZero() {
+		return queueInfo, nil
+	}
+
+	// If the target restore has a CompletionTimestamp, it means that it's already served.
+	if targetRestore.Status.CompletionTimestamp != nil {
+		queueInfo.EstimatedQueuePosition = 0
+		return queueInfo, nil
+	}
+
+	// List all Restore objects in the namespace
+	var restoreList velerov1.RestoreList
+	if err := clientInstance.List(ctx, &restoreList, client.InNamespace(namespace)); err != nil {
+		return queueInfo, err
+	}
+
+	// Extract the target restore's creation timestamp
+	targetTimestamp := targetRestore.CreationTimestamp.Time
+
+	// The target restore is always in queue at least in the first position
+	// 0 is reserved for the restores that are already served.
+	queueInfo.EstimatedQueuePosition = 1
+
+	// Iterate through restores and calculate position
+	for i := range restoreList.Items {
+		restore := &restoreList.Items[i]
+
+		// Skip restores that have CompletionTimestamp set. This means that the Velero won't be further processing this restore.
+		if restore.Status.CompletionTimestamp != nil {
+			continue
+		}
+
+		// Count restores created earlier than the target restore
+		if restore.CreationTimestamp.Time.Before(targetTimestamp) {
+			queueInfo.EstimatedQueuePosition++
+		}
+	}
+
+	return queueInfo, nil
+}
+
 // GetVeleroDeleteBackupRequestByLabel retrieves a DeleteBackupRequest object based on a specified label within a given namespace.
 // It returns the DeleteBackupRequest only when exactly one object is found, throws an error if multiple backups are found,
 // or returns nil if no matches are found.

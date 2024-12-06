@@ -51,6 +51,9 @@ type NonAdminRestoreStatus struct {
 	// +optional
 	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
 
+	// +optional
+	QueueInfo *QueueInfo `json:"queueInfo,omitempty"`
+
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminRestore.
 	Phase NonAdminPhase `json:"phase,omitempty"`
 

@@ -537,6 +537,20 @@ spec:
                 - Created
                 - Deleting
                 type: string
+              queueInfo:
+                description: |-
+                  QueueInfo represents the position of a specific operation request (Velero Backup or Restore) in the queue.
+                  It estimates how many operations are pending before the current request is processed.
+                  The value is approximate and may be inaccurate if the Velero pod is down or restarts after related objects are created.
+                  It includes only VeleroBackups and VeleroRestores still subject to be handled by OADP/Velero.
+                properties:
+                  estimatedQueuePosition:
+                    description: EstimatedQueuePosition is the number of backups or
+                      restores ahead in the queue (0 if not queued)
+                    type: integer
+                required:
+                - estimatedQueuePosition
+                type: object
               veleroRestore:
                 description: VeleroRestore contains information of the related Velero
                   restore object.
