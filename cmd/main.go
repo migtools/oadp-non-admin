@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -57,6 +58,7 @@ func init() {
 	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(velerov1.AddToScheme(scheme))
+	utilruntime.Must(oadpv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -163,6 +165,13 @@ func main() {
 		EnforcedRestoreSpec: enforcedRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NonAdminRestore")
+		os.Exit(1)
+	}
+	if err = (&controller.NonAdminBackupStorageLocationReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackupStorageLocation")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
