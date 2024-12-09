@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
 var _ = Describe("NonAdminBackupStorageLocation Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("NonAdminBackupStorageLocation Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		nonadminbackupstoragelocation := &oadpv1alpha1.NonAdminBackupStorageLocation{}
+		nonadminbackupstoragelocation := &nacv1alpha1.NonAdminBackupStorageLocation{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind NonAdminBackupStorageLocation")
 			err := k8sClient.Get(ctx, typeNamespacedName, nonadminbackupstoragelocation)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &oadpv1alpha1.NonAdminBackupStorageLocation{
+				resource := &nacv1alpha1.NonAdminBackupStorageLocation{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("NonAdminBackupStorageLocation Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &oadpv1alpha1.NonAdminBackupStorageLocation{}
+			resource := &nacv1alpha1.NonAdminBackupStorageLocation{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

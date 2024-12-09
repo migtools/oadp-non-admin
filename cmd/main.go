@@ -58,7 +58,6 @@ func init() {
 	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(velerov1.AddToScheme(scheme))
-	utilruntime.Must(oadpv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
