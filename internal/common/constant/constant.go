@@ -39,8 +39,8 @@ const (
 	NarOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
 	NarOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
 
-	NabFinalizerName             = "nonadminbackup.oadp.openshift.io/finalizer"
-	NonAdminRestoreFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"
+	NabFinalizerName = "nonadminbackup.oadp.openshift.io/finalizer"
+	NarFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
@@ -60,16 +60,15 @@ const TrueString = "True"
 // NamespaceString defines a constant for the Namespace string
 const NamespaceString = "Namespace"
 
+// NameString defines a constant for the Name string
+const NameString = "name"
+
+// CurrentPhaseString defines a constant for the Current Phase string
+const CurrentPhaseString = "currentPhase"
+
+// UUIDString defines a constant for the UUID string
+const UUIDString = "UUID"
+
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
-
-// Predefined conditions for NonAdmin object.
-// One NonAdmin object may have multiple conditions.
-// It is more granular knowledge of the NonAdmin object and represents the
-// array of the conditions through which the NonAdmin object has or has not passed
-const (
-	NonAdminConditionAccepted = "Accepted"
-	NonAdminConditionQueued   = "Queued"
-	NonAdminConditionDeleting = "Deleting"
-)

@@ -21,21 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NonAdminPhase is a simple one high-level summary of the lifecycle of an NonAdminBackup.
-// +kubebuilder:validation:Enum=New;BackingOff;Created;Deleting
-type NonAdminPhase string
-
-const (
-	// NonAdminPhaseNew - NonAdmin object was accepted by the OpenShift cluster, but it has not yet been processed by the NonAdminController
-	NonAdminPhaseNew NonAdminPhase = "New"
-	// NonAdminPhaseBackingOff - Velero object was not created due to NonAdmin object error (configuration or similar)
-	NonAdminPhaseBackingOff NonAdminPhase = "BackingOff"
-	// NonAdminPhaseCreated - Velero object was created. The Phase will not have additional information about it.
-	NonAdminPhaseCreated NonAdminPhase = "Created"
-	// NonAdminPhaseDeleting - Velero object is pending deletion. The Phase will not have additional information about it.
-	NonAdminPhaseDeleting NonAdminPhase = "Deleting"
-)
-
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
 type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
@@ -98,6 +83,10 @@ type NonAdminBackupStatus struct {
 	// +optional
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
 
+	// queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
+	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when
+	// Velero pod is not running or being restarted after Backup object were created.
+	// It counts only VeleroBackups that are still subject to be handled by OADP/Velero.
 	// +optional
 	QueueInfo *QueueInfo `json:"queueInfo,omitempty"`
 
@@ -105,15 +94,6 @@ type NonAdminBackupStatus struct {
 	Phase NonAdminPhase `json:"phase,omitempty"`
 
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-// QueueInfo holds the queue position for a specific VeleroBackup.
-// It is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
-// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when
-// Velero pod is not running or being restarted after Backup object were created.
-// It counts only VeleroBackups that are still subject to be handled by OADP/Velero.
-type QueueInfo struct {
-	EstimatedQueuePosition int `json:"estimatedQueuePosition"` // Number of backups ahead in the queue (0 if not queued)
 }
 
 // +kubebuilder:object:root=true
