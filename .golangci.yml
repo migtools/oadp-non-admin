@@ -1,13 +1,12 @@
 # Documentation reference https://github.com/golangci/golangci-lint/blob/v1.62.2/.golangci.reference.yml
 run:
-  skip-dirs-use-default: false
   modules-download-mode: readonly
   allow-parallel-runners: true
-  skip-dirs:
-    - test/*
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
+      path: stdout
   print-issued-lines: true
   print-linter-name: true
   uniq-by-line: true
@@ -91,12 +90,12 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - copyloopvar
     - dogsled
     - dupword
     - durationcheck
     - errcheck
     - errchkjson
-    - exportloopref
     - gci
     - ginkgolinter
     - goconst
@@ -125,6 +124,9 @@ linters:
   fast: false
 
 issues:
+  exclude-dirs:
+    - test/*
+  exclude-dirs-use-default: false
   exclude-use-default: false
   exclude-rules:
     - linters:
