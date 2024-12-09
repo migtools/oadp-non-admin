@@ -350,7 +350,7 @@ func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, 
 	case 1:
 		return &veleroRestoreList.Items[0], nil
 	default:
-		return nil, fmt.Errorf("multiple Velero Restore objects found with label %s=%s in namespace '%s'", constant.NabOriginNACUUIDLabel, labelValue, namespace)
+		return nil, fmt.Errorf("multiple Velero Restore objects found with label %s=%s in namespace '%s'", constant.NarOriginNACUUIDLabel, labelValue, namespace)
 	}
 }
 
