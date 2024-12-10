@@ -100,6 +100,13 @@ func checkTestNonAdminRestoreStatus(nonAdminRestore *nacv1alpha1.NonAdminRestore
 			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Message %v does not contain expected message %v", index, nonAdminRestore.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
 		}
 	}
+
+	if nonAdminRestore.Status.QueueInfo != nil && expectedStatus.QueueInfo != nil {
+		if nonAdminRestore.Status.QueueInfo.EstimatedQueuePosition != expectedStatus.QueueInfo.EstimatedQueuePosition {
+			return fmt.Errorf("NonAdminRestore Status QueueInfo EstimatedQueuePosition %v is not equal to expected %v", nonAdminRestore.Status.QueueInfo.EstimatedQueuePosition, expectedStatus.QueueInfo.EstimatedQueuePosition)
+		}
+	}
+
 	return nil
 }
 
@@ -357,6 +364,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						LastTransitionTime: metav1.NewTime(time.Now()),
 					},
 				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 5,
+				},
 			},
 			status: nacv1alpha1.NonAdminRestoreStatus{
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
@@ -376,6 +386,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Reason:  "RestoreScheduled",
 						Message: "Created Velero Restore object",
 					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
 				},
 			},
 			enforcedRestoreSpec: &velerov1.RestoreSpec{
@@ -415,6 +428,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Reason:  "InvalidRestoreSpec",
 						Message: "NonAdminRestore spec.restoreSpec.backupName is invalid: ",
 					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
 				},
 			},
 		}),
