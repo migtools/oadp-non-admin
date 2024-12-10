@@ -47,6 +47,6 @@ const (
 
 // QueueInfo holds the queue position for a specific operation.
 type QueueInfo struct {
-	// estimatedQueuePosition is the number of backups ahead in the queue (0 if not queued)
+	// estimatedQueuePosition is the number of operations ahead in the queue (0 if not queued)
 	EstimatedQueuePosition int `json:"estimatedQueuePosition"`
 }
