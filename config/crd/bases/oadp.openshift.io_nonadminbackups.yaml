@@ -617,8 +617,8 @@ spec:
                   It counts only VeleroBackups that are still subject to be handled by OADP/Velero.
                 properties:
                   estimatedQueuePosition:
-                    description: estimatedQueuePosition is the number of backups ahead
-                      in the queue (0 if not queued)
+                    description: estimatedQueuePosition is the number of operations
+                      ahead in the queue (0 if not queued)
                     type: integer
                 required:
                 - estimatedQueuePosition
