@@ -74,13 +74,13 @@ func (h VeleroBackupQueueHandler) Update(ctx context.Context, evt event.UpdateEv
 			// This object is within current queue, so there is no need to trigger changes to it.
 			// The VeleroBackupHandler will serve for that.
 			if nabOriginNamespace != nabEventOriginNamespace || nabOriginName != nabEventOriginName {
-				logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", "Name", backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+				logger.V(1).Info("Processing Queue update for the NonAdmin Backup referenced by Velero Backup", constant.NameString, backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
 				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 					Name:      nabOriginName,
 					Namespace: nabOriginNamespace,
 				}})
 			} else {
-				logger.V(1).Info("Ignoring Queue update for the NonAdmin Backup that triggered this event", "Name", backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
+				logger.V(1).Info("Ignoring Queue update for the NonAdmin Backup that triggered this event", constant.NameString, backup.Name, constant.NamespaceString, backup.Namespace, "CreatedAt", backup.CreationTimestamp)
 			}
 		}
 	}

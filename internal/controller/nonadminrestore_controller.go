@@ -132,7 +132,7 @@ func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletionAndCallDelet
 	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
 	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
-			Type:    string(constant.NonAdminConditionDeleting),
+			Type:    string(nacv1alpha1.NonAdminConditionDeleting),
 			Status:  metav1.ConditionTrue,
 			Reason:  "DeletionPending",
 			Message: "restore accepted for deletion",
@@ -149,7 +149,7 @@ func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletionAndCallDelet
 		logger.V(1).Info("NonAdminRestore status unchanged during deletion")
 	}
 	if nar.ObjectMeta.DeletionTimestamp.IsZero() {
-		logger.V(1).Info("Marking NonAdminRestore for deletion", nameString, nar.Name)
+		logger.V(1).Info("Marking NonAdminRestore for deletion", constant.NameString, nar.Name)
 		if err := r.Delete(ctx, nar); err != nil {
 			logger.Error(err, "Failed to call Delete on the NonAdminRestore object")
 			return false, err
@@ -170,7 +170,7 @@ func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, log
 
 	if err != nil {
 		// Case in which more then one VeleroRestore is found with the same label NACUUID
-		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 		return false, err
 	}
 
@@ -179,10 +179,10 @@ func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, log
 		// and it will get removed by the Velero cleanup process when the restore object gets deleted
 		// https://github.com/vmware-tanzu/velero/blob/074f26539d3eb06c7b1a6af9b4975254e61b956c/pkg/cmd/cli/restore/delete.go#L122
 		if err = r.Delete(ctx, veleroRestore); err != nil {
-			logger.Error(err, "Failed to delete VeleroRestore", nameString, veleroRestore.Name)
+			logger.Error(err, "Failed to delete VeleroRestore", constant.NameString, veleroRestore.Name)
 			return false, err
 		}
-		logger.V(1).Info("VeleroRestore deletion initiated", nameString, veleroRestore.Name)
+		logger.V(1).Info("VeleroRestore deletion initiated", constant.NameString, veleroRestore.Name)
 	} else {
 		logger.V(1).Info("VeleroRestore already deleted")
 	}
@@ -197,19 +197,19 @@ func (r *NonAdminRestoreReconciler) removeNarFinalizerUponVeleroRestoreDeletion(
 			veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
 			if err != nil {
 				// Case in which more then one VeleroRestore is found with the same label UUID
-				logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+				logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 				return false, err
 			}
 
 			if veleroRestore != nil {
-				logger.V(1).Info("Waiting for VeleroRestore to be deleted", nameString, veleroRestoreNACUUID)
+				logger.V(1).Info("Waiting for VeleroRestore to be deleted", constant.NameString, veleroRestoreNACUUID)
 				return true, nil // Requeue
 			}
 		}
 		// VeleroRestore is deleted, proceed with deleting the NonAdminRestore
 		logger.V(1).Info("VeleroRestore deleted, removing NonAdminRestore finalizer")
 
-		controllerutil.RemoveFinalizer(nar, constant.NonAdminRestoreFinalizerName)
+		controllerutil.RemoveFinalizer(nar, constant.NarFinalizerName)
 
 		if err := r.Update(ctx, nar); err != nil {
 			logger.Error(err, "Failed to remove finalizer from NonAdminRestore")
@@ -242,7 +242,7 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 		updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 			metav1.Condition{
-				Type:    string(constant.NonAdminConditionAccepted),
+				Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 				Status:  metav1.ConditionFalse,
 				Reason:  "InvalidRestoreSpec",
 				Message: err.Error(),
@@ -260,7 +260,7 @@ func (r *NonAdminRestoreReconciler) validateSpec(ctx context.Context, logger log
 
 	updated := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
-			Type:    string(constant.NonAdminConditionAccepted),
+			Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 			Status:  metav1.ConditionTrue,
 			Reason:  "RestoreAccepted",
 			Message: "restore accepted",
@@ -304,7 +304,7 @@ func (r *NonAdminRestoreReconciler) setUUID(ctx context.Context, logger logr.Log
 }
 
 func (r *NonAdminRestoreReconciler) setFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
-	added := controllerutil.AddFinalizer(nar, constant.NonAdminRestoreFinalizerName)
+	added := controllerutil.AddFinalizer(nar, constant.NarFinalizerName)
 	if added {
 		if err := r.Update(ctx, nar); err != nil {
 			logger.Error(err, "Failed to add finalizer")
@@ -328,12 +328,12 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	if err != nil {
 		// Case in which more then one VeleroBackup is found with the same label UUID
-		logger.Error(err, findSingleVRError, uuidString, veleroRestoreNACUUID)
+		logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
 		return false, err
 	}
 
 	if veleroRestore == nil {
-		logger.Info("VeleroRestore with label not found, creating one", uuidString, veleroRestoreNACUUID)
+		logger.Info("VeleroRestore with label not found, creating one", constant.UUIDString, veleroRestoreNACUUID)
 		nab := &nacv1alpha1.NonAdminBackup{}
 		err = r.Get(ctx, types.NamespacedName{Name: nar.Spec.RestoreSpec.BackupName, Namespace: nar.Namespace}, nab)
 		if err != nil {
@@ -382,7 +382,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
-			Type:    string(constant.NonAdminConditionQueued),
+			Type:    string(nacv1alpha1.NonAdminConditionQueued),
 			Status:  metav1.ConditionTrue,
 			Reason:  "RestoreScheduled", // TODO can this confuse user? scheduled -> queued?
 			Message: "Created Velero Restore object",
