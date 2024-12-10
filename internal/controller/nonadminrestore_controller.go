@@ -404,6 +404,8 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 	return false, nil
 }
 
+// updateVeleroRestoreStatus sets the VeleroRestore status field in NonAdminRestore object status and returns true
+// if the VeleroRestore fields are changed by this call.
 func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, veleroRestore *velerov1.Restore) bool {
 	if status == nil || veleroRestore == nil {
 		return false
@@ -413,11 +415,16 @@ func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, velero
 		status.VeleroRestore = &nacv1alpha1.VeleroRestore{}
 	}
 
-	if status.VeleroRestore.Status == nil || !reflect.DeepEqual(status.VeleroRestore.Status, veleroRestore.Status) {
-		status.VeleroRestore.Status = veleroRestore.Status.DeepCopy()
-		return true
+	if status.VeleroRestore.Status == nil {
+		status.VeleroRestore.Status = &velerov1.RestoreStatus{}
 	}
-	return false
+
+	if reflect.DeepEqual(*status.VeleroRestore.Status, veleroRestore.Status) {
+		return false
+	}
+
+	status.VeleroRestore.Status = veleroRestore.Status.DeepCopy()
+	return true
 }
 
 // SetupWithManager sets up the controller with the Manager.

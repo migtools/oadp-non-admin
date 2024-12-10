@@ -723,14 +723,21 @@ func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupSt
 	if status == nil || veleroBackup == nil {
 		return false
 	}
+
 	if status.VeleroBackup == nil {
 		status.VeleroBackup = &nacv1alpha1.VeleroBackup{}
 	}
-	if status.VeleroBackup.Status == nil || !reflect.DeepEqual(status.VeleroBackup.Status, veleroBackup.Status) {
-		status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
-		return true
+
+	if status.VeleroBackup.Status == nil {
+		status.VeleroBackup.Status = &velerov1.BackupStatus{}
 	}
-	return false
+
+	if reflect.DeepEqual(*status.VeleroBackup.Status, veleroBackup.Status) {
+		return false
+	}
+
+	status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
+	return true
 }
 
 // updateNonAdminBackupDeleteBackupRequestStatus sets the VeleroDeleteBackupRequest status field in NonAdminBackup object status and returns true
@@ -739,12 +746,19 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 	if status == nil || veleroDeleteBackupRequest == nil {
 		return false
 	}
+
 	if status.VeleroDeleteBackupRequest == nil {
 		status.VeleroDeleteBackupRequest = &nacv1alpha1.VeleroDeleteBackupRequest{}
 	}
-	if status.VeleroDeleteBackupRequest.Status == nil || !reflect.DeepEqual(status.VeleroDeleteBackupRequest.Status, veleroDeleteBackupRequest.Status) {
-		status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
-		return true
+
+	if status.VeleroDeleteBackupRequest.Status == nil {
+		status.VeleroDeleteBackupRequest.Status = &velerov1.DeleteBackupRequestStatus{}
 	}
-	return false
+
+	if reflect.DeepEqual(*status.VeleroDeleteBackupRequest.Status, veleroDeleteBackupRequest.Status) {
+		return false
+	}
+
+	status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
+	return true
 }
