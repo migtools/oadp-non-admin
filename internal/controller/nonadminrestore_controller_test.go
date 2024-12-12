@@ -30,9 +30,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
@@ -47,6 +47,7 @@ type nonAdminRestoreFullReconcileScenario struct {
 	spec                nacv1alpha1.NonAdminRestoreSpec
 	status              nacv1alpha1.NonAdminRestoreStatus
 	backupStatus        nacv1alpha1.NonAdminBackupStatus
+	errorLogs           int
 }
 
 func buildTestNonAdminRestore(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminRestoreSpec) *nacv1alpha1.NonAdminRestore {
@@ -168,8 +169,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 		gomega.Expect(deleteTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
 
 		cancel()
-		// wait cancel
-		time.Sleep(1 * time.Second)
+		// wait manager shutdown
+		gomega.Eventually(func() (bool, error) {
+			logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+			shutdownlog := "INFO	Wait completed, proceeding to shutdown the manager"
+			return strings.Contains(logOutput, shutdownlog) && strings.Count(logOutput, shutdownlog) == 1, nil
+		}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 	})
 
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminRestore Create event",
@@ -185,6 +190,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
+				Cache: cache.Options{
+					DefaultNamespaces: map[string]cache.Config{
+						nonAdminRestoreNamespace: {},
+						oadpNamespace:            {},
+					},
+				},
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -206,53 +217,44 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				gomega.Expect(err).ToNot(gomega.HaveOccurred(), "failed to run manager")
 			}()
 			// wait manager start
-			managerStartTimeout := 10 * time.Second
-			pollInterval := 100 * time.Millisecond
-			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
-			defer cancel()
-
-			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
-				select {
-				case <-ctx.Done():
-					return false, ctx.Err()
-				default:
-					// Check if the manager has started by verifying if the client is initialized
-					return k8sManager.GetClient() != nil, nil
-				}
-			})
-			// Check if the context timeout or another error occurred
-			gomega.Expect(err).ToNot(gomega.HaveOccurred(), "Manager failed to start within the timeout period")
+			gomega.Eventually(func() (bool, error) {
+				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+				startUplog := `INFO	Starting workers	{"controller": "nonadminrestore", "controllerGroup": "oadp.openshift.io", "controllerKind": "NonAdminRestore", "worker count": 1}`
+				return strings.Contains(logOutput, startUplog) &&
+					strings.Count(logOutput, startUplog) == 1 &&
+					!strings.Contains(logOutput, "DEBUG	Accepted Create event"), nil
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
 			ginkgo.By("Waiting Reconcile of create event")
 			nonAdminRestore := buildTestNonAdminRestore(nonAdminRestoreNamespace, nonAdminRestoreName, scenario.spec)
-			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminRestore)).To(gomega.Succeed())
+			gomega.Expect(k8sClient.Create(ctx, nonAdminRestore)).To(gomega.Succeed())
 			// wait NonAdminRestore reconcile
-			time.Sleep(2 * time.Second)
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminRestoreName,
+						Namespace: nonAdminRestoreNamespace,
+					},
+					nonAdminRestore,
+				)
+				if err != nil {
+					return false, err
+				}
+				err = checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)
+				return err == nil, err
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-			ginkgo.By("Fetching NonAdminRestore after Reconcile")
-			gomega.Expect(k8sClient.Get(
-				ctxTimeout,
-				types.NamespacedName{
-					Name:      nonAdminRestoreName,
-					Namespace: nonAdminRestoreNamespace,
-				},
-				nonAdminRestore,
-			)).To(gomega.Succeed())
-
-			ginkgo.By("Validating NonAdminRestore Status")
-
-			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
+			ginkgo.By("Checking if NonAdminRestore Spec was not changed")
+			gomega.Expect(reflect.DeepEqual(
+				nonAdminRestore.Spec,
+				scenario.spec,
+			)).To(gomega.BeTrue())
 
 			veleroRestore := &velerov1.Restore{}
 			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
-				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
-				gomega.Expect(reflect.DeepEqual(
-					nonAdminRestore.Spec,
-					scenario.spec,
-				)).To(gomega.BeTrue())
-
 				gomega.Expect(k8sClient.Get(
-					ctxTimeout,
+					ctx,
 					types.NamespacedName{
 						Name:      nonAdminRestore.Status.VeleroRestore.Name,
 						Namespace: oadpNamespace,
@@ -268,19 +270,16 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				}
 
 				ginkgo.By("Simulating Velero Restore update to finished state")
-
 				veleroRestore.Status = velerov1.RestoreStatus{
 					Phase: velerov1.RestorePhaseCompleted,
 				}
 				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
-				gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
-
-				ginkgo.By("Velero Restore updated")
+				gomega.Expect(k8sClient.Update(ctx, veleroRestore)).To(gomega.Succeed())
 
 				// wait NonAdminRestore reconcile
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctxTimeout,
+						ctx,
 						types.NamespacedName{
 							Name:      nonAdminRestoreName,
 							Namespace: nonAdminRestoreNamespace,
@@ -298,25 +297,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			}
 
 			ginkgo.By("Waiting NonAdminRestore deletion")
-			gomega.Expect(k8sClient.Delete(ctxTimeout, nonAdminRestore)).To(gomega.Succeed())
-			gomega.Eventually(func() (bool, error) {
-				err := k8sClient.Get(
-					ctxTimeout,
-					types.NamespacedName{
-						Name:      nonAdminRestoreName,
-						Namespace: nonAdminRestoreNamespace,
-					},
-					nonAdminRestore,
-				)
-				if apierrors.IsNotFound(err) {
-					return true, nil
-				}
-				return false, err
-			}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			gomega.Expect(k8sClient.Delete(ctx, nonAdminRestore)).To(gomega.Succeed())
 			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctxTimeout,
+						ctx,
 						types.NamespacedName{
 							Name:      nonAdminRestore.Status.VeleroRestore.Name,
 							Namespace: oadpNamespace,
@@ -329,6 +314,26 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					return false, err
 				}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
 			}
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminRestoreName,
+						Namespace: nonAdminRestoreNamespace,
+					},
+					nonAdminRestore,
+				)
+				if apierrors.IsNotFound(err) {
+					return true, nil
+				}
+				return false, err
+			}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			gomega.Eventually(func() (bool, error) {
+				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+				deletelog := `DEBUG	Accepted Delete event	{"NonAdminRestorePredicate"`
+				return strings.Contains(logOutput, deletelog) && strings.Count(logOutput, deletelog) == 1, nil
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "ERROR")).Should(gomega.Equal(scenario.errorLogs))
 		},
 		ginkgo.Entry("Should update NonAdminRestore until Velero Restore completes and then delete it", nonAdminRestoreFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminRestoreSpec{
@@ -417,6 +422,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					},
 				},
 			},
+			errorLogs: 1,
 		}),
 	)
 })
