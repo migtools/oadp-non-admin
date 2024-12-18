@@ -378,7 +378,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	updatedQueueInfo := false
 
-	// Determine how many Backups are scheduled before the given VeleroRestore in the OADP namespace.
+	// Determine how many Restores are scheduled before the given VeleroRestore in the OADP namespace.
 	queueInfo, err := function.GetRestoreQueueInfo(ctx, r.Client, r.OADPNamespace, veleroRestore)
 	if err != nil {
 		// Log error and continue with the reconciliation, this is not critical error as it's just
