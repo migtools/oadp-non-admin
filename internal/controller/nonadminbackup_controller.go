@@ -89,6 +89,8 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
+	_, syncBackup := nab.Labels["openshift.io/oadp-nab-synced-from-nacuuid"]
+
 	// Determine which path to take
 	var reconcileSteps []nonAdminBackupReconcileStepFunction
 
@@ -115,6 +117,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			r.deleteVeleroBackupObjects,
 			r.deleteDeleteBackupRequestObjects,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
+		}
+
+	case syncBackup:
+		logger.V(1).Info("Executing nab sync path")
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
+			r.setBackupUUIDInStatus,
+			r.setFinalizerOnNonAdminBackup,
+			r.createVeleroBackupAndSyncWithNonAdminBackup,
 		}
 
 	default:
@@ -555,7 +565,12 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 	}
 
 	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NACUUID == constant.EmptyString {
-		veleroBackupNACUUID := function.GenerateNacObjectUUID(nab.Namespace, nab.Name)
+		var veleroBackupNACUUID string
+		if value, ok := nab.Labels["openshift.io/oadp-nab-synced-from-nacuuid"]; ok {
+			veleroBackupNACUUID = value
+		} else {
+			veleroBackupNACUUID = function.GenerateNacObjectUUID(nab.Namespace, nab.Name)
+		}
 		nab.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
 			NACUUID:   veleroBackupNACUUID,
 			Namespace: r.OADPNamespace,
