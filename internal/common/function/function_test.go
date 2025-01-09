@@ -47,19 +47,20 @@ import (
 var _ = ginkgo.Describe("PLACEHOLDER", func() {})
 
 const (
-	testNonAdminBackupNamespace  = "non-admin-backup-namespace"
-	testNonAdminBackupName       = "non-admin-backup-name"
-	testNonAdminSecondBackupName = "non-admin-second-backup-name"
-	testNonAdminBackupUUID       = "12345678-1234-1234-1234-123456789abc"
-	testNonAdminRestoreName      = "non-admin-restore-name"
-	testNonAdminRestoreUUID      = "12345678-1234-1234-1234-123456789abc"
-	testNonAdminRestoreNamespace = "non-admin-restore-namespace"
-	defaultStr                   = "default"
-	invalidInputEmptyNamespace   = "Invalid input - empty namespace"
-	invalidInputEmptyNsErr       = "invalid input: namespace, labelKey, and labelValue must not be empty"
-	expectedIntZero              = 0
-	expectedIntOne               = 1
-	expectedIntTwo               = 2
+	testNonAdminBackupNamespace   = "non-admin-backup-namespace"
+	testNonAdminBackupName        = "non-admin-backup-name"
+	testNonAdminSecondBackupName  = "non-admin-second-backup-name"
+	testNonAdminBackupUUID        = "12345678-1234-1234-1234-123456789abc"
+	testNonAdminRestoreName       = "non-admin-restore-name"
+	testNonAdminRestoreUUID       = "12345678-1234-1234-1234-123456789abc"
+	testNonAdminRestoreNamespace  = "non-admin-restore-namespace"
+	testNonAdminSecondRestoreName = "non-admin-second-restore-name"
+	defaultStr                    = "default"
+	invalidInputEmptyNamespace    = "Invalid input - empty namespace"
+	invalidInputEmptyNsErr        = "invalid input: namespace, labelKey, and labelValue must not be empty"
+	expectedIntZero               = 0
+	expectedIntOne                = 1
+	expectedIntTwo                = 2
 )
 
 func TestGetNonAdminLabels(t *testing.T) {
@@ -1484,6 +1485,91 @@ func TestGetBackupQueueInfo(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 
 			queueInfo, err := GetBackupQueueInfo(ctx, client, tt.namespace, tt.targetBackup)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
+		})
+	}
+}
+
+func TestGetRestoreQueueInfo(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+
+	if err := velerov1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register VeleroRestore type in TestGetRestoreQueueInfo: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		targetRestore *velerov1.Restore
+		mockRestores  []velerov1.Restore
+		expectedQueue int
+	}{
+		{
+			name:      "No restores in queue",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+			},
+			mockRestores:  []velerov1.Restore{},
+			expectedQueue: expectedIntOne,
+		},
+		{
+			name:      "One restore ahead in queue",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminSecondRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1 * time.Hour)},
+				},
+			},
+			mockRestores: []velerov1.Restore{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         defaultStr,
+						Name:              testNonAdminRestoreName,
+						CreationTimestamp: metav1.Time{Time: time.Now()},
+					},
+				},
+			},
+			expectedQueue: expectedIntTwo,
+		},
+		{
+			name:      "Target restore already completed",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+				Status: velerov1.RestoreStatus{
+					CompletionTimestamp: &metav1.Time{Time: time.Now()},
+				},
+			},
+			mockRestores:  []velerov1.Restore{},
+			expectedQueue: expectedIntZero,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, restore := range tt.mockRestores {
+				restoreCopy := restore
+				objects = append(objects, &restoreCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			queueInfo, err := GetRestoreQueueInfo(ctx, client, tt.namespace, tt.targetRestore)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
 		})
