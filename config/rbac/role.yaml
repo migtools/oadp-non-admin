@@ -5,6 +5,18 @@ metadata:
   name: non-admin-controller-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - oadp.openshift.io
   resources:
   - dataprotectionapplications
@@ -100,6 +112,26 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - backupstoragelocations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - velero.io
+  resources:
+  - backupstoragelocations/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - velero.io
   resources:

@@ -52,6 +52,11 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
+const (
+	unableToCreateControllerString = "unable to create controller"
+	controllerString               = "controller"
+)
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
@@ -154,7 +159,7 @@ func main() {
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: enforcedBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
+		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminBackup")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminRestoreReconciler{
@@ -163,14 +168,15 @@ func main() {
 		OADPNamespace:       oadpNamespace,
 		EnforcedRestoreSpec: enforcedRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NonAdminRestore")
+		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminRestore")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminBackupStorageLocationReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackupStorageLocation")
+		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminBackupStorageLocation")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

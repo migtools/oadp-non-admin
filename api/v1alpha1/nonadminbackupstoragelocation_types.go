@@ -17,29 +17,69 @@ limitations under the License.
 package v1alpha1
 
 import (
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// NonAdminBackupStorageLocationPhase is a simple one high-level summary of the lifecycle of an NonAdminBackupStorageLocation.
+// +kubebuilder:validation:Enum=New;Available;Unavailable;Created;Deleting
+type NonAdminBackupStorageLocationPhase string
+
+// NonAdminBackupStorageLocationPhase constants similar to velerov1.BackupStorageLocationPhase
+const (
+	NaBSLPhaseNew         NonAdminBackupStorageLocationPhase = "New"
+	NaBSLPhaseAvailable   NonAdminBackupStorageLocationPhase = "Available"
+	NaBSLPhaseUnavailable NonAdminBackupStorageLocationPhase = "Unavailable"
+	NaBSLPhaseCreated     NonAdminBackupStorageLocationPhase = "Created"
+	NaBSLPhaseDeleting    NonAdminBackupStorageLocationPhase = "Deleting"
+)
+
+// NonAdminBSLCondition contains addition conditions to the
+// generic ones defined as NonAdminCondition
+// +kubebuilder:validation:Enum=SecretSynced;BSLSynced
+type NonAdminBSLCondition string
+
+// Predefined NonAdminBSLConditions
+const (
+	NonAdminBSLConditionSecretSynced NonAdminBSLCondition = "SecretSynced"
+	NonAdminBSLConditionBSLSynced    NonAdminBSLCondition = "BackupStorageLocationSynced"
+)
 
 // NonAdminBackupStorageLocationSpec defines the desired state of NonAdminBackupStorageLocation
 type NonAdminBackupStorageLocationSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	velerov1.BackupStorageLocationSpec `json:",inline"`
+}
 
-	// Foo is an example field of NonAdminBackupStorageLocation. Edit nonadminbackupstoragelocation_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+// VeleroBackupStorageLocation contains information of the related Velero backup object.
+type VeleroBackupStorageLocation struct {
+	// status captures the current status of the Velero backup storage location.
+	// +optional
+	Status *velerov1.BackupStorageLocationStatus `json:"status,omitempty"`
+
+	// nacuuid references the Velero BackupStorageLocation object by it's label containing same NACUUID.
+	// +optional
+	NACUUID string `json:"nacuuid,omitempty"`
+
+	// references the Velero BackupStorageLocation object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero backup storage location exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // NonAdminBackupStorageLocationStatus defines the observed state of NonAdminBackupStorageLocation
 type NonAdminBackupStorageLocationStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +optional
+	VeleroBackupStorageLocation *VeleroBackupStorageLocation `json:"veleroBackupStorageLocation,omitempty"`
+
+	Phase      NonAdminBackupStorageLocationPhase `json:"phase,omitempty"`
+	Conditions []metav1.Condition                 `json:"conditions,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // NonAdminBackupStorageLocation is the Schema for the nonadminbackupstoragelocations API
 type NonAdminBackupStorageLocation struct {
@@ -50,7 +90,7 @@ type NonAdminBackupStorageLocation struct {
 	Status NonAdminBackupStorageLocationStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // NonAdminBackupStorageLocationList contains a list of NonAdminBackupStorageLocation
 type NonAdminBackupStorageLocationList struct {

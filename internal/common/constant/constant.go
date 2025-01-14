@@ -27,20 +27,24 @@ import (
 // Annotations on the other hand should be used to define ownership
 // of the specific Object, such as Backup/Restore.
 const (
-	OadpLabel             = v1alpha1.OadpOperatorLabel
-	OadpLabelValue        = TrueString
-	ManagedByLabel        = "app.kubernetes.io/managed-by"
-	ManagedByLabelValue   = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
-	NabOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nab-origin-nacuuid"
-	NarOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
+	OadpLabel               = v1alpha1.OadpOperatorLabel
+	OadpLabelValue          = TrueString
+	ManagedByLabel          = "app.kubernetes.io/managed-by"
+	ManagedByLabelValue     = "oadp-nac-controller" // TODO why not use same project name as in PROJECT file?
+	NabOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nab-origin-nacuuid"
+	NarOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
+	NabslOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nabsl-origin-nacuuid"
 
-	NabOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
-	NabOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
-	NarOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
-	NarOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
+	NabOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
+	NabOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
+	NarOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
+	NarOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
+	NabslOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nabsl-origin-name"
+	NabslOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nabsl-origin-namespace"
 
-	NabFinalizerName = "nonadminbackup.oadp.openshift.io/finalizer"
-	NarFinalizerName = "nonadminrestore.oadp.openshift.io/finalizer"
+	NabFinalizerName   = "nonadminbackup.oadp.openshift.io/finalizer"
+	NarFinalizerName   = "nonadminrestore.oadp.openshift.io/finalizer"
+	NabslFinalizerName = "nabsl.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
@@ -68,6 +72,12 @@ const CurrentPhaseString = "currentPhase"
 
 // UUIDString defines a constant for the UUID string
 const UUIDString = "UUID"
+
+// JSONTagString defines a constant for the JSON tag string
+const JSONTagString = "json"
+
+// CommaString defines a constant for the comma string
+const CommaString = ","
 
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value

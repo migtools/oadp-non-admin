@@ -55,9 +55,14 @@ const (
 	testNonAdminRestoreUUID       = "12345678-1234-1234-1234-123456789abc"
 	testNonAdminRestoreNamespace  = "non-admin-restore-namespace"
 	testNonAdminSecondRestoreName = "non-admin-second-restore-name"
-	defaultStr                    = "default"
 	invalidInputEmptyNamespace    = "Invalid input - empty namespace"
-	invalidInputEmptyNsErr        = "invalid input: namespace, labelKey, and labelValue must not be empty"
+	defaultStr                    = "default"
+	gcpStr                        = "gcp"
+	awsStr                        = "aws"
+	keyStr                        = "key"
+	bucketStr                     = "bucket"
+	regionStr                     = "region"
+	testStr                       = "test"
 	expectedIntZero               = 0
 	expectedIntOne                = 1
 	expectedIntTwo                = 2
@@ -249,7 +254,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			enforcedValue: velerov1.BackupHooks{
 				Resources: []velerov1.BackupResourceHookSpec{
 					{
-						Name: "test",
+						Name: testStr,
 					},
 				},
 			},
@@ -268,8 +273,8 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:          "VolumeSnapshotLocations",
-			enforcedValue: []string{"aws"},
-			overrideValue: []string{"gcp"},
+			enforcedValue: []string{awsStr},
+			overrideValue: []string{gcpStr},
 		},
 		{
 			name:          "DefaultVolumesToRestic",
@@ -301,7 +306,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		{
 			name: "ResourcePolicy",
 			enforcedValue: &corev1.TypedLocalObjectReference{
-				Kind: "test",
+				Kind: testStr,
 				Name: "example",
 			},
 			overrideValue: &corev1.TypedLocalObjectReference{},
@@ -688,6 +693,241 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 	})
 }
 
+func TestValidateBslSpec(t *testing.T) {
+	fakeScheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(fakeScheme); err != nil {
+		t.Fatalf("Failed to register corev1 type: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		errorMessage string
+		nonAdminBsl  *nacv1alpha1.NonAdminBackupStorageLocation
+		enforcedSpec *velerov1.BackupStorageLocationSpec
+		objects      []client.Object
+	}{
+		{
+			name: "[invalid] spec.bslSpec.credential not set",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: nil,
+					},
+				},
+			},
+			errorMessage: "NonAdminBackupStorageLocation spec.bslSpec.credential is not set",
+		},
+		{
+			name: "[invalid] spec.bslSpec.credential Name or Key not set",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: constant.EmptyString,
+							},
+							Key: "non-empty-key",
+						},
+					},
+				},
+			},
+			errorMessage: "NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set",
+		},
+		{
+			name: "[invalid] secret not found",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-1",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-1",
+							},
+							Key: keyStr,
+						},
+					},
+				},
+			},
+			errorMessage: "BSL credentials secret not found: secrets \"test-secret-1\" not found",
+			objects: []client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "different-secret", Namespace: "test-namespace-1"},
+				},
+			},
+		},
+		{
+			name: "[valid] secret found, no enforced spec",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-2",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-2",
+							},
+							Key: keyStr,
+						},
+					},
+				},
+			},
+			errorMessage: constant.EmptyString,
+			objects: []client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-secret-2", Namespace: "test-namespace-2"},
+				},
+			},
+		},
+		{
+			name: "[invalid] Provider enforced field mismatch",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-3",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-3",
+							},
+							Key: keyStr,
+						},
+						Provider: awsStr,
+					},
+				},
+			},
+			enforcedSpec: &velerov1.BackupStorageLocationSpec{
+				Provider: gcpStr,
+			},
+			errorMessage: "NonAdminBackupStorageLocation spec.bslSpec.provider field value is enforced by admin user, cannot override it",
+		},
+		{
+			name: "[invalid] Config value enforced field mismatch - region enforcement",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-4",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-4",
+							},
+							Key: keyStr,
+						},
+						Provider: gcpStr,
+						Config: map[string]string{
+							bucketStr: testStr,
+							regionStr: "us-east-1",
+						},
+					},
+				},
+			},
+			enforcedSpec: &velerov1.BackupStorageLocationSpec{
+				Provider: gcpStr,
+				Config: map[string]string{
+					regionStr: "eu-pl-1",
+				},
+			},
+			errorMessage: "NonAdminBackupStorageLocation spec.bslSpec.config.region field value is enforced by admin user, cannot override it",
+			objects: []client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-secret-4", Namespace: "test-namespace-4"},
+				},
+			},
+		},
+		{
+			name: "[valid] Config value enforced field - region enforcement match",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-5",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-5",
+							},
+							Key: keyStr,
+						},
+						Provider: gcpStr,
+						Config: map[string]string{
+							bucketStr: testStr,
+							regionStr: "eu-pl-2",
+						},
+					},
+				},
+			},
+			enforcedSpec: &velerov1.BackupStorageLocationSpec{
+				Provider: gcpStr,
+				Config: map[string]string{
+					regionStr: "eu-pl-2",
+				},
+			},
+			errorMessage: constant.EmptyString,
+			objects: []client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-secret-5", Namespace: "test-namespace-5"},
+				},
+			},
+		},
+		{
+			name: "[valid] Config value enforced field - region enforcement - specified by admin user",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "test-namespace-6",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret-6",
+							},
+							Key: keyStr,
+						},
+						Provider: gcpStr,
+						Config: map[string]string{
+							bucketStr: "mybucket",
+						},
+					},
+				},
+			},
+			enforcedSpec: &velerov1.BackupStorageLocationSpec{
+				Provider: gcpStr,
+				Config: map[string]string{
+					regionStr: "eu-pl-3",
+				},
+			},
+			errorMessage: constant.EmptyString,
+			objects: []client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: "test-secret-6", Namespace: "test-namespace-6"},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(test.objects...).Build()
+
+			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, test.enforcedSpec)
+			if err != nil {
+				if test.errorMessage != err.Error() {
+					t.Errorf("test '%s' failed: error messages differ. Expected '%v', got '%v'", test.name, test.errorMessage, err)
+				}
+				return
+			}
+			if test.errorMessage != "" {
+				t.Errorf("test '%s' failed: expected error '%v' but got none", test.name, test.errorMessage)
+			}
+		})
+	}
+}
+
 func TestGenerateNacObjectNameWithUUID(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -837,7 +1077,7 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 			labelValue:    testAppStr,
 			mockBackups:   []velerov1.Backup{},
 			expected:      nil,
-			expectedError: errors.New(invalidInputEmptyNsErr),
+			expectedError: errors.New("invalid input: namespace=\"\", labelKey=\"openshift.io/oadp-nab-origin-nacuuid\", labelValue=\"test-app\""),
 		},
 	}
 
@@ -940,7 +1180,7 @@ func TestGetVeleroRestoreByLabel(t *testing.T) {
 			labelValue:    testAppStr,
 			mockRestores:  []velerov1.Restore{},
 			expected:      nil,
-			expectedError: errors.New(invalidInputEmptyNsErr),
+			expectedError: errors.New("invalid input: namespace=\"\", labelKey=\"openshift.io/oadp-nar-origin-nacuuid\", labelValue=\"test-app\""),
 		},
 	}
 
@@ -1281,7 +1521,7 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 			labelValue:    testAppStr,
 			mockRequests:  []velerov1.DeleteBackupRequest{},
 			expected:      nil,
-			expectedError: errors.New(invalidInputEmptyNsErr),
+			expectedError: errors.New("invalid input: namespace=\"\", labelKey=\"velero.io/backup-name\", labelValue=\"test-app\""),
 		},
 	}
 
