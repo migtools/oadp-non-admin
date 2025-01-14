@@ -100,6 +100,20 @@ func checkTestNonAdminRestoreStatus(nonAdminRestore *nacv1alpha1.NonAdminRestore
 			return fmt.Errorf("NonAdminRestore Status Conditions [%v] Message %v does not contain expected message %v", index, nonAdminRestore.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
 		}
 	}
+
+	if nonAdminRestore.Status.QueueInfo == nil && expectedStatus.QueueInfo != nil {
+		return fmt.Errorf("NonAdminRestore Status QueueInfo is nil, but expectedStatus QueueInfo is set")
+	}
+
+	if nonAdminRestore.Status.QueueInfo != nil && expectedStatus.QueueInfo == nil {
+		return fmt.Errorf("NonAdminRestore Status QueueInfo is set, but expectedStatus QueueInfo is nil")
+	}
+
+	if nonAdminRestore.Status.QueueInfo != nil && !reflect.DeepEqual(nonAdminRestore.Status.QueueInfo, expectedStatus.QueueInfo) {
+		return fmt.Errorf("NonAdminRestore Status QueueInfo differs: got %+v, expected %+v",
+			nonAdminRestore.Status.QueueInfo, expectedStatus.QueueInfo)
+	}
+
 	return nil
 }
 
@@ -180,8 +194,15 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 			nonAdminBackup := buildTestNonAdminBackup(nonAdminRestoreNamespace, scenario.spec.RestoreSpec.BackupName, nacv1alpha1.NonAdminBackupSpec{BackupSpec: &velerov1.BackupSpec{}})
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
-			nonAdminBackup.Status = scenario.backupStatus
+			nonAdminBackup.Status = *scenario.backupStatus.DeepCopy()
 			gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackup)).To(gomega.Succeed())
+
+			// Retrieve updated nonAdminBackup object and ensure it's reflected in the status
+			gomega.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nonAdminBackup.Name, Namespace: nonAdminRestoreNamespace}, nonAdminBackup)).To(gomega.Succeed())
+			if scenario.backupStatus.VeleroBackup != nil && scenario.backupStatus.VeleroBackup.Status != nil {
+				gomega.Expect(nonAdminBackup.Status.VeleroBackup.Status.Phase).To(gomega.Equal(scenario.backupStatus.VeleroBackup.Status.Phase))
+				gomega.Expect(nonAdminBackup.Status.VeleroBackup.Status.CompletionTimestamp.Time).To(gomega.BeTemporally("~", scenario.backupStatus.VeleroBackup.Status.CompletionTimestamp.Time, time.Second))
+			}
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
@@ -339,7 +360,10 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			backupStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					Status: nil,
+					Status: &velerov1.BackupStatus{
+						Phase:               velerov1.BackupPhaseCompleted,
+						CompletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
 				},
 				Conditions: []metav1.Condition{
 					{
@@ -356,6 +380,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Message:            "Created Velero Backup object",
 						LastTransitionTime: metav1.NewTime(time.Now()),
 					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 5,
 				},
 			},
 			status: nacv1alpha1.NonAdminRestoreStatus{
@@ -377,6 +404,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Message: "Created Velero Restore object",
 					},
 				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
+				},
 			},
 			enforcedRestoreSpec: &velerov1.RestoreSpec{
 				RestorePVs: ptr.To(false),
@@ -388,7 +418,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 			},
 		}),
-		ginkgo.Entry("Should update NonAdminRestore until it invalidates and then delete it", nonAdminRestoreFullReconcileScenario{
+		ginkgo.Entry("Should not include queueInfo for the given backup as NonAdminBackup is not ready to be restored (BackingOff)", nonAdminRestoreFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminRestoreSpec{
 				RestoreSpec: &velerov1.RestoreSpec{
 					BackupName: "non-admin-backup-with-phase-backing-off",
@@ -416,6 +446,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						Message: "NonAdminRestore spec.restoreSpec.backupName is invalid: ",
 					},
 				},
+				QueueInfo: nil,
 			},
 		}),
 	)

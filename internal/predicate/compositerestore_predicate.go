@@ -27,9 +27,10 @@ import (
 
 // CompositeRestorePredicate is a combination of NonAdminRestore and Velero Restore event filters
 type CompositeRestorePredicate struct {
-	Context                  context.Context
-	NonAdminRestorePredicate NonAdminRestorePredicate
-	VeleroRestorePredicate   VeleroRestorePredicate
+	Context                     context.Context
+	NonAdminRestorePredicate    NonAdminRestorePredicate
+	VeleroRestorePredicate      VeleroRestorePredicate
+	VeleroRestoreQueuePredicate VeleroRestoreQueuePredicate
 }
 
 // Create event filter only accepts NonAdminRestore create events
@@ -48,7 +49,7 @@ func (p CompositeRestorePredicate) Update(evt event.UpdateEvent) bool {
 	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Update(p.Context, evt)
 	case *velerov1.Restore:
-		return p.VeleroRestorePredicate.Update(p.Context, evt)
+		return p.VeleroRestoreQueuePredicate.Update(p.Context, evt) || p.VeleroRestorePredicate.Update(p.Context, evt)
 	default:
 		return false
 	}

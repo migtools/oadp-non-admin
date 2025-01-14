@@ -47,14 +47,20 @@ import (
 var _ = ginkgo.Describe("PLACEHOLDER", func() {})
 
 const (
-	testNonAdminBackupNamespace  = "non-admin-backup-namespace"
-	testNonAdminBackupName       = "non-admin-backup-name"
-	testNonAdminSecondBackupName = "non-admin-second-backup-name"
-	testNonAdminBackupUUID       = "12345678-1234-1234-1234-123456789abc"
-	defaultStr                   = "default"
-	expectedIntZero              = 0
-	expectedIntOne               = 1
-	expectedIntTwo               = 2
+	testNonAdminBackupNamespace   = "non-admin-backup-namespace"
+	testNonAdminBackupName        = "non-admin-backup-name"
+	testNonAdminSecondBackupName  = "non-admin-second-backup-name"
+	testNonAdminBackupUUID        = "12345678-1234-1234-1234-123456789abc"
+	testNonAdminRestoreName       = "non-admin-restore-name"
+	testNonAdminRestoreUUID       = "12345678-1234-1234-1234-123456789abc"
+	testNonAdminRestoreNamespace  = "non-admin-restore-namespace"
+	testNonAdminSecondRestoreName = "non-admin-second-restore-name"
+	defaultStr                    = "default"
+	invalidInputEmptyNamespace    = "Invalid input - empty namespace"
+	invalidInputEmptyNsErr        = "invalid input: namespace, labelKey, and labelValue must not be empty"
+	expectedIntZero               = 0
+	expectedIntOne                = 1
+	expectedIntTwo                = 2
 )
 
 func TestGetNonAdminLabels(t *testing.T) {
@@ -826,12 +832,12 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 			expectedError: errors.New("multiple VeleroBackup objects found with label openshift.io/oadp-nab-origin-nacuuid=test-app in namespace 'default'"),
 		},
 		{
-			name:          "Invalid input - empty namespace",
-			namespace:     "",
+			name:          invalidInputEmptyNamespace,
+			namespace:     constant.EmptyString,
 			labelValue:    testAppStr,
 			mockBackups:   []velerov1.Backup{},
 			expected:      nil,
-			expectedError: errors.New("invalid input: namespace, labelKey, and labelValue must not be empty"),
+			expectedError: errors.New(invalidInputEmptyNsErr),
 		},
 	}
 
@@ -854,6 +860,109 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 					assert.Equal(t, tt.expected.Name, result.Name, "VeleroBackup Name should match")
 					assert.Equal(t, tt.expected.Namespace, result.Namespace, "VeleroBackup Namespace should match")
 					assert.Equal(t, tt.expected.Labels, result.Labels, "VeleroBackup Labels should match")
+				} else {
+					assert.Nil(t, result, "Expected result should be nil")
+				}
+			}
+		})
+	}
+}
+
+func TestGetVeleroRestoreByLabel(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+	const testAppStr = "test-app"
+
+	if err := velerov1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register VeleroRestore type in TestGetVeleroRestoreByLabel: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		labelValue    string
+		expected      *velerov1.Restore
+		expectedError error
+		mockRestores  []velerov1.Restore
+	}{
+		{
+			name:       "Single VeleroBackup found",
+			namespace:  defaultStr,
+			labelValue: testAppStr,
+			mockRestores: []velerov1.Restore{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      "restore1",
+						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
+					},
+				},
+			},
+			expected:      &velerov1.Restore{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "restore1", Labels: map[string]string{constant.NarOriginNACUUIDLabel: testAppStr}}},
+			expectedError: nil,
+		},
+		{
+			name:          "No VeleroRestores found",
+			namespace:     defaultStr,
+			labelValue:    testAppStr,
+			mockRestores:  []velerov1.Restore{},
+			expected:      nil,
+			expectedError: nil,
+		},
+		{
+			name:       "Multiple VeleroRestores found",
+			namespace:  defaultStr,
+			labelValue: testAppStr,
+			mockRestores: []velerov1.Restore{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      "restore2",
+						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultStr,
+						Name:      "restore3",
+						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: errors.New("multiple VeleroRestore objects found with label openshift.io/oadp-nar-origin-nacuuid=test-app in namespace 'default'"),
+		},
+		{
+			name:          invalidInputEmptyNamespace,
+			namespace:     constant.EmptyString,
+			labelValue:    testAppStr,
+			mockRestores:  []velerov1.Restore{},
+			expected:      nil,
+			expectedError: errors.New(invalidInputEmptyNsErr),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, restore := range tt.mockRestores {
+				restoreCopy := restore // Create a copy to avoid memory aliasing
+				objects = append(objects, &restoreCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			result, err := GetVeleroRestoreByLabel(ctx, client, tt.namespace, tt.labelValue)
+
+			if tt.expectedError != nil {
+				assert.EqualError(t, err, tt.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+				if tt.expected != nil && result != nil {
+					assert.Equal(t, tt.expected.Name, result.Name, "VeleroRestore Name should match")
+					assert.Equal(t, tt.expected.Namespace, result.Namespace, "VeleroRestore Namespace should match")
+					assert.Equal(t, tt.expected.Labels, result.Labels, "VeleroRestore Labels should match")
 				} else {
 					assert.Nil(t, result, "Expected result should be nil")
 				}
@@ -1003,6 +1112,97 @@ func TestCheckVeleroBackupMetadata(t *testing.T) {
 	}
 }
 
+func TestCheckVeleroRestoreMetadata(t *testing.T) {
+	tests := []struct {
+		restore  *velerov1.Restore
+		name     string
+		expected bool
+	}{
+		{
+			name:     "Velero Restore without required non admin labels and annotations",
+			restore:  &velerov1.Restore{},
+			expected: false,
+		},
+		{
+			name: "Velero Restore without required non admin annotations",
+			restore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: constant.ManagedByLabelValue,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Restore with wrong required non admin label",
+			restore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:      constant.OadpLabelValue,
+						constant.ManagedByLabel: "foo",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Restore without required non admin labels",
+			restore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						constant.NarOriginNamespaceAnnotation: testNonAdminRestoreNamespace,
+						constant.NarOriginNameAnnotation:      testNonAdminRestoreName,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Restore with wrong required non admin annotation [empty]",
+			restore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:             constant.OadpLabelValue,
+						constant.ManagedByLabel:        constant.ManagedByLabelValue,
+						constant.NarOriginNACUUIDLabel: testNonAdminRestoreUUID,
+					},
+					Annotations: map[string]string{
+						constant.NarOriginNamespaceAnnotation: constant.EmptyString,
+						constant.NarOriginNameAnnotation:      testNonAdminRestoreName,
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "Velero Restore with required non admin labels and annotations",
+			restore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						constant.OadpLabel:             constant.OadpLabelValue,
+						constant.ManagedByLabel:        constant.ManagedByLabelValue,
+						constant.NarOriginNACUUIDLabel: testNonAdminRestoreUUID,
+					},
+					Annotations: map[string]string{
+						constant.NarOriginNamespaceAnnotation: testNonAdminRestoreNamespace,
+						constant.NarOriginNameAnnotation:      testNonAdminRestoreName,
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := CheckVeleroRestoreMetadata(test.restore)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
+
 func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 	log := zap.New(zap.UseDevMode(true))
 	ctx := context.Background()
@@ -1076,12 +1276,12 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			name:          "Invalid input - empty namespace",
-			namespace:     "",
+			name:          invalidInputEmptyNamespace,
+			namespace:     constant.EmptyString,
 			labelValue:    testAppStr,
 			mockRequests:  []velerov1.DeleteBackupRequest{},
 			expected:      nil,
-			expectedError: errors.New("invalid input: namespace, labelKey, and labelValue must not be empty"),
+			expectedError: errors.New(invalidInputEmptyNsErr),
 		},
 	}
 
@@ -1285,6 +1485,91 @@ func TestGetBackupQueueInfo(t *testing.T) {
 			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
 
 			queueInfo, err := GetBackupQueueInfo(ctx, client, tt.namespace, tt.targetBackup)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
+		})
+	}
+}
+
+func TestGetRestoreQueueInfo(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+
+	if err := velerov1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register VeleroRestore type in TestGetRestoreQueueInfo: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		targetRestore *velerov1.Restore
+		mockRestores  []velerov1.Restore
+		expectedQueue int
+	}{
+		{
+			name:      "No restores in queue",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+			},
+			mockRestores:  []velerov1.Restore{},
+			expectedQueue: expectedIntOne,
+		},
+		{
+			name:      "One restore ahead in queue",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminSecondRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now().Add(1 * time.Hour)},
+				},
+			},
+			mockRestores: []velerov1.Restore{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace:         defaultStr,
+						Name:              testNonAdminRestoreName,
+						CreationTimestamp: metav1.Time{Time: time.Now()},
+					},
+				},
+			},
+			expectedQueue: expectedIntTwo,
+		},
+		{
+			name:      "Target restore already completed",
+			namespace: defaultStr,
+			targetRestore: &velerov1.Restore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:         defaultStr,
+					Name:              testNonAdminRestoreName,
+					CreationTimestamp: metav1.Time{Time: time.Now()},
+				},
+				Status: velerov1.RestoreStatus{
+					CompletionTimestamp: &metav1.Time{Time: time.Now()},
+				},
+			},
+			mockRestores:  []velerov1.Restore{},
+			expectedQueue: expectedIntZero,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, restore := range tt.mockRestores {
+				restoreCopy := restore
+				objects = append(objects, &restoreCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			queueInfo, err := GetRestoreQueueInfo(ctx, client, tt.namespace, tt.targetRestore)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
 		})
