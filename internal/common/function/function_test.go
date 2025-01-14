@@ -710,7 +710,7 @@ func TestValidateBslSpec(t *testing.T) {
 			name: "[invalid] spec.bslSpec.credential not set",
 			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: nil,
 					},
 				},
@@ -721,7 +721,7 @@ func TestValidateBslSpec(t *testing.T) {
 			name: "[invalid] spec.bslSpec.credential Name or Key not set",
 			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: constant.EmptyString,
@@ -740,7 +740,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-1",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-1",
@@ -764,7 +764,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-2",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-2",
@@ -788,7 +788,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-3",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-3",
@@ -811,7 +811,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-4",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-4",
@@ -846,7 +846,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-5",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-5",
@@ -881,7 +881,7 @@ func TestValidateBslSpec(t *testing.T) {
 					Namespace: "test-namespace-6",
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-					BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 						Credential: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-6",

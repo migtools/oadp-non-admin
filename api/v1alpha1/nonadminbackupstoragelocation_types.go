@@ -47,7 +47,7 @@ const (
 
 // NonAdminBackupStorageLocationSpec defines the desired state of NonAdminBackupStorageLocation
 type NonAdminBackupStorageLocationSpec struct {
-	velerov1.BackupStorageLocationSpec `json:",inline"`
+	BackupStorageLocationSpec *velerov1.BackupStorageLocationSpec `json:"backupStorageLocationSpec"`
 }
 
 // VeleroBackupStorageLocation contains information of the related Velero backup object.

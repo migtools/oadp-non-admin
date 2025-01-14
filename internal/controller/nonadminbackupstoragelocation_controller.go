@@ -367,8 +367,8 @@ func (r *NonAdminBackupStorageLocationReconciler) createSyncNaBSLSecrets(ctx con
 	// Skip syncing if the VeleroBackupStorageLocation UUID is not set or the source secret is not set in the spec
 	if nabsl.Status.VeleroBackupStorageLocation == nil ||
 		nabsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString ||
-		nabsl.Spec.Credential == nil ||
-		nabsl.Spec.Credential.Name == constant.EmptyString {
+		nabsl.Spec.BackupStorageLocationSpec.Credential == nil ||
+		nabsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString {
 		return false, nil
 	}
 
@@ -376,9 +376,9 @@ func (r *NonAdminBackupStorageLocationReconciler) createSyncNaBSLSecrets(ctx con
 	sourceNaBSLSecret := &corev1.Secret{}
 	if err := r.Get(ctx, types.NamespacedName{
 		Namespace: nabsl.Namespace,
-		Name:      nabsl.Spec.Credential.Name,
+		Name:      nabsl.Spec.BackupStorageLocationSpec.Credential.Name,
 	}, sourceNaBSLSecret); err != nil {
-		logger.Error(err, "Failed to get secret", "secretName", nabsl.Spec.Credential.Name)
+		logger.Error(err, "Failed to get secret", "secretName", nabsl.Spec.BackupStorageLocationSpec.Credential.Name)
 		return false, err
 	}
 
@@ -535,24 +535,24 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 	// however we need to set the key to the one specified in the NonAdminBackupStorageLocation spec
 	// because it's the user who decides which key to use from the secret
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, veleroBsl, func() error {
-		veleroBsl.Spec.AccessMode = bslSpec.AccessMode
-		veleroBsl.Spec.BackupSyncPeriod = bslSpec.BackupSyncPeriod
-		veleroBsl.Spec.Config = bslSpec.Config
+		veleroBsl.Spec.AccessMode = bslSpec.BackupStorageLocationSpec.AccessMode
+		veleroBsl.Spec.BackupSyncPeriod = bslSpec.BackupStorageLocationSpec.BackupSyncPeriod
+		veleroBsl.Spec.Config = bslSpec.BackupStorageLocationSpec.Config
 		veleroBsl.Spec.Credential = &corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{
 				Name: veleroBslSecret.Name,
 			},
 		}
-		veleroBsl.Spec.Credential.Key = bslSpec.Credential.Key
-		veleroBsl.Spec.Default = bslSpec.Default
-		veleroBsl.Spec.ObjectStorage = bslSpec.ObjectStorage
-		veleroBsl.Spec.Provider = bslSpec.Provider
-		veleroBsl.Spec.StorageType = bslSpec.StorageType
-		veleroBsl.Spec.ValidationFrequency = bslSpec.ValidationFrequency
+		veleroBsl.Spec.Credential.Key = bslSpec.BackupStorageLocationSpec.Credential.Key
+		veleroBsl.Spec.Default = bslSpec.BackupStorageLocationSpec.Default
+		veleroBsl.Spec.ObjectStorage = bslSpec.BackupStorageLocationSpec.ObjectStorage
+		veleroBsl.Spec.Provider = bslSpec.BackupStorageLocationSpec.Provider
+		veleroBsl.Spec.StorageType = bslSpec.BackupStorageLocationSpec.StorageType
+		veleroBsl.Spec.ValidationFrequency = bslSpec.BackupStorageLocationSpec.ValidationFrequency
 
-		veleroBsl.Spec.ObjectStorage.Bucket = bslSpec.ObjectStorage.Bucket
-		veleroBsl.Spec.ObjectStorage.Prefix = bslSpec.ObjectStorage.Prefix
-		veleroBsl.Spec.ObjectStorage.CACert = bslSpec.ObjectStorage.CACert
+		veleroBsl.Spec.ObjectStorage.Bucket = bslSpec.BackupStorageLocationSpec.ObjectStorage.Bucket
+		veleroBsl.Spec.ObjectStorage.Prefix = bslSpec.BackupStorageLocationSpec.ObjectStorage.Prefix
+		veleroBsl.Spec.ObjectStorage.CACert = bslSpec.BackupStorageLocationSpec.ObjectStorage.CACert
 		return nil
 	})
 

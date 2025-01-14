@@ -355,7 +355,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 		}, ginkgo.Entry("Should fail with NonAdminBackupStorageLocation due to missing credential name", nonAdminBackupStorageLocationFullReconcileScenario{
 			createNonAdminSecret: false,
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-				BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Credential: &corev1.SecretKeySelector{
 						Key: "cloud",
 					},
@@ -384,7 +384,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 		ginkgo.Entry("Should fail with NonAdminBackupStorageLocation due to missing secret object", nonAdminBackupStorageLocationFullReconcileScenario{
 			createNonAdminSecret: false,
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-				BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Provider: "aws",
 					StorageType: velerov1.StorageType{
 						ObjectStorage: &velerov1.ObjectStorageLocation{
@@ -419,7 +419,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			createNonAdminSecret: true,
 			nonAdminSecretName:   "test-secret-name",
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
-				BackupStorageLocationSpec: velerov1.BackupStorageLocationSpec{
+				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Credential: &corev1.SecretKeySelector{
 						LocalObjectReference: corev1.LocalObjectReference{
 							Name: "test-secret-name",

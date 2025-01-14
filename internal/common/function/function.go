@@ -169,9 +169,9 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 
 // ValidateBslSpec return nil, if NonAdminRestore is valid; error otherwise
 func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBslSpec *velerov1.BackupStorageLocationSpec) error {
-	if nonAdminBsl.Spec.Credential == nil {
+	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
-	} else if nonAdminBsl.Spec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.Credential.Key == constant.EmptyString {
+	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
 	}
 
@@ -233,7 +233,7 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 	secret := &corev1.Secret{}
 	if err := clientInstance.Get(ctx, types.NamespacedName{
 		Namespace: nonAdminBsl.Namespace,
-		Name:      nonAdminBsl.Spec.Credential.Name,
+		Name:      nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name,
 	}, secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("BSL credentials secret not found: %v", err)
