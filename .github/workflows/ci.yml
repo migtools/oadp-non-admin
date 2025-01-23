@@ -79,7 +79,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: oadp-operator/go.mod
           cache: false
 
       - name: Checkout Non Admin Controller (NAC)
