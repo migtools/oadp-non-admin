@@ -260,10 +260,13 @@ flowchart TD
     NAB_API_DELETE --> setPhase["NAB Phase: **Deleting**"]
     setPhase --> setCondition["NAB Condition: Deleting=True
     Reason: DeletionPending
-    Message: backup deletion requires setting
-    spec.deleteBackup or spec.forceDeleteBackup
-    to true or finalizer removal"]
-    setCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| endDelete["End"]
+    Message: permanent backup deletion requires
+    setting spec.deleteBackup to true"]
+    setCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| checkVeleroBackupObjects
+    checkVeleroBackupObjects{Check VeleroBackup} -->|Exist| deleteVeleroBackupObjects[Delete VeleroBackup Objects]
+    deleteVeleroBackupObjects --> removeApiDeleteFinalizer[Remove NAB Finalizer]
+    checkVeleroBackupObjects -->|Don't Exist| removeApiDeleteFinalizer
+    removeApiDeleteFinalizer --> endDelete["End API Delete"]
 
     %% Force Delete Path
     FORCE_DELETE --> setDeletingPhase[NAB Phase: **Deleting**]
@@ -327,12 +330,12 @@ flowchart TD
     classDef waitState fill:#ccccff,stroke:#333,stroke-width:2px
 
     %% Apply styles to all nodes
-    class SWITCH,initNabCreate,validateSpec,setFinalizer,createVB,checkVeleroBackup,validateDelete,checkDeletionTimestamp,checkDeletionTimestampDelete,checkRequeueFlagDelete,checkVeleroObjects,checkRequeueFlag,checkStatusChanged,checkStatusChangedDelete,checkDeleteBackupRequest decision
-    class start,CREATE_UPDATE,NAB_API_DELETE,FORCE_DELETE,DELETE_BACKUP,generateNACUUID,createNewVB,removeBackup,initiateForceDelete,deleteVeleroObjects,initiateDelete process
+    class SWITCH,initNabCreate,validateSpec,setFinalizer,createVB,checkVeleroBackup,validateDelete,checkDeletionTimestamp,checkDeletionTimestampDelete,checkRequeueFlagDelete,checkVeleroObjects,checkRequeueFlag,checkStatusChanged,checkStatusChangedDelete,checkDeleteBackupRequest,checkVeleroBackupObjects decision
+    class start,CREATE_UPDATE,NAB_API_DELETE,FORCE_DELETE,DELETE_BACKUP,generateNACUUID,createNewVB,removeBackup,initiateForceDelete,deleteVeleroObjects,deleteVeleroBackupObjects,initiateDelete process
     class terminalError,endCreateUpdate,endDelete,endForce,endDeleteBackup endpoint
     class setNewPhase,setBackingOffPhase,setCreatedPhase,setPhase,setDeletePhase,setDeletionPhase,setDeletingPhase,setDeletingPhaseDelete phase
     class setInitialCondition,setInvalidCondition,setAcceptedCondition,setQueuedCondition,setCondition,setDeletingCondition,setDeletingConditionDelete condition
-    class updateFromVB,updateNABStatus,addFinalizer,removeFinalizer update
+    class updateFromVB,updateNABStatus,addFinalizer,removeFinalizer,removeApiDeleteFinalizer update
     class refetchNAB refetch
     class setDeleteStatus,createDBR,updateStatus deleteProcess
     class waitForDeletion waitState

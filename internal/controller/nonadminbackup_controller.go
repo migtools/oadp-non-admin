@@ -96,10 +96,15 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	switch {
 	case nab.Spec.ForceDeleteBackup:
 		// Force delete path - immediately removes both VeleroBackup and DeleteBackupRequest
+		// Remove dependent VeleroBackup object
+		// Remove finalizer from the NonAdminBackup object
+		// If there was existing BSL pointing to the Backup object
+		// the Backup will be restored causing the NAB to be recreated
 		logger.V(1).Info("Executing force delete path")
 		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusAndConditionForDeletionAndCallDelete,
-			r.deleteVeleroBackupAndDeleteBackupRequestObjects,
+			r.deleteVeleroBackupObjects,
+			r.deleteDeleteBackupRequestObjects,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
 		}
 
@@ -114,11 +119,15 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	case !nab.ObjectMeta.DeletionTimestamp.IsZero():
 		// Direct deletion path - sets status and condition
-		// Initializes deletion of the NonAdminBackup object without removing
-		// dependent VeleroBackup object
+		// Remove dependent VeleroBackup object
+		// Remove finalizer from the NonAdminBackup object
+		// If there was existing BSL pointing to the Backup object
+		// the Backup will be restored causing the NAB to be recreated
 		logger.V(1).Info("Executing direct deletion path")
 		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusForDirectKubernetesAPIDeletion,
+			r.deleteVeleroBackupObjects,
+			r.removeNabFinalizerUponVeleroBackupDeletion,
 		}
 
 	default:
@@ -211,7 +220,7 @@ func (r *NonAdminBackupReconciler) setStatusForDirectKubernetesAPIDeletion(ctx c
 			Type:    string(nacv1alpha1.NonAdminConditionDeleting),
 			Status:  metav1.ConditionTrue,
 			Reason:  "DeletionPending",
-			Message: "backup deletion requires setting spec.deleteBackup or spec.forceDeleteBackup to true or finalizer removal",
+			Message: "permanent backup deletion requires setting spec.deleteBackup to true",
 		},
 	)
 	if updatedPhase || updatedCondition {
@@ -320,8 +329,8 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 	return false, nil // Continue so initNabDeletion can initialize deletion of a NonAdminBackup object
 }
 
-// deleteVeleroBackupAndDeleteBackupRequestObjects deletes both the VeleroBackup and any associated
-// DeleteBackupRequest objects for a given NonAdminBackup when force deletion is requested.
+// deleteVeleroBackupObjects deletes the VeleroBackup objects
+// associated with a given NonAdminBackup
 //
 // Parameters:
 //   - ctx: Context for managing request lifetime
@@ -331,9 +340,9 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 // Returns:
 //   - bool: whether to requeue (always false)
 //   - error: any error encountered during deletion
-func (r *NonAdminBackupReconciler) deleteVeleroBackupAndDeleteBackupRequestObjects(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	// This function is called just after setStatusAndConditionForDeletionAndCallDelete - force delete path, which already
-	// requeued the reconciliation to get the latest NAB object. There is no need to fetch the latest NAB object here.
+func (r *NonAdminBackupReconciler) deleteVeleroBackupObjects(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	// This function is called in a workflows where requeue just happened.
+	// There is no need to fetch the latest NAB object here.
 	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NACUUID == constant.EmptyString {
 		return false, nil
 	}
@@ -358,6 +367,27 @@ func (r *NonAdminBackupReconciler) deleteVeleroBackupAndDeleteBackupRequestObjec
 		logger.V(1).Info("VeleroBackup already deleted")
 	}
 
+	return false, nil
+}
+
+// deleteDeleteBackupRequestObjects deletes the VeleroBackup DeleteBackupRequestObjects
+// associated with a given NonAdminBackup
+//
+// Parameters:
+//   - ctx: Context for managing request lifetime
+//   - logger: Logger instance
+//   - nab: NonAdminBackup object
+//
+// Returns:
+//   - bool: whether to requeue (always false)
+//   - error: any error encountered during deletion
+func (r *NonAdminBackupReconciler) deleteDeleteBackupRequestObjects(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
+	// There is no need to fetch the latest NAB object here.
+	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NACUUID == constant.EmptyString {
+		return false, nil
+	}
+
+	veleroBackupNACUUID := nab.Status.VeleroBackup.NACUUID
 	deleteBackupRequest, err := function.GetVeleroDeleteBackupRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNACUUID)
 	if err != nil {
 		// Log error if multiple DeleteBackupRequest objects are found
