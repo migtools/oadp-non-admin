@@ -75,6 +75,7 @@ jobs:
         with:
           repository: openshift/oadp-operator
           ref: ${{ github.base_ref || github.ref_name }}
+          path: oadp-operator
 
       - uses: actions/setup-go@v5
         with:
@@ -87,9 +88,10 @@ jobs:
           path: oadp-non-admin
 
       - name: Check Non Admin Controller (NAC) manifests
+        working-directory: ./oadp-operator
         run: |
-          NON_ADMIN_CONTROLLER_PATH=./oadp-non-admin make update-non-admin-manifests
-          if test -n "$(git status --short -- ':!oadp-non-admin')"; then
+          NON_ADMIN_CONTROLLER_PATH=../oadp-non-admin make update-non-admin-manifests
+          if test -n "$(git status --short)"; then
             echo "::error::run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests"
             exit 1
           fi
@@ -97,7 +99,7 @@ jobs:
       - name: Check Velero manifests
         working-directory: ./oadp-non-admin
         run: |
-          OADP_OPERATOR_PATH=../ make update-velero-manifests
+          OADP_OPERATOR_PATH=../oadp-operator make update-velero-manifests
           if test -n "$(git status --short)"; then
             echo "::error::run 'make update-velero-manifests' in Non Admin Controller (NAC) repository to update Velero manifests"
             exit 1
