@@ -34,9 +34,8 @@ const (
 	NaBSLPhaseDeleting    NonAdminBackupStorageLocationPhase = "Deleting"
 )
 
-// NonAdminBSLCondition contains addition conditions to the
+// NonAdminBSLCondition contains additional conditions to the
 // generic ones defined as NonAdminCondition
-// +kubebuilder:validation:Enum=SecretSynced;BSLSynced
 type NonAdminBSLCondition string
 
 // Predefined NonAdminBSLConditions
@@ -80,6 +79,7 @@ type NonAdminBackupStorageLocationStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:path=nonadminbackupstoragelocations,shortName=nabsl
 
 // NonAdminBackupStorageLocation is the Schema for the nonadminbackupstoragelocations API
 type NonAdminBackupStorageLocation struct {

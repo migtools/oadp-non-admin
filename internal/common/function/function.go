@@ -167,8 +167,10 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	return nil
 }
 
-// ValidateBslSpec return nil, if NonAdminRestore is valid; error otherwise
+// ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
 func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBslSpec *velerov1.BackupStorageLocationSpec) error {
+	// TODO Introduce validation for NaBSL as described in the
+	// https://github.com/migtools/oadp-non-admin/issues/146
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
 	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
@@ -526,9 +528,9 @@ func GetBslSecretByLabel(ctx context.Context, clientInstance client.Client, name
 
 	switch len(secretList.Items) {
 	case 0:
-		return nil, nil // No matching DeleteBackupRequest found
+		return nil, nil // No matching Secret found
 	case 1:
-		return &secretList.Items[0], nil // Found 1 matching DeleteBackupRequest
+		return &secretList.Items[0], nil // Found 1 matching Secret
 	default:
 		return nil, fmt.Errorf("multiple Secret objects found with label %s=%s in namespace '%s'", velerov1.StorageLocationLabel, labelValue, namespace)
 	}

@@ -30,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -50,11 +49,6 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-)
-
-const (
-	unableToCreateControllerString = "unable to create controller"
-	controllerString               = "controller"
 )
 
 func init() {
@@ -159,7 +153,7 @@ func main() {
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: enforcedBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminBackup")
+		setupLog.Error(err, "unable to setup NonAdminBackup controller with manager")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminRestoreReconciler{
@@ -168,7 +162,7 @@ func main() {
 		OADPNamespace:       oadpNamespace,
 		EnforcedRestoreSpec: enforcedRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminRestore")
+		setupLog.Error(err, "unable to setup NonAdminRestore controller with manager")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminBackupStorageLocationReconciler{
@@ -176,7 +170,7 @@ func main() {
 		Scheme:        mgr.GetScheme(),
 		OADPNamespace: oadpNamespace,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, unableToCreateControllerString, controllerString, "NonAdminBackupStorageLocation")
+		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

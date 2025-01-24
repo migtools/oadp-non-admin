@@ -44,7 +44,7 @@ const (
 
 	NabFinalizerName   = "nonadminbackup.oadp.openshift.io/finalizer"
 	NarFinalizerName   = "nonadminrestore.oadp.openshift.io/finalizer"
-	NabslFinalizerName = "nabsl.oadp.openshift.io/finalizer"
+	NabslFinalizerName = "nonadminbackupstoragelocation.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
