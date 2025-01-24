@@ -11,6 +11,8 @@ spec:
     kind: NonAdminBackupStorageLocation
     listKind: NonAdminBackupStorageLocationList
     plural: nonadminbackupstoragelocations
+    shortNames:
+    - nabsl
     singular: nonadminbackupstoragelocation
   scope: Namespaced
   versions:
