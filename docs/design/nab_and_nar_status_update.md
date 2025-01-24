@@ -227,7 +227,6 @@ flowchart TD
     %% Paths with Consistent Labels
     SWITCH -->|**API Create/Update Event**| CREATE_UPDATE[**Process Create/Update**]
     SWITCH -->|**API Delete Event**| NAB_API_DELETE[**Process API Delete**]
-    SWITCH -->|**Force Delete Spec: true**| FORCE_DELETE[**Process Force Delete**]
     SWITCH -->|**Delete Spec: true**| DELETE_BACKUP[**Process Delete Request**]
 
     %% Create/Update Path - Detailed Version
@@ -264,27 +263,15 @@ flowchart TD
     setting spec.deleteBackup to true"]
     setCondition -->|Update Status if Changed<br>▶ Continue ║No Requeue║| checkVeleroBackupObjects
     checkVeleroBackupObjects{Check VeleroBackup} -->|Exist| deleteVeleroBackupObjects[Delete VeleroBackup Objects]
-    deleteVeleroBackupObjects --> removeApiDeleteFinalizer[Remove NAB Finalizer]
-    checkVeleroBackupObjects -->|Don't Exist| removeApiDeleteFinalizer
+    checkVeleroBackupObjects -->|Don't Exist| checkVeleroDeleteBackupRequestObjects
+    deleteVeleroBackupObjects --> checkVeleroDeleteBackupRequestObjects{Check Velero DeleteBackupRequest}
+    checkVeleroDeleteBackupRequestObjects -->|Exist| deleteVeleroDeleteBackupRequestObjects[Delete DeleteBackupRequest Objects]
+    checkVeleroDeleteBackupRequestObjects -->|Don't Exist| removeApiDeleteFinalizer
+    deleteVeleroDeleteBackupRequestObjects --> waitForVBApiDeletion{Check if VeleroBackup<br>still exists?}
+    waitForVBApiDeletion -->|No| removeApiDeleteFinalizer[Remove NAB Finalizer]
+    waitForVBApiDeletion -->|Yes| requeueForVBApiDeletion[║↻ Requeue║]
     removeApiDeleteFinalizer --> endDelete["End API Delete"]
 
-    %% Force Delete Path
-    FORCE_DELETE --> setDeletingPhase[NAB Phase: **Deleting**]
-    setDeletingPhase --> setDeletingCondition[NAB Condition:: Deleting=True<br>Reason: DeletionPending<br>Message: backup accepted for deletion]
-    setDeletingCondition --> checkStatusChanged{NAB Status<br>requires update?}
-    checkStatusChanged -->|No| checkDeletionTimestamp{NAB DeletionTimestamp<br>Is Zero?}
-    checkStatusChanged -->|Yes| updateAndRequeue[Update NAB Status<br>║↻ Set To Requeue║]
-    updateAndRequeue --> checkDeletionTimestamp
-    checkDeletionTimestamp -->|No| checkRequeueFlag
-    checkDeletionTimestamp -->|Yes| initiateForceDelete[Set Delete on NAB Object]
-    initiateForceDelete --> requeueAfterForceDelete[║↻ Set To Requeue]
-    checkVeleroObjects -->|Don't Exist| removeFinalizer
-    requeueAfterForceDelete --> checkRequeueFlag{Is Set <br>To Requeue?}
-    checkRequeueFlag --> |No| checkVeleroObjects
-    checkRequeueFlag --> |Yes| requeueForceDeletePath[║↻ Requeue║]
-    checkVeleroObjects{Check VeleroBackup<br> or DeleteBackupRequest} -->|Exist| deleteVeleroObjects[Delete VeleroBackup and<br>DeleteBackupRequest Objects]
-    deleteVeleroObjects --> removeFinalizer[Remove NAB Finalizer]
-    removeFinalizer --> endForce[End Force Delete]
 
     %% Delete Backup Path
     DELETE_BACKUP --> setDeletingPhaseDelete[NAB Phase: **Deleting**]
@@ -307,12 +294,12 @@ flowchart TD
     checkDeleteBackupRequest -->|Exists| updateDBRStatus[Update NAB Status from<br>DeleteBackupRequest Info]
     createDeleteBackupRequest --> updateDBRStatus[Update NAB Status from<br>DeleteBackupRequest Info]
     updateDBRStatus --> |Update Status if Changed<br>▶ Continue ║No Requeue║| waitForVBDeletion{Check if VeleroBackup<br>still exists?}
-    waitForVBDeletion -->|No| removeNABFinalizer[Remove NAB Finalizer]
     waitForVBDeletion -->|Yes| requeueForVBDeletion[║↻ Requeue║]
+    waitForVBDeletion -->|No| removeNABFinalizer[Remove NAB Finalizer]
     removeNABFinalizer --> endDeleteBackup
 
     %% Apply additional styles
-    class checkFinalizer,checkVeleroBackupInfo,waitForVBDeletion decision
+    class checkFinalizer,checkVeleroBackupInfo,waitForVBDeletion,waitForVBApiDeletion decision
     class createDeleteBackupRequest,removeNABFinalizer process
     class updateDBRStatus update
     class endDeleteBackup endpoint
@@ -330,15 +317,14 @@ flowchart TD
     classDef waitState fill:#ccccff,stroke:#333,stroke-width:2px
 
     %% Apply styles to all nodes
-    class SWITCH,initNabCreate,validateSpec,setFinalizer,createVB,checkVeleroBackup,validateDelete,checkDeletionTimestamp,checkDeletionTimestampDelete,checkRequeueFlagDelete,checkVeleroObjects,checkRequeueFlag,checkStatusChanged,checkStatusChangedDelete,checkDeleteBackupRequest,checkVeleroBackupObjects decision
-    class start,CREATE_UPDATE,NAB_API_DELETE,FORCE_DELETE,DELETE_BACKUP,generateNACUUID,createNewVB,removeBackup,initiateForceDelete,deleteVeleroObjects,deleteVeleroBackupObjects,initiateDelete process
-    class terminalError,endCreateUpdate,endDelete,endForce,endDeleteBackup endpoint
+    class SWITCH,initNabCreate,validateSpec,setFinalizer,createVB,checkVeleroBackup,validateDelete,checkDeletionTimestamp,checkDeletionTimestampDelete,checkRequeueFlagDelete,checkVeleroObjects,checkRequeueFlag,checkStatusChanged,checkStatusChangedDelete,checkDeleteBackupRequest,checkVeleroBackupObjects,checkVeleroDeleteBackupRequestObjects decision
+    class start,CREATE_UPDATE,NAB_API_DELETE,DELETE_BACKUP,generateNACUUID,createNewVB,removeBackup,deleteVeleroObjects,deleteVeleroBackupObjects,deleteVeleroDeleteBackupRequestObjects,initiateDelete process
+    class terminalError,endCreateUpdate,endDelete,endDeleteBackup endpoint
     class setNewPhase,setBackingOffPhase,setCreatedPhase,setPhase,setDeletePhase,setDeletionPhase,setDeletingPhase,setDeletingPhaseDelete phase
     class setInitialCondition,setInvalidCondition,setAcceptedCondition,setQueuedCondition,setCondition,setDeletingCondition,setDeletingConditionDelete condition
     class updateFromVB,updateNABStatus,addFinalizer,removeFinalizer,removeApiDeleteFinalizer update
     class refetchNAB refetch
     class setDeleteStatus,createDBR,updateStatus deleteProcess
     class waitForDeletion waitState
-
 ```
 

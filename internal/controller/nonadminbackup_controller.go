@@ -94,20 +94,6 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// First switch statement takes precedence over the next one
 	switch {
-	case nab.Spec.ForceDeleteBackup:
-		// Force delete path - immediately removes both VeleroBackup and DeleteBackupRequest
-		// Remove dependent VeleroBackup object
-		// Remove finalizer from the NonAdminBackup object
-		// If there was existing BSL pointing to the Backup object
-		// the Backup will be restored causing the NAB to be recreated
-		logger.V(1).Info("Executing force delete path")
-		reconcileSteps = []nonAdminBackupReconcileStepFunction{
-			r.setStatusAndConditionForDeletionAndCallDelete,
-			r.deleteVeleroBackupObjects,
-			r.deleteDeleteBackupRequestObjects,
-			r.removeNabFinalizerUponVeleroBackupDeletion,
-		}
-
 	case nab.Spec.DeleteBackup:
 		// Standard delete path - creates DeleteBackupRequest and waits for VeleroBackup deletion
 		logger.V(1).Info("Executing standard delete path")
@@ -127,6 +113,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setStatusForDirectKubernetesAPIDeletion,
 			r.deleteVeleroBackupObjects,
+			r.deleteDeleteBackupRequestObjects,
 			r.removeNabFinalizerUponVeleroBackupDeletion,
 		}
 
@@ -263,7 +250,6 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 	}
 
 	// Initiate deletion of the VeleroBackup object only when the finalizer exists.
-	// For the ForceDelete we do not create DeleteBackupRequest
 	veleroBackupNACUUID := nab.Status.VeleroBackup.NACUUID
 	veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNACUUID)
 
@@ -429,7 +415,7 @@ func (r *NonAdminBackupReconciler) removeNabFinalizerUponVeleroBackupDeletion(ct
 	//      corresponding VeleroBackup object is found based on the NACUUID stored in the NAB status for which we already
 	//      have the latest NAB object (point 1 above).
 	if !nab.ObjectMeta.DeletionTimestamp.IsZero() {
-		if !nab.Spec.ForceDeleteBackup && nab.Status.VeleroBackup != nil && nab.Status.VeleroBackup.NACUUID != constant.EmptyString {
+		if nab.Status.VeleroBackup != nil && nab.Status.VeleroBackup.NACUUID != constant.EmptyString {
 			veleroBackupNACUUID := nab.Status.VeleroBackup.NACUUID
 
 			veleroBackup, err := function.GetVeleroBackupByLabel(ctx, r.Client, r.OADPNamespace, veleroBackupNACUUID)
