@@ -56,7 +56,6 @@ type nonAdminBackupSingleReconcileScenario struct {
 	uuidCreatedByReconcile        bool
 	uuidFromTestCase              bool
 	nonAdminBackupExpectedDeleted bool
-	veleroBackupExpectedDeleted   bool
 	addNabDeletionTimestamp       bool
 }
 
@@ -337,6 +336,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				gomega.Expect(err.Error()).To(gomega.ContainSubstring(scenario.resultError.Error()))
 			}
 			nonAdminBackupAfterReconcile := &nacv1alpha1.NonAdminBackup{}
+			veleroBackup := &velerov1.Backup{}
+			veleroBackupErr := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      veleroBackupNACUUID,
+				Namespace: oadpNamespace,
+			}, veleroBackup)
+
 			if !scenario.nonAdminBackupExpectedDeleted {
 				gomega.Expect(k8sClient.Get(
 					ctx,
@@ -353,6 +358,9 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.NACUUID).To(gomega.ContainSubstring(nonAdminObjectNamespace))
 					gomega.Expect(nonAdminBackupAfterReconcile.Status.VeleroBackup.Namespace).To(gomega.Equal(oadpNamespace))
 				}
+				if scenario.createVeleroBackup {
+					gomega.Expect(veleroBackupErr).To(gomega.Not(gomega.HaveOccurred()))
+				}
 			} else {
 				// Fetch the nonAdminBackup after the delete event and ensure it is deleted by checking for NotFound error
 				err = k8sClient.Get(
@@ -364,18 +372,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					nonAdminBackupAfterReconcile,
 				)
 				gomega.Expect(errors.IsNotFound(err)).To(gomega.BeTrue())
+				// No need to check for scenario.createVeleroBackup as this object was never intended to be created
+				// and it should always be absent in the cluster
+				gomega.Expect(errors.IsNotFound(veleroBackupErr)).To(gomega.BeTrue(), "Expected VeleroBackup to be deleted")
 			}
 
-			veleroBackup := &velerov1.Backup{}
-			veleroBackupErr := k8sClient.Get(ctx, types.NamespacedName{
-				Name:      veleroBackupNACUUID,
-				Namespace: oadpNamespace,
-			}, veleroBackup)
-			if scenario.veleroBackupExpectedDeleted && scenario.createVeleroBackup {
-				gomega.Expect(errors.IsNotFound(veleroBackupErr)).To(gomega.BeTrue(), "Expected VeleroBackup to be deleted")
-			} else if scenario.createVeleroBackup {
-				gomega.Expect(veleroBackupErr).To(gomega.Not(gomega.HaveOccurred()))
-			}
 			// easy hack to test that only one update call happens per reconcile
 			// currentResourceVersion, err := strconv.Atoi(nonAdminBackup.ResourceVersion)
 			// gomega.Expect(err).To(gomega.Not(gomega.HaveOccurred()))
@@ -595,12 +596,10 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			createVeleroBackup:            true,
 			uuidFromTestCase:              true,
 			nonAdminBackupExpectedDeleted: true,
-			veleroBackupExpectedDeleted:   true,
 			result:                        reconcile.Result{Requeue: false},
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup delete event, should delete associated Velero Backup and NonAdminBackup objects", nonAdminBackupSingleReconcileScenario{
 			createVeleroBackup:            true,
-			veleroBackupExpectedDeleted:   true,
 			nonAdminBackupExpectedDeleted: true,
 			addFinalizer:                  true,
 			addNabDeletionTimestamp:       true,
