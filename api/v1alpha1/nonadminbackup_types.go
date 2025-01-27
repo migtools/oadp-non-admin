@@ -30,11 +30,6 @@ type NonAdminBackupSpec struct {
 	// as well as the corresponding object storage
 	// +optional
 	DeleteBackup bool `json:"deleteBackup,omitempty"`
-
-	// ForceDeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
-	// regardless of whether deletion from object storage succeeds or fails
-	// +optional
-	ForceDeleteBackup bool `json:"forceDeleteBackup,omitempty"`
 }
 
 // VeleroBackup contains information of the related Velero backup object.
