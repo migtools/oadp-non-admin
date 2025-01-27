@@ -519,6 +519,11 @@ func CheckVeleroBackupMetadata(obj client.Object) bool {
 		return false
 	}
 
+	return CheckVeleroBackupAnnotations(obj)
+}
+
+// CheckVeleroBackupAnnotations return true if Velero Backup object has required Non Admin annotations, false otherwise
+func CheckVeleroBackupAnnotations(obj client.Object) bool {
 	annotations := obj.GetAnnotations()
 	if !checkLabelAnnotationValueIsValid(annotations, constant.NabOriginNamespaceAnnotation) {
 		return false
@@ -545,6 +550,11 @@ func CheckVeleroRestoreMetadata(obj client.Object) bool {
 		return false
 	}
 
+	return CheckVeleroRestoreAnnotations(obj)
+}
+
+// CheckVeleroRestoreAnnotations return true if Velero Restore object has required Non Admin annotations, false otherwise
+func CheckVeleroRestoreAnnotations(obj client.Object) bool {
 	annotations := obj.GetAnnotations()
 	if !checkLabelAnnotationValueIsValid(annotations, constant.NarOriginNamespaceAnnotation) {
 		return false
