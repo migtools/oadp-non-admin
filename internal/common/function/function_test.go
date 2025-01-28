@@ -56,13 +56,13 @@ const (
 	testNonAdminRestoreNamespace  = "non-admin-restore-namespace"
 	testNonAdminSecondRestoreName = "non-admin-second-restore-name"
 	invalidInputEmptyNamespace    = "Invalid input - empty namespace"
-	defaultStr                    = "default"
-	gcpStr                        = "gcp"
-	awsStr                        = "aws"
-	keyStr                        = "key"
-	bucketStr                     = "bucket"
-	regionStr                     = "region"
-	testStr                       = "test"
+	defaultNS                     = "default"
+	gcpProvider                   = "gcp"
+	awsProvider                   = "aws"
+	key                           = "key"
+	bucket                        = "bucket"
+	region                        = "region"
+	test                          = "test"
 	expectedIntZero               = 0
 	expectedIntOne                = 1
 	expectedIntTwo                = 2
@@ -254,7 +254,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			enforcedValue: velerov1.BackupHooks{
 				Resources: []velerov1.BackupResourceHookSpec{
 					{
-						Name: testStr,
+						Name: test,
 					},
 				},
 			},
@@ -273,8 +273,8 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:          "VolumeSnapshotLocations",
-			enforcedValue: []string{awsStr},
-			overrideValue: []string{gcpStr},
+			enforcedValue: []string{awsProvider},
+			overrideValue: []string{gcpProvider},
 		},
 		{
 			name:          "DefaultVolumesToRestic",
@@ -306,7 +306,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		{
 			name: "ResourcePolicy",
 			enforcedValue: &corev1.TypedLocalObjectReference{
-				Kind: testStr,
+				Kind: test,
 				Name: "example",
 			},
 			overrideValue: &corev1.TypedLocalObjectReference{},
@@ -412,7 +412,7 @@ func TestValidateRestoreSpec(t *testing.T) {
 			name: "[invalid] spec.restoreSpec.backupName not ready",
 			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: defaultStr,
+					Namespace: defaultNS,
 				},
 				Spec: nacv1alpha1.NonAdminRestoreSpec{
 					RestoreSpec: &velerov1.RestoreSpec{
@@ -424,7 +424,7 @@ func TestValidateRestoreSpec(t *testing.T) {
 				&nacv1alpha1.NonAdminBackup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "peter",
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 					},
 					Status: nacv1alpha1.NonAdminBackupStatus{
 						Phase: nacv1alpha1.NonAdminPhaseBackingOff,
@@ -437,7 +437,7 @@ func TestValidateRestoreSpec(t *testing.T) {
 			name: "[valid] spec.restoreSpec.backupName is ready",
 			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: defaultStr,
+					Namespace: defaultNS,
 				},
 				Spec: nacv1alpha1.NonAdminRestoreSpec{
 					RestoreSpec: &velerov1.RestoreSpec{
@@ -449,7 +449,7 @@ func TestValidateRestoreSpec(t *testing.T) {
 				&nacv1alpha1.NonAdminBackup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "steve",
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 					},
 					Status: nacv1alpha1.NonAdminBackupStatus{
 						Phase: nacv1alpha1.NonAdminPhaseCreated,
@@ -744,7 +744,7 @@ func TestValidateBslSpec(t *testing.T) {
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-1",
 							},
-							Key: keyStr,
+							Key: key,
 						},
 					},
 				},
@@ -768,7 +768,7 @@ func TestValidateBslSpec(t *testing.T) {
 							LocalObjectReference: corev1.LocalObjectReference{
 								Name: "test-secret-2",
 							},
-							Key: keyStr,
+							Key: key,
 						},
 					},
 				},
@@ -808,7 +808,7 @@ func TestGenerateNacObjectNameWithUUID(t *testing.T) {
 	}{
 		{
 			name:      "Valid names without truncation",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			nabName:   "my-backup",
 		},
 		{
@@ -898,23 +898,23 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 	}{
 		{
 			name:       "Single VeleroBackup found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "backup1",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
 				},
 			},
-			expected:      &velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "backup1", Labels: map[string]string{constant.NabOriginNACUUIDLabel: testAppStr}}},
+			expected:      &velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Namespace: defaultNS, Name: "backup1", Labels: map[string]string{constant.NabOriginNACUUIDLabel: testAppStr}}},
 			expectedError: nil,
 		},
 		{
 			name:          "No VeleroBackups found",
-			namespace:     defaultStr,
+			namespace:     defaultNS,
 			labelValue:    testAppStr,
 			mockBackups:   []velerov1.Backup{},
 			expected:      nil,
@@ -922,19 +922,19 @@ func TestGetVeleroBackupByLabel(t *testing.T) {
 		},
 		{
 			name:       "Multiple VeleroBackups found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "backup2",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "backup3",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
@@ -1001,23 +1001,23 @@ func TestGetVeleroRestoreByLabel(t *testing.T) {
 	}{
 		{
 			name:       "Single VeleroBackup found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockRestores: []velerov1.Restore{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "restore1",
 						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
 					},
 				},
 			},
-			expected:      &velerov1.Restore{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "restore1", Labels: map[string]string{constant.NarOriginNACUUIDLabel: testAppStr}}},
+			expected:      &velerov1.Restore{ObjectMeta: metav1.ObjectMeta{Namespace: defaultNS, Name: "restore1", Labels: map[string]string{constant.NarOriginNACUUIDLabel: testAppStr}}},
 			expectedError: nil,
 		},
 		{
 			name:          "No VeleroRestores found",
-			namespace:     defaultStr,
+			namespace:     defaultNS,
 			labelValue:    testAppStr,
 			mockRestores:  []velerov1.Restore{},
 			expected:      nil,
@@ -1025,19 +1025,19 @@ func TestGetVeleroRestoreByLabel(t *testing.T) {
 		},
 		{
 			name:       "Multiple VeleroRestores found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockRestores: []velerov1.Restore{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "restore2",
 						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "restore3",
 						Labels:    map[string]string{constant.NarOriginNACUUIDLabel: testAppStr},
 					},
@@ -1336,23 +1336,23 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 	}{
 		{
 			name:       "Single DeleteBackupRequest found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockRequests: []velerov1.DeleteBackupRequest{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "delete-request-1",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
 				},
 			},
-			expected:      &velerov1.DeleteBackupRequest{ObjectMeta: metav1.ObjectMeta{Namespace: defaultStr, Name: "delete-request-1", Labels: map[string]string{constant.NabOriginNACUUIDLabel: testAppStr}}},
+			expected:      &velerov1.DeleteBackupRequest{ObjectMeta: metav1.ObjectMeta{Namespace: defaultNS, Name: "delete-request-1", Labels: map[string]string{constant.NabOriginNACUUIDLabel: testAppStr}}},
 			expectedError: nil,
 		},
 		{
 			name:          "No DeleteBackupRequests found",
-			namespace:     defaultStr,
+			namespace:     defaultNS,
 			labelValue:    testAppStr,
 			mockRequests:  []velerov1.DeleteBackupRequest{},
 			expected:      nil,
@@ -1360,19 +1360,19 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 		},
 		{
 			name:       "Multiple DeleteBackupRequests found",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelValue: testAppStr,
 			mockRequests: []velerov1.DeleteBackupRequest{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "delete-request-2",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      "delete-request-3",
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 					},
@@ -1380,7 +1380,7 @@ func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 			},
 			expected: &velerov1.DeleteBackupRequest{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: defaultStr,
+					Namespace: defaultNS,
 					Name:      "delete-request-2",
 					Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testAppStr},
 				},
@@ -1444,13 +1444,13 @@ func TestGetActiveVeleroBackupsByLabel(t *testing.T) {
 	}{
 		{
 			name:       "No active backups",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelKey:   constant.NabOriginNACUUIDLabel,
 			labelValue: testNonAdminBackupUUID,
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      testNonAdminBackupName,
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
 					},
@@ -1463,13 +1463,13 @@ func TestGetActiveVeleroBackupsByLabel(t *testing.T) {
 		},
 		{
 			name:       "One active backup",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelKey:   constant.NabOriginNACUUIDLabel,
 			labelValue: testNonAdminBackupUUID,
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      testNonAdminBackupName,
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
 					},
@@ -1479,20 +1479,20 @@ func TestGetActiveVeleroBackupsByLabel(t *testing.T) {
 		},
 		{
 			name:       "Multiple active backups",
-			namespace:  defaultStr,
+			namespace:  defaultNS,
 			labelKey:   constant.NabOriginNACUUIDLabel,
 			labelValue: testNonAdminBackupUUID,
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      testNonAdminBackupName,
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: defaultStr,
+						Namespace: defaultNS,
 						Name:      testNonAdminSecondBackupName,
 						Labels:    map[string]string{constant.NabOriginNACUUIDLabel: testNonAdminBackupUUID},
 					},
@@ -1537,10 +1537,10 @@ func TestGetBackupQueueInfo(t *testing.T) {
 	}{
 		{
 			name:      "No backups in queue",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetBackup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminBackupName,
 					CreationTimestamp: metav1.Time{Time: time.Now()},
 				},
@@ -1550,10 +1550,10 @@ func TestGetBackupQueueInfo(t *testing.T) {
 		},
 		{
 			name:      "One backup ahead in queue",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetBackup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminSecondBackupName,
 					CreationTimestamp: metav1.Time{Time: time.Now().Add(1 * time.Hour)},
 				},
@@ -1561,7 +1561,7 @@ func TestGetBackupQueueInfo(t *testing.T) {
 			mockBackups: []velerov1.Backup{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace:         defaultStr,
+						Namespace:         defaultNS,
 						Name:              testNonAdminBackupName,
 						CreationTimestamp: metav1.Time{Time: time.Now()},
 					},
@@ -1571,10 +1571,10 @@ func TestGetBackupQueueInfo(t *testing.T) {
 		},
 		{
 			name:      "Target backup already completed",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetBackup: &velerov1.Backup{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminBackupName,
 					CreationTimestamp: metav1.Time{Time: time.Now()},
 				},
@@ -1622,10 +1622,10 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 	}{
 		{
 			name:      "No restores in queue",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetRestore: &velerov1.Restore{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminRestoreName,
 					CreationTimestamp: metav1.Time{Time: time.Now()},
 				},
@@ -1635,10 +1635,10 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 		},
 		{
 			name:      "One restore ahead in queue",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetRestore: &velerov1.Restore{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminSecondRestoreName,
 					CreationTimestamp: metav1.Time{Time: time.Now().Add(1 * time.Hour)},
 				},
@@ -1646,7 +1646,7 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 			mockRestores: []velerov1.Restore{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace:         defaultStr,
+						Namespace:         defaultNS,
 						Name:              testNonAdminRestoreName,
 						CreationTimestamp: metav1.Time{Time: time.Now()},
 					},
@@ -1656,10 +1656,10 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 		},
 		{
 			name:      "Target restore already completed",
-			namespace: defaultStr,
+			namespace: defaultNS,
 			targetRestore: &velerov1.Restore{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:         defaultStr,
+					Namespace:         defaultNS,
 					Name:              testNonAdminRestoreName,
 					CreationTimestamp: metav1.Time{Time: time.Now()},
 				},

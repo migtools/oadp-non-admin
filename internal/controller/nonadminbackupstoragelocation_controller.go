@@ -107,9 +107,9 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 			r.validateNaBSLSpec,
 			r.setVeleroBSLUUIDInNaBSLStatus,
 			r.setFinalizerOnNaBSL,
-			r.createSyncNaBSLSecrets,
+			r.syncSecrets,
 			r.createVeleroBSL,
-			r.syncVeleroBSLWithNaBSL,
+			r.syncStatus,
 		}
 	}
 
@@ -359,8 +359,8 @@ func (r *NonAdminBackupStorageLocationReconciler) setFinalizerOnNaBSL(ctx contex
 	return false, nil
 }
 
-// createSyncNaBSLSecrets creates the VeleroBackupStorageLocation secret in the OADP namespace
-func (r *NonAdminBackupStorageLocationReconciler) createSyncNaBSLSecrets(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+// syncSecrets creates the VeleroBackupStorageLocation secret in the OADP namespace
+func (r *NonAdminBackupStorageLocationReconciler) syncSecrets(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
 	// Skip syncing if the VeleroBackupStorageLocation UUID is not set or the source secret is not set in the spec
 	if nabsl.Status.VeleroBackupStorageLocation == nil ||
 		nabsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString ||
@@ -519,7 +519,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 
 	bslSpec := nabsl.Spec.DeepCopy()
 
-	// We use Credential from the secret created in the createSyncNaBSLSecrets function
+	// We use Credential from the secret created in the syncSecrets function
 	// however we need to set the key to the one specified in the NonAdminBackupStorageLocation spec
 	// because it's the user who decides which key to use from the secret
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, veleroBsl, func() error {
@@ -612,8 +612,8 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 	return false, nil
 }
 
-// syncVeleroBSLWithNaBSL
-func (r *NonAdminBackupStorageLocationReconciler) syncVeleroBSLWithNaBSL(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+// syncStatus
+func (r *NonAdminBackupStorageLocationReconciler) syncStatus(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
 	veleroObjectsNACUUID := nabsl.Status.VeleroBackupStorageLocation.NACUUID
 
 	// Check if VeleroBackupStorageLocation already exists
