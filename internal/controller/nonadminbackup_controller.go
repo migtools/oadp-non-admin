@@ -43,6 +43,7 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"github.com/migtools/oadp-non-admin/internal/handler"
 	"github.com/migtools/oadp-non-admin/internal/predicate"
+	"github.com/migtools/oadp-non-admin/pkg/velero/storagelocation/paths"
 )
 
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
@@ -694,7 +695,11 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
 	// with the VeleroBackup. Any required updates to the NonAdminBackup
 	// Status will be applied based on the current state of the VeleroBackup.
-	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, veleroBackup)
+	updated, err := updateNonAdminBackupVeleroBackupStatus(r.Client, &nab.Status, veleroBackup)
+	if err != nil {
+		logger.Error(err, statusUpdateError)
+		return false, err
+	}
 
 	if updated || updatedPhase || updatedCondition || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nab); err != nil {
@@ -744,9 +749,9 @@ func updateNonAdminPhase(phase *nacv1alpha1.NonAdminPhase, newPhase nacv1alpha1.
 
 // updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup status field in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
-func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
+func updateNonAdminBackupVeleroBackupStatus(c client.Client, status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) (bool, error) {
 	if status == nil || veleroBackup == nil {
-		return false
+		return false, nil
 	}
 
 	if status.VeleroBackup == nil {
@@ -758,11 +763,26 @@ func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupSt
 	}
 
 	if reflect.DeepEqual(*status.VeleroBackup.Status, veleroBackup.Status) {
-		return false
+		return false, nil
 	}
 
 	status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
-	return true
+
+	// adds logsPath and resourceListPath to status if velero backup is completed.
+	if status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted {
+		// logsPath is <protocol>://<bucket>/<prefix>/backups/<backup-name>/<backup-name>-logs.gz
+		var err error
+		status.LogsPath, err = paths.BackupLogs(c, veleroBackup)
+		if err != nil {
+			return false, err
+		}
+		// resourceListPath is <protocol>://<bucket>/<prefix>/backups/<backup-name>/<backup-name>-resource-list.json.gz
+		status.ResourceListPath, err = paths.BackupResourceList(c, veleroBackup)
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // updateNonAdminBackupDeleteBackupRequestStatus sets the VeleroDeleteBackupRequest status field in NonAdminBackup object status and returns true

@@ -39,6 +39,7 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"github.com/migtools/oadp-non-admin/internal/handler"
 	"github.com/migtools/oadp-non-admin/internal/predicate"
+	"github.com/migtools/oadp-non-admin/pkg/velero/storagelocation/paths"
 )
 
 // NonAdminRestoreReconciler reconciles a NonAdminRestore object
@@ -400,7 +401,11 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		},
 	)
 
-	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
+	updatedVeleroStatus, err := updateVeleroRestoreStatus(r.Client, &nar.Status, veleroRestore)
+	if err != nil {
+		logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
+		return false, err
+	}
 
 	if updatedPhase || updatedCondition || updatedVeleroStatus || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nar); err != nil {
@@ -417,9 +422,9 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 // updateVeleroRestoreStatus sets the VeleroRestore status field in NonAdminRestore object status and returns true
 // if the VeleroRestore fields are changed by this call.
-func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, veleroRestore *velerov1.Restore) bool {
+func updateVeleroRestoreStatus(c client.Client, status *nacv1alpha1.NonAdminRestoreStatus, veleroRestore *velerov1.Restore) (bool, error) {
 	if status == nil || veleroRestore == nil {
-		return false
+		return false, nil
 	}
 
 	if status.VeleroRestore == nil {
@@ -431,11 +436,25 @@ func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, velero
 	}
 
 	if reflect.DeepEqual(*status.VeleroRestore.Status, veleroRestore.Status) {
-		return false
+		return false, nil
 	}
 
 	status.VeleroRestore.Status = veleroRestore.Status.DeepCopy()
-	return true
+	// adds logsPath and resourceListPath to status if velero restore is completed.
+	if status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted {
+		// logsPath is <protocol>://<bucket>/<prefix>/restores/<restore-name>/restore-<restore-name>-logs.gz
+		var err error
+		status.LogsPath, err = paths.RestoreLogs(c, veleroRestore)
+		if err != nil {
+			return false, err
+		}
+		// resourceListPath is <protocol>://<bucket>/<prefix>/restores/<restore-name>/restore-<restore-name>-resource-list.json.gz
+		status.ResourceListPath, err = paths.RestoreResourceList(c, veleroRestore)
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
