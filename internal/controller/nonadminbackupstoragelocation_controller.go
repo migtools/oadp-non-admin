@@ -261,7 +261,7 @@ func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.
 		return false, nil
 	}
 
-	err := function.ValidateBslSpec(ctx, r.Client, nabsl, r.EnforcedBslSpec)
+	err := function.ValidateBslSpec(ctx, r.Client, nabsl)
 	if err != nil {
 		updatedPhase := updateNonAdminBslPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseUnavailable)
 		updatedCondition := meta.SetStatusCondition(&nabsl.Status.Conditions,
@@ -518,15 +518,6 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 	}
 
 	bslSpec := nabsl.Spec.DeepCopy()
-	enforcedSpec := reflect.ValueOf(r.EnforcedBslSpec).Elem()
-	for index := range enforcedSpec.NumField() {
-		enforcedField := enforcedSpec.Field(index)
-		enforcedFieldName := enforcedSpec.Type().Field(index).Name
-		currentField := reflect.ValueOf(bslSpec).Elem().FieldByName(enforcedFieldName)
-		if !enforcedField.IsZero() && currentField.IsZero() {
-			currentField.Set(enforcedField)
-		}
-	}
 
 	// We use Credential from the secret created in the createSyncNaBSLSecrets function
 	// however we need to set the key to the one specified in the NonAdminBackupStorageLocation spec

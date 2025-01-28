@@ -168,7 +168,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 }
 
 // ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
-func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBslSpec *velerov1.BackupStorageLocationSpec) error {
+func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation) error {
 	// TODO Introduce validation for NaBSL as described in the
 	// https://github.com/migtools/oadp-non-admin/issues/146
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
@@ -177,59 +177,7 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
 	}
 
-	var enforcedSpec reflect.Value
-	if enforcedBslSpec != nil {
-		// Ensure that enforcedBslSpec is a pointer
-		enforcedSpec = reflect.ValueOf(enforcedBslSpec)
-		if enforcedSpec.Kind() == reflect.Ptr {
-			enforcedSpec = enforcedSpec.Elem()
-		}
-	}
-
-	// Check if enforcedSpec is valid
-	if enforcedSpec.IsValid() {
-		// Ensure that nonAdminBsl.Spec.BackupStorageLocationSpec is a pointer
-		currentSpec := reflect.ValueOf(nonAdminBsl.Spec.BackupStorageLocationSpec)
-		if currentSpec.Kind() == reflect.Ptr {
-			currentSpec = currentSpec.Elem()
-		}
-		for index := 0; index < enforcedSpec.NumField(); index++ {
-			enforcedField := enforcedSpec.Field(index)
-			enforcedFieldName := enforcedSpec.Type().Field(index).Name
-			currentField := currentSpec.FieldByName(enforcedFieldName)
-
-			// Special handling for Config map
-			// User should be able to set any Config field, but not override the enforced field
-			if enforcedFieldName == "Config" {
-				enforcedConfig, ok := enforcedField.Interface().(map[string]string)
-				if !ok {
-					return fmt.Errorf("failed to cast enforcedField to map[string]string")
-				}
-				currentConfig, ok := currentField.Interface().(map[string]string)
-				if !ok {
-					return fmt.Errorf("failed to cast currentField to map[string]string")
-				}
-				for key, enforcedValue := range enforcedConfig {
-					if currentValue, exists := currentConfig[key]; exists && !reflect.DeepEqual(enforcedValue, currentValue) {
-						return fmt.Errorf(
-							"NonAdminBackupStorageLocation spec.bslSpec.config.%v field value is enforced by admin user, cannot override it",
-							key,
-						)
-					}
-				}
-				continue
-			}
-
-			if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
-				field, _ := currentSpec.Type().FieldByName(enforcedFieldName)
-				tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
-				return fmt.Errorf(
-					"NonAdminBackupStorageLocation spec.bslSpec.%v field value is enforced by admin user, cannot override it",
-					tagName,
-				)
-			}
-		}
-	}
+	// TODO: Enforcement of NaBSL spec fields
 
 	// Check if the secret exists in the same namespace
 	secret := &corev1.Secret{}
