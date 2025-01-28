@@ -15,16 +15,20 @@ flowchart TD
     START[**Start NaBSL Reconciliation**] --> OPERATION[**Determine Operation Type**]
 
     %% Create/Update Flow
-    OPERATION -->|**Create/Update**| VALIDATE_CONFIG{Validate Non-Admin BSL Config}
-    VALIDATE_CONFIG -->|Invalid| INVALID_CONFIG[Set Phase: Invalid]
-    VALIDATE_CONFIG -->|Valid| GENERATE_UUID[Generate NaBSL UUID and Store in Status]
+    OPERATION -->|**Create/Update**| SET_PHASE_NEW[Set Phase: New]
+    SET_PHASE_NEW --> VALIDATE_CONFIG{Validate Non-Admin BSL Config}
+    VALIDATE_CONFIG -->|Invalid| INVALID_CONFIG[Set Phase: BackingOff]
+    VALIDATE_CONFIG -->|Valid| VALID_CONFIG[Set Phase: Accepted]
+    VALID_CONFIG --> GENERATE_UUID[Generate NaBSL UUID and Store in Status]
 
     GENERATE_UUID --> CREATE_OR_UPDATE_SECRET[Create/Update Secret in OADP Namespace]
     CREATE_OR_UPDATE_SECRET --> CREATE_OR_UPDATE_BSL[Create/Update Velero BSL Resource in OADP Namespace]
-    CREATE_OR_UPDATE_BSL --> UPDATE_STATUS[Update NaBSL Status with Velero BSL Info]
+    CREATE_OR_UPDATE_BSL --> SET_PHASE_CREATED[Set Phase: Created]
+    SET_PHASE_CREATED --> UPDATE_STATUS[Update NaBSL Status with Velero BSL Info]
 
     %% Delete Flow
-    OPERATION -->|**Delete**| CHECK_SECRET_EXISTS{Check if Secret Exists}
+    OPERATION -->|**Delete**| SET_PHASE_DELETING[Set Phase: Deleting]
+    SET_PHASE_DELETING --> CHECK_SECRET_EXISTS{Check if Secret Exists}
     CHECK_SECRET_EXISTS -->|Yes| DELETE_SECRET[Delete Secret in OADP Namespace]
     CHECK_SECRET_EXISTS -->|No| CHECK_BSL_EXISTS{Check if Velero BSL Exists}
 
@@ -48,6 +52,7 @@ flowchart TD
     GENERATE_UUID
     CREATE_OR_UPDATE_SECRET
     CREATE_OR_UPDATE_BSL
+    SET_PHASE_CREATED
     UPDATE_STATUS
     end
 
@@ -69,7 +74,7 @@ flowchart TD
     class START,END endpoint
     class OPERATION,VALIDATE_CONFIG,CHECK_SECRET_EXISTS,CHECK_BSL_EXISTS decision
     class GENERATE_UUID,CREATE_OR_UPDATE_SECRET,CREATE_OR_UPDATE_BSL,DELETE_SECRET,DELETE_BSL,REMOVE_FINALIZER process
-    class INVALID_CONFIG,UPDATE_STATUS phase
+    class INVALID_CONFIG,UPDATE_STATUS,VALID_CONFIG,SET_PHASE_DELETING,SET_PHASE_NEW,SET_PHASE_CREATED phase
 ```
 
 ## Components
