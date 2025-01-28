@@ -60,7 +60,9 @@ type NonAdminBackupStorageLocationStatus struct {
 	// +optional
 	VeleroBackupStorageLocation *VeleroBackupStorageLocation `json:"veleroBackupStorageLocation,omitempty"`
 
-	Phase      NonAdminPhase      `json:"phase,omitempty"`
+	// phase is a simple one high-level summary of the lifecycle of an NonAdminBackupStorageLocation.
+	Phase NonAdminPhase `json:"phase,omitempty"`
+
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
