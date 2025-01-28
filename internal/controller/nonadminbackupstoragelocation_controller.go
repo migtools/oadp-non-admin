@@ -281,9 +281,7 @@ func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.
 		return false, reconcile.TerminalError(err)
 	}
 
-	// Validation successful, update phase and condition
-	updatedPhase := updateNaBSLPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseNew)
-
+	// Validation successful, update condition
 	updatedCondition := meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 		Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 		Status:  metav1.ConditionTrue,
@@ -291,12 +289,11 @@ func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.
 		Message: "NonAdminBackupStorageLocation spec validation successful",
 	})
 
-	if updatedPhase || updatedCondition {
+	if updatedCondition {
 		if updateErr := r.Status().Update(ctx, nabsl); updateErr != nil {
 			logger.Error(updateErr, failedUpdateStatusError)
 			return false, updateErr
 		}
-		logger.V(1).Info("NonAdminBackupStorageLocation Phase set to Accepted")
 		logger.V(1).Info("NonAdminBackupStorageLocation Condition set to Validated")
 	}
 
