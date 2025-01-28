@@ -21,19 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NonAdminBackupStorageLocationPhase is a simple one high-level summary of the lifecycle of an NonAdminBackupStorageLocation.
-// +kubebuilder:validation:Enum=New;Available;Unavailable;Created;Deleting
-type NonAdminBackupStorageLocationPhase string
-
-// NonAdminBackupStorageLocationPhase constants similar to velerov1.BackupStorageLocationPhase
-const (
-	NaBSLPhaseNew         NonAdminBackupStorageLocationPhase = "New"
-	NaBSLPhaseAvailable   NonAdminBackupStorageLocationPhase = "Available"
-	NaBSLPhaseUnavailable NonAdminBackupStorageLocationPhase = "Unavailable"
-	NaBSLPhaseCreated     NonAdminBackupStorageLocationPhase = "Created"
-	NaBSLPhaseDeleting    NonAdminBackupStorageLocationPhase = "Deleting"
-)
-
 // NonAdminBSLCondition contains additional conditions to the
 // generic ones defined as NonAdminCondition
 type NonAdminBSLCondition string
@@ -73,8 +60,8 @@ type NonAdminBackupStorageLocationStatus struct {
 	// +optional
 	VeleroBackupStorageLocation *VeleroBackupStorageLocation `json:"veleroBackupStorageLocation,omitempty"`
 
-	Phase      NonAdminBackupStorageLocationPhase `json:"phase,omitempty"`
-	Conditions []metav1.Condition                 `json:"conditions,omitempty"`
+	Phase      NonAdminPhase      `json:"phase,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

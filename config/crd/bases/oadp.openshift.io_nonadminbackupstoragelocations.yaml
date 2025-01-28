@@ -203,12 +203,11 @@ spec:
                   type: object
                 type: array
               phase:
-                description: NonAdminBackupStorageLocationPhase is a simple one high-level
-                  summary of the lifecycle of an NonAdminBackupStorageLocation.
+                description: NonAdminPhase is a simple one high-level summary of the
+                  lifecycle of a NonAdminBackup or NonAdminRestore.
                 enum:
                 - New
-                - Available
-                - Unavailable
+                - BackingOff
                 - Created
                 - Deleting
                 type: string

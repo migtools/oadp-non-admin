@@ -154,7 +154,7 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLDelete(ctx context.Co
 	logger.V(1).Info("NonAdminBackupStorageLocation deletion initialized")
 
 	// Set phase to Deleting
-	if updated := updateNaBSLPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseDeleting); updated {
+	if updated := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting); updated {
 		if err := r.Status().Update(ctx, nabsl); err != nil {
 			logger.Error(err, statusBslUpdateError)
 			return false, err
@@ -241,7 +241,7 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 	}
 
 	// Set phase to New
-	if updated := updateNaBSLPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseNew); updated {
+	if updated := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
 		if err := r.Status().Update(ctx, nabsl); err != nil {
 			logger.Error(err, statusBslUpdateError)
 			return false, err
@@ -256,14 +256,14 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 // validateNaBSLSpec validates the NonAdminBackupStorageLocation spec
 func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
 	// Skip validation if not in New phase
-	if nabsl.Status.Phase != nacv1alpha1.NaBSLPhaseNew {
+	if nabsl.Status.Phase != nacv1alpha1.NonAdminPhaseNew {
 		logger.V(1).Info("Skipping validation, not in New phase", constant.CurrentPhaseString, nabsl.Status.Phase)
 		return false, nil
 	}
 
 	err := function.ValidateBslSpec(ctx, r.Client, nabsl)
 	if err != nil {
-		updatedPhase := updateNonAdminBslPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseUnavailable)
+		updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nabsl.Status.Conditions,
 			metav1.Condition{
 				Type:    string(nacv1alpha1.NonAdminConditionAccepted),
@@ -298,17 +298,6 @@ func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.
 	}
 
 	return false, nil
-}
-
-// updateNonAdminBslPhase sets the phase in NonAdminBackupStorageLocation object status and returns true
-// if the phase is changed by this call.
-func updateNonAdminBslPhase(phase *nacv1alpha1.NonAdminBackupStorageLocationPhase, newPhase nacv1alpha1.NonAdminBackupStorageLocationPhase) bool {
-	if *phase == newPhase {
-		return false
-	}
-
-	*phase = newPhase
-	return true
 }
 
 // setVeleroBSLUUIDInNaBSLStatus sets the UUID for the VeleroBackupStorageLocation in the NonAdminBackupStorageLocation status
@@ -514,30 +503,17 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 			).Result()
 	}
 
-	bslSpec := nabsl.Spec.DeepCopy()
-
-	// We use Credential from the secret created in the syncSecrets function
-	// however we need to set the key to the one specified in the NonAdminBackupStorageLocation spec
-	// because it's the user who decides which key to use from the secret
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, veleroBsl, func() error {
-		veleroBsl.Spec.AccessMode = bslSpec.BackupStorageLocationSpec.AccessMode
-		veleroBsl.Spec.BackupSyncPeriod = bslSpec.BackupStorageLocationSpec.BackupSyncPeriod
-		veleroBsl.Spec.Config = bslSpec.BackupStorageLocationSpec.Config
+		veleroBsl.Spec = *nabsl.Spec.BackupStorageLocationSpec.DeepCopy()
+
+		// Set Credential separately
 		veleroBsl.Spec.Credential = &corev1.SecretKeySelector{
 			LocalObjectReference: corev1.LocalObjectReference{
 				Name: veleroBslSecret.Name,
 			},
+			Key: nabsl.Spec.BackupStorageLocationSpec.Credential.Key,
 		}
-		veleroBsl.Spec.Credential.Key = bslSpec.BackupStorageLocationSpec.Credential.Key
-		veleroBsl.Spec.Default = bslSpec.BackupStorageLocationSpec.Default
-		veleroBsl.Spec.ObjectStorage = bslSpec.BackupStorageLocationSpec.ObjectStorage
-		veleroBsl.Spec.Provider = bslSpec.BackupStorageLocationSpec.Provider
-		veleroBsl.Spec.StorageType = bslSpec.BackupStorageLocationSpec.StorageType
-		veleroBsl.Spec.ValidationFrequency = bslSpec.BackupStorageLocationSpec.ValidationFrequency
 
-		veleroBsl.Spec.ObjectStorage.Bucket = bslSpec.BackupStorageLocationSpec.ObjectStorage.Bucket
-		veleroBsl.Spec.ObjectStorage.Prefix = bslSpec.BackupStorageLocationSpec.ObjectStorage.Prefix
-		veleroBsl.Spec.ObjectStorage.CACert = bslSpec.BackupStorageLocationSpec.ObjectStorage.CACert
 		return nil
 	})
 
@@ -597,7 +573,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 			constant.NamespaceString, veleroBsl.Namespace,
 			constant.NameString, veleroBsl.Name)
 	}
-	updatedPhase := updateNaBSLPhase(&nabsl.Status.Phase, nacv1alpha1.NaBSLPhaseCreated)
+	updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseCreated)
 
 	if bslCondition || updatedPhase {
 		if updateErr := r.Status().Update(ctx, nabsl); updateErr != nil {
@@ -660,20 +636,5 @@ func updateNaBSLVeleroBackupStorageLocationStatus(status *nacv1alpha1.NonAdminBa
 
 	// Update and return true if they differ
 	status.VeleroBackupStorageLocation.Status = veleroBackupStorageLocation.Status.DeepCopy()
-	return true
-}
-
-// updateNaBSLPhase updates the phase of the NonAdminBackupStorageLocation
-func updateNaBSLPhase(phase *nacv1alpha1.NonAdminBackupStorageLocationPhase, newPhase nacv1alpha1.NonAdminBackupStorageLocationPhase) bool {
-	// Ensure phase is valid
-	if newPhase == constant.EmptyString {
-		return false
-	}
-
-	if *phase == newPhase {
-		return false
-	}
-
-	*phase = newPhase
 	return true
 }

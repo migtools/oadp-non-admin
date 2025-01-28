@@ -164,13 +164,13 @@ var _ = ginkgo.Describe("Test NonAdminBackupStorageLocation in cluster validatio
 			gomega.Expect(err).To(gomega.HaveOccurred())
 			gomega.Expect(err.Error()).To(gomega.ContainSubstring("Required value"))
 		},
-		ginkgo.Entry("Should NOT create NonAdminBackupStorageLocation without spec.restoreSpec", nonAdminBackupStorageLocationClusterValidationScenario{
+		ginkgo.Entry("Should NOT create NonAdminBackupStorageLocation without spec.backupStorageLocationSpec", nonAdminBackupStorageLocationClusterValidationScenario{
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{},
 		}),
 	)
 })
 
-var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller", func() {
+var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocation Controller", func() {
 	var (
 		ctx                  context.Context
 		cancel               context.CancelFunc
@@ -369,7 +369,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 			},
 			expectedStatus: nacv1alpha1.NonAdminBackupStorageLocationStatus{
-				Phase: nacv1alpha1.NaBSLPhaseUnavailable,
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
@@ -403,7 +403,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 			},
 			expectedStatus: nacv1alpha1.NonAdminBackupStorageLocationStatus{
-				Phase: nacv1alpha1.NaBSLPhaseUnavailable,
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
@@ -436,7 +436,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 			},
 			expectedStatus: nacv1alpha1.NonAdminBackupStorageLocationStatus{
-				Phase: nacv1alpha1.NaBSLPhaseCreated,
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Accepted",
