@@ -26,6 +26,8 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -68,6 +70,14 @@ func GetNonAdminRestoreAnnotations(objectMeta metav1.ObjectMeta) map[string]stri
 	}
 }
 
+// GetNonAdminBackupStorageLocationAnnotations return the required Non Admin annotations
+func GetNonAdminBackupStorageLocationAnnotations(objectMeta metav1.ObjectMeta) map[string]string {
+	return map[string]string{
+		constant.NabslOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NabslOriginNameAnnotation:      objectMeta.Name,
+	}
+}
+
 // containsOnlyNamespace checks if the given namespaces slice contains only the specified namespace
 func containsOnlyNamespace(namespaces []string, namespace string) bool {
 	for _, ns := range namespaces {
@@ -98,7 +108,7 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 		currentField := reflect.ValueOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
 		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
 			field, _ := reflect.TypeOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
-			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
 			return fmt.Errorf(
 				"NonAdminBackup spec.backupSpec.%v field value is enforced by admin user, can not override it",
 				tagName,
@@ -146,7 +156,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 		currentField := reflect.ValueOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
 		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
 			field, _ := reflect.TypeOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
-			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
 			return fmt.Errorf(
 				"NonAdminRestore spec.restoreSpec.%v field value is enforced by admin user, can not override it",
 				tagName,
@@ -154,6 +164,32 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 		}
 	}
 
+	return nil
+}
+
+// ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
+func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation) error {
+	// TODO Introduce validation for NaBSL as described in the
+	// https://github.com/migtools/oadp-non-admin/issues/146
+	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
+		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
+	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
+		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
+	}
+
+	// TODO: Enforcement of NaBSL spec fields
+
+	// Check if the secret exists in the same namespace
+	secret := &corev1.Secret{}
+	if err := clientInstance.Get(ctx, types.NamespacedName{
+		Namespace: nonAdminBsl.Namespace,
+		Name:      nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name,
+	}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("BSL credentials secret not found: %v", err)
+		}
+		return fmt.Errorf("failed to get BSL credentials secret: %v", err)
+	}
 	return nil
 }
 
@@ -204,7 +240,7 @@ func GenerateNacObjectUUID(namespace, nacName string) string {
 func ListObjectsByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelKey string, labelValue string, objectList client.ObjectList) error {
 	// Validate input parameters
 	if namespace == constant.EmptyString || labelKey == constant.EmptyString || labelValue == constant.EmptyString {
-		return fmt.Errorf("invalid input: namespace, labelKey, and labelValue must not be empty")
+		return fmt.Errorf("invalid input: namespace=%q, labelKey=%q, labelValue=%q", namespace, labelKey, labelValue)
 	}
 
 	labelSelector := labels.SelectorFromSet(labels.Set{labelKey: labelValue})
@@ -427,6 +463,48 @@ func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, 
 	}
 }
 
+// GetBslSecretByLabel retrieves a Secret object based on a specified label within a given namespace.
+// It returns the Secret only when exactly one object is found, throws an error if multiple secrets are found,
+// or returns nil if no matches are found.
+func GetBslSecretByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*corev1.Secret, error) {
+	secretList := &corev1.SecretList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabslOriginNACUUIDLabel, labelValue, secretList); err != nil {
+		return nil, err
+	}
+
+	switch len(secretList.Items) {
+	case 0:
+		return nil, nil // No matching Secret found
+	case 1:
+		return &secretList.Items[0], nil // Found 1 matching Secret
+	default:
+		return nil, fmt.Errorf("multiple Secret objects found with label %s=%s in namespace '%s'", velerov1.StorageLocationLabel, labelValue, namespace)
+	}
+}
+
+// GetVeleroBackupStorageLocationByLabel retrieves a VeleroBackupStorageLocation object based on a specified label within a given namespace.
+// It returns the VeleroBackupStorageLocation only when exactly one object is found, throws an error if multiple VeleroBackupStorageLocation are found,
+// or returns nil if no matches are found.
+func GetVeleroBackupStorageLocationByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*velerov1.BackupStorageLocation, error) {
+	bslList := &velerov1.BackupStorageLocationList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabslOriginNACUUIDLabel, labelValue, bslList); err != nil {
+		return nil, err
+	}
+
+	switch len(bslList.Items) {
+	case 0:
+		return nil, nil // No matching VeleroBackupStorageLocation found
+	case 1:
+		return &bslList.Items[0], nil // Found 1 matching VeleroBackupStorageLocation
+	default:
+		return nil, fmt.Errorf("multiple VeleroBackupStorageLocation objects found with label %s=%s in namespace '%s'", velerov1.StorageLocationLabel, labelValue, namespace)
+	}
+}
+
 // CheckVeleroBackupMetadata return true if Velero Backup object has required Non Admin labels and annotations, false otherwise
 func CheckVeleroBackupMetadata(obj client.Object) bool {
 	objLabels := obj.GetLabels()
@@ -478,6 +556,30 @@ func CheckVeleroRestoreMetadata(obj client.Object) bool {
 	return true
 }
 
+// CheckVeleroBackupStorageLocationMetadata return true if Velero BackupStorageLocation object has required Non Admin labels and annotations, false otherwise
+func CheckVeleroBackupStorageLocationMetadata(obj client.Object) bool {
+	objLabels := obj.GetLabels()
+	if !checkLabelValue(objLabels, constant.OadpLabel, constant.OadpLabelValue) {
+		return false
+	}
+	if !checkLabelValue(objLabels, constant.ManagedByLabel, constant.ManagedByLabelValue) {
+		return false
+	}
+
+	if !checkLabelAnnotationValueIsValid(objLabels, constant.NabslOriginNACUUIDLabel) {
+		return false
+	}
+
+	annotations := obj.GetAnnotations()
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabslOriginNamespaceAnnotation) {
+		return false
+	}
+	if !checkLabelAnnotationValueIsValid(annotations, constant.NabslOriginNameAnnotation) {
+		return false
+	}
+
+	return true
+}
 func checkLabelValue(objLabels map[string]string, key string, value string) bool {
 	got, exists := objLabels[key]
 	if !exists {

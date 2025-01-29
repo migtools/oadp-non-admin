@@ -153,7 +153,7 @@ func main() {
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: enforcedBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NonAdminBackup")
+		setupLog.Error(err, "unable to setup NonAdminBackup controller with manager")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminRestoreReconciler{
@@ -162,7 +162,15 @@ func main() {
 		OADPNamespace:       oadpNamespace,
 		EnforcedRestoreSpec: enforcedRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NonAdminRestore")
+		setupLog.Error(err, "unable to setup NonAdminRestore controller with manager")
+		os.Exit(1)
+	}
+	if err = (&controller.NonAdminBackupStorageLocationReconciler{
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
