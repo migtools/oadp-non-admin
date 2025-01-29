@@ -176,8 +176,16 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 				for index := range 5 {
 					bsl := &velerov1.BackupStorageLocation{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      fmt.Sprintf("example-%v", index),
+							Name:      fmt.Sprintf("test-garbage-collector-bsl-%v", index),
 							Namespace: oadpNamespace,
+							Labels: map[string]string{
+								constant.OadpLabel:      constant.OadpLabelValue,
+								constant.ManagedByLabel: constant.ManagedByLabelValue,
+							},
+							Annotations: map[string]string{
+								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,
+								constant.NabslOriginNameAnnotation:      "non-existent",
+							},
 						},
 						Spec: velerov1.BackupStorageLocationSpec{
 							StorageType: velerov1.StorageType{
@@ -194,6 +202,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			}()
 
 			time.Sleep(10 * time.Second)
+			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan BackupStorageLocation deleted")).Should(gomega.Equal(5))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Backup deleted")).Should(gomega.Equal(scenario.orphanBackups))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Restore deleted")).Should(gomega.Equal(scenario.orphanRestores))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "Garbage Collector Reconcile start")).Should(gomega.Equal(5))

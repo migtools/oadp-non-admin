@@ -61,8 +61,37 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		// TODO duplication in delete logic
 		// TODO do deletion in parallel?
 
-		// TODO delete BSL
 		// TODO delete secret as well?
+		veleroBackupStorageLocationList := &velerov1.BackupStorageLocationList{}
+		if err := r.List(ctx, veleroBackupStorageLocationList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch BackupStorageLocations in OADP namespace")
+			return ctrl.Result{}, err
+		}
+		for _, backupStorageLocation := range veleroBackupStorageLocationList.Items {
+			annotations := backupStorageLocation.GetAnnotations()
+			// TODO check UUID as well?
+			if !function.CheckVeleroBackupStorageLocationAnnotations(&backupStorageLocation) {
+				logger.V(1).Info("BackupStorageLocation does not have required annotations", constant.NameString, backupStorageLocation.Name)
+				// TODO delete?
+				continue
+			}
+			nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+			err := r.Get(ctx, types.NamespacedName{
+				Name:      annotations[constant.NabslOriginNameAnnotation],
+				Namespace: annotations[constant.NabslOriginNamespaceAnnotation],
+			}, nabsl)
+			if err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
+					return ctrl.Result{}, err
+				}
+				if err = r.Delete(ctx, &backupStorageLocation); err != nil {
+					logger.Error(err, "Failed to delete orphan BackupStorageLocation", constant.NameString, backupStorageLocation.Name)
+					return ctrl.Result{}, err
+				}
+				logger.V(1).Info("orphan BackupStorageLocation deleted", constant.NameString, backupStorageLocation.Name)
+			}
+		}
 
 		veleroBackupList := &velerov1.BackupList{}
 		if err := r.List(ctx, veleroBackupList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {

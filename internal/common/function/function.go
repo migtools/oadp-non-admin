@@ -580,6 +580,11 @@ func CheckVeleroBackupStorageLocationMetadata(obj client.Object) bool {
 		return false
 	}
 
+	return CheckVeleroBackupStorageLocationAnnotations(obj)
+}
+
+// CheckVeleroBackupStorageLocationAnnotations return true if Velero BackupStorageLocation object has required Non Admin annotations, false otherwise
+func CheckVeleroBackupStorageLocationAnnotations(obj client.Object) bool {
 	annotations := obj.GetAnnotations()
 	if !checkLabelAnnotationValueIsValid(annotations, constant.NabslOriginNamespaceAnnotation) {
 		return false
@@ -590,6 +595,7 @@ func CheckVeleroBackupStorageLocationMetadata(obj client.Object) bool {
 
 	return true
 }
+
 func checkLabelValue(objLabels map[string]string, key string, value string) bool {
 	got, exists := objLabels[key]
 	if !exists {

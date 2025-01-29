@@ -182,7 +182,7 @@ func main() {
 		// TODO user input
 		Frequency: 5 * time.Minute,
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "GarbageCollector")
+		setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
 		os.Exit(1)
 	}
 
