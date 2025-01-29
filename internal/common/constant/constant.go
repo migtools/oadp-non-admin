@@ -72,3 +72,9 @@ const UUIDString = "UUID"
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
+
+// JSONTagString defines a constant for the JSON tag string
+const JSONTagString = "json"
+
+// CommaString defines a constant for the comma string
+const CommaString = ","

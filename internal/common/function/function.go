@@ -78,8 +78,153 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 	return true
 }
 
+// enforceSlice enforces rules on slices recursively.
+func enforceSlice(currentSlice, enforcedSlice reflect.Value) error {
+	if enforcedSlice.Len() == 0 {
+		return nil
+	}
+
+	// Iterate through elements
+	for i := 0; i < enforcedSlice.Len(); i++ {
+		if i < currentSlice.Len() {
+			if err := enforceSpecFields(currentSlice.Index(i), enforcedSlice.Index(i)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// enforceMap enforces rules on maps recursively.
+func enforceMap(currentMap, enforcedMap reflect.Value) error {
+	if enforcedMap.Len() == 0 {
+		return nil
+	}
+
+	for _, key := range enforcedMap.MapKeys() {
+		enforcedValue := enforcedMap.MapIndex(key)
+		currentValue := currentMap.MapIndex(key)
+
+		if !currentValue.IsValid() {
+			continue
+		}
+
+		// Recursively enforce nested maps
+		if enforcedValue.Kind() == reflect.Map {
+			if err := enforceMap(currentValue, enforcedValue); err != nil {
+				return err
+			}
+		} else if enforcedValue.Kind() == reflect.Struct {
+			if err := enforceSpecFields(currentValue, enforcedValue); err != nil {
+				return err
+			}
+		} else if !reflect.DeepEqual(enforcedValue.Interface(), currentValue.Interface()) {
+			return fmt.Errorf("the value of the '%v' field is enforced by admin user, cannot override it", key.Interface())
+		}
+	}
+	return nil
+}
+
+// enforcePointer handles pointer values by dereferencing and enforcing recursively.
+func enforcePointer(currentPtr, enforcedPtr reflect.Value) error {
+	if enforcedPtr.IsNil() {
+		return nil
+	}
+
+	// Ensure both pointers are valid
+	if !currentPtr.IsNil() {
+		return enforceSpecFields(currentPtr.Elem(), enforcedPtr.Elem())
+	}
+	return nil
+}
+
+func enforceSpecFields(currentSpec, enforcedSpec reflect.Value) error {
+	if !currentSpec.IsValid() || !enforcedSpec.IsValid() {
+		return nil
+	}
+
+	// Handle pointers by dereferencing
+	if currentSpec.Kind() == reflect.Ptr && !currentSpec.IsNil() {
+		currentSpec = currentSpec.Elem()
+	}
+	if enforcedSpec.Kind() == reflect.Ptr && !enforcedSpec.IsNil() {
+		enforcedSpec = enforcedSpec.Elem()
+	}
+
+	// Ensure both values are structs
+	if currentSpec.Kind() != reflect.Struct || enforcedSpec.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for i := 0; i < enforcedSpec.NumField(); i++ {
+		enforcedField := enforcedSpec.Field(i)
+		enforcedFieldName := enforcedSpec.Type().Field(i).Name
+		currentField := currentSpec.FieldByName(enforcedFieldName)
+		fmt.Println("enforcedField", enforcedField)
+		fmt.Println("currentField", currentField)
+
+		// Skip if the field is invalid or unexported
+		if !currentField.IsValid() || !currentField.CanSet() {
+			continue
+		}
+
+		// Recursively handle different data types
+		switch enforcedField.Kind() {
+		case reflect.Struct:
+			if err := enforceSpecFields(currentField, enforcedField); err != nil {
+				return err
+			}
+		case reflect.Slice, reflect.Array:
+			if err := enforceSlice(currentField, enforcedField); err != nil {
+				return err
+			}
+		case reflect.Map:
+			if err := enforceMap(currentField, enforcedField); err != nil {
+				return err
+			}
+		case reflect.Ptr:
+			if err := enforcePointer(currentField, enforcedField); err != nil {
+				return err
+			}
+		default:
+			if !enforcedField.IsZero() && !currentField.IsZero() &&
+				!reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+				field, _ := currentSpec.Type().FieldByName(enforcedFieldName)
+				tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+				return fmt.Errorf("the value of the '%v' field is enforced by admin user, cannot override it", tagName)
+			}
+		}
+	}
+	return nil
+}
+
+// EnforceNacSpec enforces the values of the enforced spec on the current spec.
+func EnforceNacSpec(currentSpec, enforcedSpec any) error {
+	enforcedSpecValue := reflect.ValueOf(enforcedSpec)
+	if enforcedSpecValue.Kind() == reflect.Ptr {
+		enforcedSpecValue = enforcedSpecValue.Elem()
+	}
+
+	// The enforced spec is not set, so we don't need to enforce anything
+	if !enforcedSpecValue.IsValid() {
+		return nil
+	}
+
+	currentSpecValue := reflect.ValueOf(currentSpec)
+	if currentSpecValue.Kind() == reflect.Ptr {
+		currentSpecValue = currentSpecValue.Elem()
+	}
+
+	if !currentSpecValue.IsValid() {
+		return fmt.Errorf("current spec is invalid")
+	}
+
+	return enforceSpecFields(currentSpecValue, enforcedSpecValue)
+}
+
 // ValidateBackupSpec return nil, if NonAdminBackup is valid; error otherwise
 func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
+	// NAC Controller level restrictions
 	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
@@ -91,19 +236,10 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 		}
 	}
 
-	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
-	for index := range enforcedSpec.NumField() {
-		enforcedField := enforcedSpec.Field(index)
-		enforcedFieldName := enforcedSpec.Type().Field(index).Name
-		currentField := reflect.ValueOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
-		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
-			field, _ := reflect.TypeOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
-			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			return fmt.Errorf(
-				"NonAdminBackup spec.backupSpec.%v field value is enforced by admin user, can not override it",
-				tagName,
-			)
-		}
+	// NAB Cluster level admin enforcements
+	err := EnforceNacSpec(nonAdminBackup.Spec.BackupSpec, enforcedBackupSpec)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -111,10 +247,10 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 
 // ValidateRestoreSpec return nil, if NonAdminRestore is valid; error otherwise
 func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore, enforcedRestoreSpec *velerov1.RestoreSpec) error {
+	// NAC Controller level restrictions
 	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
 	}
-
 	nab := &nacv1alpha1.NonAdminBackup{}
 	err := clientInstance.Get(ctx, types.NamespacedName{
 		Name:      nonAdminRestore.Spec.RestoreSpec.BackupName,
@@ -127,6 +263,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
 	}
+
 	// TODO validate that velero backup exists?
 
 	// TODO does velero validate if backup is ready to be restored?
@@ -139,19 +276,10 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 
 	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
 
-	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
-	for index := range enforcedSpec.NumField() {
-		enforcedField := enforcedSpec.Field(index)
-		enforcedFieldName := enforcedSpec.Type().Field(index).Name
-		currentField := reflect.ValueOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
-		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
-			field, _ := reflect.TypeOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
-			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			return fmt.Errorf(
-				"NonAdminRestore spec.restoreSpec.%v field value is enforced by admin user, can not override it",
-				tagName,
-			)
-		}
+	// NAR Cluster level admin enforcements
+	err = EnforceNacSpec(nonAdminRestore.Spec.RestoreSpec, enforcedRestoreSpec)
+	if err != nil {
+		return err
 	}
 
 	return nil
