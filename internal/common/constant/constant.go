@@ -35,6 +35,8 @@ const (
 	NarOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
 	NabslOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nabsl-origin-nacuuid"
 
+	NabSyncLabel = "openshift.io/oadp-nab-synced-from-nacuuid"
+
 	NabOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
 	NabOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
 	NarOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nar-origin-name"

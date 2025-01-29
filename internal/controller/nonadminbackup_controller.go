@@ -89,7 +89,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	_, syncBackup := nab.Labels["openshift.io/oadp-nab-synced-from-nacuuid"]
+	_, syncBackup := nab.Labels[constant.NabSyncLabel]
 
 	// Determine which path to take
 	var reconcileSteps []nonAdminBackupReconcileStepFunction
@@ -566,7 +566,7 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 
 	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NACUUID == constant.EmptyString {
 		var veleroBackupNACUUID string
-		if value, ok := nab.Labels["openshift.io/oadp-nab-synced-from-nacuuid"]; ok {
+		if value, ok := nab.Labels[constant.NabSyncLabel]; ok {
 			veleroBackupNACUUID = value
 		} else {
 			veleroBackupNACUUID = function.GenerateNacObjectUUID(nab.Namespace, nab.Name)
