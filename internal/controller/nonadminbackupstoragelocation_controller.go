@@ -184,7 +184,11 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 				},
 			}
 			nab.Spec.BackupSpec.StorageLocation = nabsl.Name
-			r.Create(ctx, nab)
+			err := r.Create(ctx, nab)
+			if err != nil {
+				logger.Error(err, "Failed to create NonAdminBackup")
+				return ctrl.Result{}, err
+			}
 		}
 
 		logger.V(1).Info("NonAdminBackup Synchronization exit")
