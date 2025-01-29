@@ -16,19 +16,19 @@ Choose one of the authentication method sections to follow.
   ```
 - Create secret from the previously created identity file in your cluster
   ```sh
-  oc create secret generic non-admin-user --from-file=htpasswd=./non_admin_user.htpasswd -n openshift-config
+  oc create secret generic <non-admin-user-secret-name> --from-file=htpasswd=./non_admin_user.htpasswd -n openshift-config
   ```
 - Add new entry to `spec.identityProviders` field from OAuth cluster (`oc get OAuth cluster`)
   ```yaml
   ...
   spec:
     identityProviders:
-    - name: # non-admin-user
+    - name: # non-admin-user-secret-name
       mappingMethod: claim
       type: HTPasswd
       htpasswd:
         fileData:
-          name: # non-admin-user
+          name: # non-admin-user-secret-name
   ```
 - [Apply permissions to your non admin user](#permissions)
 
