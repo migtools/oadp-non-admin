@@ -171,8 +171,6 @@ func main() {
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
 		OADPNamespace: oadpNamespace,
-		// TODO user input
-		SyncPeriod: 5 * time.Minute,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
@@ -188,6 +186,16 @@ func main() {
 			setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
 			os.Exit(1)
 		}
+	}
+	if err = (&controller.NonAdminBackupSynchronizerReconciler{
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
+		// TODO user input
+		SyncPeriod: 5 * time.Minute,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to setup NonAdminBackupSynchronizer controller with manager")
+		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

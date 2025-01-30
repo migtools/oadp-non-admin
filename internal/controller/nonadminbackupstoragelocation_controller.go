@@ -18,9 +18,7 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/go-logr/logr"
 	oadpcommon "github.com/openshift/oadp-operator/pkg/common"
@@ -32,7 +30,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -60,12 +57,9 @@ type NonAdminBackupStorageLocationReconciler struct {
 	Scheme          *runtime.Scheme
 	EnforcedBslSpec *velerov1.BackupStorageLocationSpec
 	OADPNamespace   string
-	SyncPeriod      time.Duration
 }
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
-
-var previousBackupSyncRun *time.Time
 
 // +kubebuilder:rbac:groups=velero.io,resources=backupstoragelocations,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=backupstoragelocations/status,verbs=get;update;patch
@@ -129,70 +123,6 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 		} else if requeue {
 			return ctrl.Result{Requeue: true}, nil
 		}
-	}
-
-	if previousBackupSyncRun == nil || time.Now().After(previousBackupSyncRun.Add(r.SyncPeriod)) {
-		previousBackupSyncRun = ptr.To(time.Now())
-		logger.V(1).Info("NonAdminBackup Synchronization start")
-
-		var veleroBackupList velerov1.BackupList
-		labelSelector := client.MatchingLabels(function.GetNonAdminLabels())
-
-		if err := r.List(ctx, &veleroBackupList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		var backupsToSync []velerov1.Backup
-		var possibleBackupsToSync []velerov1.Backup
-		for _, backup := range veleroBackupList.Items {
-			if backup.Status.CompletionTimestamp != nil &&
-				backup.Annotations[constant.NabOriginNamespaceAnnotation] == nabsl.Namespace &&
-				backup.Spec.StorageLocation == nabsl.Name {
-				possibleBackupsToSync = append(possibleBackupsToSync, backup)
-			}
-		}
-		logger.V(1).Info(fmt.Sprintf("%v possible Backup(s) to be synced to NonAdminBackupStorageLocation namespace", len(possibleBackupsToSync)))
-
-		for _, backup := range possibleBackupsToSync {
-			nab := &nacv1alpha1.NonAdminBackup{}
-			err := r.Get(ctx, types.NamespacedName{
-				Namespace: backup.Annotations[constant.NabOriginNamespaceAnnotation],
-				Name:      backup.Annotations[constant.NabOriginNameAnnotation],
-			}, nab)
-			if err != nil {
-				if apierrors.IsNotFound(err) {
-					backupsToSync = append(backupsToSync, backup)
-					continue
-				}
-				logger.Error(err, "Unable to fetch NonAdminBackup")
-				return ctrl.Result{}, err
-			}
-		}
-		logger.V(1).Info(fmt.Sprintf("%v Backup(s) to sync to NonAdminBackupStorageLocation namespace", len(backupsToSync)))
-		for _, backup := range backupsToSync {
-			nab := &nacv1alpha1.NonAdminBackup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      backup.Annotations[constant.NabOriginNameAnnotation],
-					Namespace: backup.Annotations[constant.NabOriginNamespaceAnnotation],
-					// TODO sync operation does not preserve labels
-					Labels: map[string]string{
-						constant.NabSyncLabel: backup.Labels[constant.NabOriginNACUUIDLabel],
-					},
-				},
-				Spec: nacv1alpha1.NonAdminBackupSpec{
-					BackupSpec: &backup.Spec,
-				},
-			}
-			nab.Spec.BackupSpec.StorageLocation = nabsl.Name
-			err := r.Create(ctx, nab)
-			if err != nil {
-				logger.Error(err, "Failed to create NonAdminBackup")
-				return ctrl.Result{}, err
-			}
-		}
-
-		logger.V(1).Info("NonAdminBackup Synchronization exit")
-		return ctrl.Result{RequeueAfter: r.SyncPeriod}, nil
 	}
 
 	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile exit")
