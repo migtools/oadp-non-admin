@@ -789,7 +789,7 @@ func TestValidateBslSpec(t *testing.T) {
 					},
 				},
 			},
-			errorMessage: "NonAdminBackupStorageLocation can not set spec.bslSpec.default to true",
+			errorMessage: "NonAdminBackupStorageLocation cannot be used as a default BSL",
 		},
 	}
 
