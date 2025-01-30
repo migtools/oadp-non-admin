@@ -492,7 +492,7 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition Accepted to "False".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition Accepted to "True".
 func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	err := function.ValidateBackupSpec(nab, r.EnforcedBackupSpec)
+	err := function.ValidateBackupSpec(ctx, r.Client, r.OADPNamespace, nab, r.EnforcedBackupSpec)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
@@ -618,8 +618,6 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		logger.Info("VeleroBackup with label not found, creating one", constant.UUIDString, veleroBackupNACUUID)
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
-		backupSpec.IncludedNamespaces = []string{nab.Namespace}
-
 		enforcedSpec := reflect.ValueOf(r.EnforcedBackupSpec).Elem()
 		for index := range enforcedSpec.NumField() {
 			enforcedField := enforcedSpec.Field(index)
@@ -628,6 +626,19 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			if !enforcedField.IsZero() && currentField.IsZero() {
 				currentField.Set(enforcedField)
 			}
+		}
+
+		// Included Namespaces are set by the controller and can not be overridden by the user
+		// nor admin user
+		backupSpec.IncludedNamespaces = []string{nab.Namespace}
+		if backupSpec.StorageLocation != constant.EmptyString {
+			nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+
+			if nabslErr := r.Client.Get(ctx, types.NamespacedName{Name: backupSpec.StorageLocation, Namespace: nab.Namespace}, nonAdminBsl); nabslErr != nil {
+				return false, nabslErr
+			}
+
+			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
 		}
 
 		veleroBackup := velerov1.Backup{
