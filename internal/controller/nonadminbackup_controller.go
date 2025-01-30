@@ -638,15 +638,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 				return false, nabslErr
 			}
 
-			if nonAdminBsl.Status.VeleroBackupStorageLocation != nil && nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID != constant.EmptyString {
-				veleroBackupStorageLocation, veleroBslErr := function.GetVeleroBackupStorageLocationByLabel(ctx, r.Client, r.OADPNamespace, nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID)
-				if veleroBslErr != nil {
-					return false, veleroBslErr
-				}
-				if veleroBackupStorageLocation != nil && veleroBackupStorageLocation.Name != constant.EmptyString {
-					backupSpec.StorageLocation = veleroBackupStorageLocation.Name
-				}
-			}
+			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
 		}
 
 		veleroBackup := velerov1.Backup{
