@@ -780,6 +780,17 @@ func TestValidateBslSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "[invalid] spec.bslSpec.default is set to true",
+			nonAdminBsl: &nacv1alpha1.NonAdminBackupStorageLocation{
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
+						Default: true,
+					},
+				},
+			},
+			errorMessage: "NonAdminBackupStorageLocation can not set spec.bslSpec.default to true",
+		},
 	}
 
 	for _, test := range tests {

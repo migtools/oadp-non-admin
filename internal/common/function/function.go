@@ -171,6 +171,9 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation) error {
 	// TODO Introduce validation for NaBSL as described in the
 	// https://github.com/migtools/oadp-non-admin/issues/146
+	if nonAdminBsl.Spec.BackupStorageLocationSpec.Default {
+		return fmt.Errorf("NonAdminBackupStorageLocation can not set spec.bslSpec.default to true")
+	}
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
 	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
