@@ -340,14 +340,18 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 							},
 						},
 						Spec: *bslSpec,
-						Status: velerov1.BackupStorageLocationStatus{
-							Phase: velerov1.BackupStorageLocationPhaseAvailable,
-						},
 					}
 					gomega.Expect(k8sClient.Create(ctx, veleroBackupStorageLocation)).To(gomega.Succeed())
-					gomega.Expect(k8sClient.Status().Update(ctx, veleroBackupStorageLocation)).To(gomega.Succeed())
 
-					nonAdminBackupStorageLocation.Status.VeleroBackupStorageLocation.NACUUID = veleroBSLUUID
+					veleroBackupStorageLocation.Status = velerov1.BackupStorageLocationStatus{
+						Phase: velerov1.BackupStorageLocationPhaseAvailable,
+					}
+
+					gomega.Expect(k8sClient.Update(ctx, veleroBackupStorageLocation)).To(gomega.Succeed())
+
+					nonAdminBackupStorageLocation.Status.VeleroBackupStorageLocation = &nacv1alpha1.VeleroBackupStorageLocation{
+						NACUUID: veleroBSLUUID,
+					}
 					gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackupStorageLocation)).To(gomega.Succeed())
 
 					// Ensure that the Velero BSL object is created
@@ -551,6 +555,12 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Status:  metav1.ConditionTrue,
 						Reason:  "BackupAccepted",
 						Message: "backup accepted",
+					},
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionQueued),
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
 					},
 				},
 			},

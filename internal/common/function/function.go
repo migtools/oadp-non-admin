@@ -101,10 +101,6 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 		}
 	}
 
-	// We do this validation again just before we create the VeleroBackup object
-	// to ensure we get the latest state of the VeleroBackupStorageLocation object
-	// This is done to inform the user as soon as possible if the BSL is not ready
-	// to be used for the VeleroBackup object
 	if nonAdminBackup.Spec.BackupSpec.StorageLocation != constant.EmptyString {
 		nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
 		err := clientInstance.Get(ctx, types.NamespacedName{
