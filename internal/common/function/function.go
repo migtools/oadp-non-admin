@@ -89,7 +89,7 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 }
 
 // ValidateBackupSpec return nil, if NonAdminBackup is valid; error otherwise
-func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
+func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpNamespace string, nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
 	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
@@ -98,6 +98,37 @@ func ValidateBackupSpec(nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBack
 	if enforcedBackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(enforcedBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces enforced value by admin user violates NAC usage")
+		}
+	}
+
+	// We do this validation again just before we create the VeleroBackup object
+	// to ensure we get the latest state of the VeleroBackupStorageLocation object
+	// This is done to inform the user as soon as possible if the BSL is not ready
+	// to be used for the VeleroBackup object
+	if nonAdminBackup.Spec.BackupSpec.StorageLocation != constant.EmptyString {
+		nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+		err := clientInstance.Get(ctx, types.NamespacedName{
+			Name:      nonAdminBackup.Spec.BackupSpec.StorageLocation,
+			Namespace: nonAdminBackup.Namespace,
+		}, nonAdminBsl)
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("NonAdminBackupStorageLocation not found in the namespace: %v", err)
+		} else if err != nil {
+			return fmt.Errorf("NonAdminBackup spec.backupSpec.storageLocation is invalid: %v", err)
+		}
+		if nonAdminBsl.Status.VeleroBackupStorageLocation == nil || nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString {
+			return fmt.Errorf("unable to get VeleroBackupStorageLocation UUID from NonAdminBackupStorageLocation Status")
+		}
+		veleroObjectsNACUUID := nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID
+		veleroBackupStorageLocation, veleroBslErr := GetVeleroBackupStorageLocationByLabel(ctx, clientInstance, oadpNamespace, veleroObjectsNACUUID)
+		if veleroBslErr != nil {
+			return fmt.Errorf("unable to get valid VeleroBackupStorageLocation referenced by the NACUUID %s from NonAdminBackupStorageLocation Status: %v", veleroObjectsNACUUID, veleroBslErr)
+		}
+		if veleroBackupStorageLocation == nil {
+			return fmt.Errorf("VeleroBackupStorageLocation with NACUUID %s not found in the OADP namespace", veleroObjectsNACUUID)
+		}
+		if veleroBackupStorageLocation.Status.Phase != velerov1.BackupStorageLocationPhaseAvailable {
+			return fmt.Errorf("VeleroBackupStorageLocation with NACUUID %s is not in available state and can not be used for the NonAdminBackup", veleroObjectsNACUUID)
 		}
 	}
 

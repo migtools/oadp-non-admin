@@ -115,6 +115,13 @@ func TestValidateBackupSpec(t *testing.T) {
 				IncludedNamespaces: []string{testNonAdminBackupNamespace},
 			},
 		},
+		{
+			name: "non admin backupstoragelocation not found in the NonAdminBackup namespace",
+			spec: &velerov1.BackupSpec{
+				StorageLocation: "user-defined-backup-storage-location",
+			},
+			errMessage: "NonAdminBackupStorageLocation not found in the namespace: nonadminbackupstoragelocations.oadp.openshift.io \"user-defined-backup-storage-location\" not found",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -126,7 +133,13 @@ func TestValidateBackupSpec(t *testing.T) {
 					BackupSpec: test.spec,
 				},
 			}
-			err := ValidateBackupSpec(nonAdminBackup, &velerov1.BackupSpec{})
+			fakeScheme := runtime.NewScheme()
+			if err := nacv1alpha1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register NAC type: %v", err)
+			}
+			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).Build()
+
+			err := ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", nonAdminBackup, &velerov1.BackupSpec{})
 			if len(test.errMessage) == 0 {
 				assert.NoError(t, err)
 			} else {
@@ -268,7 +281,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:          "StorageLocation",
-			enforcedValue: "default",
+			enforcedValue: "enforced-storage-location",
 			overrideValue: "lemon",
 		},
 		{
@@ -344,19 +357,53 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 					BackupSpec: &velerov1.BackupSpec{},
 				},
 			}
-			err := ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+
+			fakeScheme := runtime.NewScheme()
+			if err := nacv1alpha1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register NAC type: %v", err)
+			}
+			if err := velerov1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register Velero type: %v", err)
+			}
+			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(
+				&nacv1alpha1.NonAdminBackupStorageLocation{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "enforced-storage-location",
+						Namespace: "self-service-namespace",
+					},
+					Status: nacv1alpha1.NonAdminBackupStorageLocationStatus{
+						VeleroBackupStorageLocation: &nacv1alpha1.VeleroBackupStorageLocation{
+							NACUUID: "user-defined-backup-storage-location-uuid",
+						},
+					},
+				},
+				&velerov1.BackupStorageLocation{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							constant.NabslOriginNACUUIDLabel: "user-defined-backup-storage-location-uuid",
+						},
+						Name:      "any-name",
+						Namespace: "oadp-namespace",
+					},
+					Status: velerov1.BackupStorageLocationStatus{
+						Phase: velerov1.BackupStorageLocationPhaseAvailable,
+					},
+				},
+			).Build()
+
+			err := ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", userNonAdminBackup, enforcedSpec)
 			if err != nil {
 				t.Errorf("not setting backup spec field '%v' test failed: %v", test.name, err)
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
-			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+			err = ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", userNonAdminBackup, enforcedSpec)
 			if err != nil {
 				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
-			err = ValidateBackupSpec(userNonAdminBackup, enforcedSpec)
+			err = ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", userNonAdminBackup, enforcedSpec)
 			if err == nil {
 				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
 			}

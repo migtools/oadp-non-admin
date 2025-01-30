@@ -20,6 +20,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -492,7 +493,7 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 // If the BackupSpec is invalid, the function sets the NonAdminBackup condition Accepted to "False".
 // If the BackupSpec is valid, the function sets the NonAdminBackup condition Accepted to "True".
 func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
-	err := function.ValidateBackupSpec(nab, r.EnforcedBackupSpec)
+	err := function.ValidateBackupSpec(ctx, r.Client, r.OADPNamespace, nab, r.EnforcedBackupSpec)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nab.Status.Conditions,
@@ -618,8 +619,6 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		logger.Info("VeleroBackup with label not found, creating one", constant.UUIDString, veleroBackupNACUUID)
 
 		backupSpec := nab.Spec.BackupSpec.DeepCopy()
-		backupSpec.IncludedNamespaces = []string{nab.Namespace}
-
 		enforcedSpec := reflect.ValueOf(r.EnforcedBackupSpec).Elem()
 		for index := range enforcedSpec.NumField() {
 			enforcedField := enforcedSpec.Field(index)
@@ -630,6 +629,10 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			}
 		}
 
+		// Included Namespaces are set by the controller and can not be overridden by the user
+		// nor admin user
+		backupSpec.IncludedNamespaces = []string{nab.Namespace}
+
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroBackupNACUUID,
@@ -638,6 +641,42 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 				Annotations: function.GetNonAdminBackupAnnotations(nab.ObjectMeta),
 			},
 			Spec: *backupSpec,
+		}
+
+		if backupSpec.StorageLocation != constant.EmptyString {
+			// First we retrieve the NonAdminBackupStorageLocation object
+			// to get the NACUUID of the VeleroBackupStorageLocation object
+			// This was already done during the validation of the NonAdminBackupSpec
+			// but we need to do it again here to get the VeleroBackupStorageLocation object
+			// to set the StorageLocation field in the VeleroBackup object and ensure we get
+			// the latest state of the VeleroBackupStorageLocation object
+
+			nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+			bslName := nab.Spec.BackupSpec.StorageLocation
+
+			if nabslErr := r.Client.Get(ctx, types.NamespacedName{Name: bslName, Namespace: nab.Namespace}, nonAdminBsl); err != nabslErr {
+				return false, nabslErr
+			}
+
+			// Fetch VeleroBackupStorageLocation using NACUUID
+			if nonAdminBsl.Status.VeleroBackupStorageLocation == nil || nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString {
+				return false, fmt.Errorf("unable to get valid VeleroBackupStorageLocation UUID from NonAdminBackupStorageLocation Status")
+			}
+			veleroObjectsNACUUID := nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID
+			veleroBackupStorageLocation, veleroBslErr := function.GetVeleroBackupStorageLocationByLabel(ctx, r.Client, r.OADPNamespace, veleroObjectsNACUUID)
+			if veleroBslErr != nil {
+				return false, veleroBslErr
+			}
+			if veleroBackupStorageLocation == nil {
+				return false, fmt.Errorf("VeleroBackupStorageLocation with NACUUID %s not found in the OADP namespace", veleroObjectsNACUUID)
+			}
+			if veleroBackupStorageLocation.Status.Phase != velerov1.BackupStorageLocationPhaseAvailable {
+				return false, fmt.Errorf("VeleroBackupStorageLocation with NACUUID %s is not in available state and can not be used for the NonAdminBackup", veleroObjectsNACUUID)
+			}
+
+			// Set the StorageLocation field in the VeleroBackup object to match the
+			// VeleroBackupStorageLocation object name
+			veleroBackup.Spec.StorageLocation = veleroBackupStorageLocation.Name
 		}
 
 		// Add NonAdminBackup's veleroBackupNACUUID as the label to the VeleroBackup object
