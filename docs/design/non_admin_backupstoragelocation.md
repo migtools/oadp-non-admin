@@ -37,11 +37,12 @@ flowchart TD
     CHECK_BSL_EXISTS -->|No| CHECK_BACKUPS_EXISTS{Check if NonAdminBackups for the NaBSL Exists}
 
     DELETE_BSL --> CHECK_BACKUPS_EXISTS
-    CHECK_BACKUPS_EXISTS -->|Yes| DELETE_BACKUPS[Delete NonAdminBackups in the user's namespace]
+    CHECK_BACKUPS_EXISTS -->|Yes| SET_DELETE_BACKUPS[Call delete on the NonAdminBackup object]
     CHECK_BACKUPS_EXISTS -->|No| REMOVE_FINALIZER[Remove Finalizer from NaBSL Resource]
 
-    DELETE_BACKUPS --> REMOVE_FINALIZER
-
+    SET_DELETE_BACKUPS --> |"delete call failed"| REQUEUE[Requeue the NaBSL Reconcile]
+    SET_DELETE_BACKUPS --> |"delete call succeeded"| DELETE_BACKUPS[Delete NonAdminBackups in the user's namespace, handled by the NonAdminBackup Controller]
+    SET_DELETE_BACKUPS --> |"delete call succeeded"| REMOVE_FINALIZER[Remove Finalizer from NaBSL Resource]
     %% Endpoints
     INVALID_CONFIG --> END[End Reconciliation]
     UPDATE_STATUS --> END
@@ -66,8 +67,12 @@ flowchart TD
     CHECK_BSL_EXISTS
     DELETE_BSL
     CHECK_BACKUPS_EXISTS
-    DELETE_BACKUPS
+    SET_DELETE_BACKUPS
     REMOVE_FINALIZER
+    end
+
+    subgraph "NonAdminBackup_Controller"
+    DELETE_BACKUPS
     end
 
     %% Styling
@@ -122,7 +127,9 @@ flowchart TD
 
 ### Deletion Flow
 1. User deletes the Non-Admin BSL resource.
-2. Controller deletes the Secret from the OADP namespace based on the Non-Admin BSL UUID.
-3. Controller deletes the Velero BSL resource from the OADP namespace based on the Non-Admin BSL UUID.
-4. Controller deletes the NonAdminBackups for the NaBSL from the user's namespace based on the Non-Admin BSL UUID.
-5. Controller removes the finalizer from the Non-Admin BSL resource.
+2. NonAdmin BSL Controller deletes the Secret from the OADP namespace based on the Non-Admin BSL UUID.
+3. NonAdmin BSL Controller deletes the Velero BSL resource from the OADP namespace based on the Non-Admin BSL UUID.
+4. NonAdmin BSL Controller calls delete on the NonAdminBackups for the NaBSL from the user's namespace based on the Non-Admin BSL UUID.
+5. Non Admin Backup Controller deletes the NonAdminBackups from the user's namespace. This happens asynchronously. The NonAdmin Backup objects may not be deleted immediately or may fail to be deleted, but this does not block the removal of finalizer from the NonAdminBackupStorageLocation resource. Please refer to the NonAdminBackup Controller design for more details about the NonAdminBackup Controller deletion flow.
+6. NonAdmin BSL Controller removes the finalizer from the NonAdminBackupStorageLocation resource.
+7. The NonAdminBackupStorageLocation resource is deleted.
