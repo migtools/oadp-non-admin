@@ -192,9 +192,7 @@ func (r *NonAdminBackupStorageLocationReconciler) deleteNonAdminBackups(ctx cont
 				continue
 			}
 			logger.Error(err, "Failed to delete NonAdminBackup", "backup", nonAdminBackup.Name)
-			// Continue deleting other backups, this should not block the deletion of the NonAdminBackupStorageLocation
-			// NAC Garbage Collection will remove the orphaned NonAdminBackups
-			continue
+			return false, err
 		}
 	}
 
