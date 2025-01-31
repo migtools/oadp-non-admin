@@ -82,3 +82,5 @@ require (
 )
 
 replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20241211163542-fa8f2486175b
+
+replace github.com/openshift/oadp-operator => github.com/mateusoliveira43/oadp-operator v0.0.0-20250131150824-b010f27c07bb

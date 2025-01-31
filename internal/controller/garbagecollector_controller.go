@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,11 +29,12 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	"github.com/migtools/oadp-non-admin/internal/common/function"
-	"github.com/migtools/oadp-non-admin/internal/predicate"
+	// "github.com/migtools/oadp-non-admin/internal/predicate"
 )
 
 // GarbageCollectorReconciler reconciles Velero objects
@@ -164,7 +166,10 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 // SetupWithManager sets up the controller with the Manager.
 func (r *GarbageCollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		WithLogConstructor(func(r *reconcile.Request) logr.Logger {
+			return logr.New(ctrl.Log.GetSink().WithValues("controller", "garbagecollector"))
+		}).
 		For(&velerov1.BackupStorageLocation{}).
-		WithEventFilter(predicate.GarbageCollectorPredicate{}).
+		// TODO WithEventFilter(predicate.GarbageCollectorPredicate{}).
 		Complete(r)
 }

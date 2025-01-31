@@ -165,7 +165,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			// wait manager start
 			gomega.Eventually(func() (bool, error) {
 				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
-				startUplog := `INFO	Starting workers	{"controller": "backupstoragelocation", "controllerGroup": "velero.io", "controllerKind": "BackupStorageLocation", "worker count": 1}`
+				startUplog := `INFO	Starting workers	{"controller": "garbagecollector", "worker count": 1}`
 				return strings.Contains(logOutput, startUplog) &&
 					strings.Count(logOutput, startUplog) == 1, nil
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
