@@ -628,6 +628,11 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			}
 		}
 
+		veleroBackupLabels := function.GetNonAdminLabels()
+		// Add NonAdminBackup's veleroBackupNACUUID as the label to the VeleroBackup object
+		// We don't add this as an argument of GetNonAdminLabels(), because there may be
+		// situations where NAC object do not require NabOriginUUIDLabel
+		veleroBackupLabels[constant.NabOriginNACUUIDLabel] = veleroBackupNACUUID
 		// Included Namespaces are set by the controller and can not be overridden by the user
 		// nor admin user
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
@@ -639,22 +644,18 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			}
 
 			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
+			veleroBackupLabels[constant.NabslOriginNACUUIDLabel] = nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID
 		}
 
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroBackupNACUUID,
 				Namespace:   r.OADPNamespace,
-				Labels:      function.GetNonAdminLabels(),
+				Labels:      veleroBackupLabels,
 				Annotations: function.GetNonAdminBackupAnnotations(nab.ObjectMeta),
 			},
 			Spec: *backupSpec,
 		}
-
-		// Add NonAdminBackup's veleroBackupNACUUID as the label to the VeleroBackup object
-		// We don't add this as an argument of GetNonAdminLabels(), because there may be
-		// situations where NAC object do not require NabOriginUUIDLabel
-		veleroBackup.Labels[constant.NabOriginNACUUIDLabel] = veleroBackupNACUUID
 
 		err = r.Create(ctx, &veleroBackup)
 

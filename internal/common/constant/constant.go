@@ -67,6 +67,9 @@ const NamespaceString = "Namespace"
 // NameString defines a constant for the Name string
 const NameString = "name"
 
+// BackupString defines a constant for the Backup string
+const BackupString = "backup"
+
 // CurrentPhaseString defines a constant for the Current Phase string
 const CurrentPhaseString = "currentPhase"
 

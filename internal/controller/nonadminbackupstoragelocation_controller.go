@@ -97,6 +97,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 			r.initNaBSLDelete,
 			r.deleteVeleroBSLSecret,
 			r.deleteVeleroBSL,
+			r.deleteVeleroBackups,
 			r.removeNaBSLFinalizerUponVeleroBSLDeletion,
 		}
 	default:
@@ -160,6 +161,41 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLDelete(ctx context.Co
 			return false, err
 		}
 	}
+	return false, nil
+}
+
+// deleteVeleroBackups deletes all Velero backups associated with the NonAdminBackupStorageLocation object
+// this must happen after the VeleroBackupStorageLocation object is deleted
+func (r *NonAdminBackupStorageLocationReconciler) deleteVeleroBackups(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+	veleroBackupList := &velerov1.BackupList{}
+
+	if err := function.ListObjectsByLabel(ctx, r.Client, r.OADPNamespace, constant.NabslOriginNACUUIDLabel, nabsl.Status.VeleroBackupStorageLocation.NACUUID, veleroBackupList); err != nil {
+		return false, err
+	}
+
+	if len(veleroBackupList.Items) == 0 {
+		logger.V(1).Info("No Velero backups found for NonAdminBackupStorageLocation")
+		return false, nil
+	}
+
+	// Errors should not block next Backup deletion
+	// NAC Garbage Collection will remove the orphaned Backups
+	for _, veleroBackup := range veleroBackupList.Items {
+		logger.V(1).Info("Deleting Velero backup", constant.BackupString, veleroBackup.Name)
+		if controllerutil.ContainsFinalizer(&veleroBackup, constant.NabslFinalizerName) {
+			controllerutil.RemoveFinalizer(&veleroBackup, constant.NabslFinalizerName)
+			if err := r.Update(ctx, &veleroBackup); err != nil {
+				logger.Error(err, "Failed to remove finalizer from Velero backup", constant.BackupString, veleroBackup.Name)
+			}
+		}
+		// K8s API does not return 409 error on delete request, so we don't need to fetch
+		// the latest version of the VeleroBackup object after removing the finalizer
+		if err := r.Delete(ctx, &veleroBackup); err != nil {
+			logger.Error(err, "Failed to delete Velero backup", constant.BackupString, veleroBackup.Name)
+		}
+	}
+
+	logger.V(1).Info("Velero backups for NonAdminBackupStorageLocation deleted")
 	return false, nil
 }
 
