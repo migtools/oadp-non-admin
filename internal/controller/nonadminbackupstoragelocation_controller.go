@@ -97,6 +97,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 			r.initNaBSLDelete,
 			r.deleteVeleroBSLSecret,
 			r.deleteVeleroBSL,
+			r.deleteNonAdminBackups,
 			r.removeNaBSLFinalizerUponVeleroBSLDeletion,
 		}
 	default:
@@ -160,6 +161,44 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLDelete(ctx context.Co
 			return false, err
 		}
 	}
+	return false, nil
+}
+
+// deleteNonAdminBackups deletes all NonAdminBackups associated with the given NonAdminBackupStorageLocation
+func (r *NonAdminBackupStorageLocationReconciler) deleteNonAdminBackups(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+	nonAdminBackupList := &nacv1alpha1.NonAdminBackupList{}
+	listOpts := &client.ListOptions{Namespace: nabsl.Namespace}
+
+	if err := r.Client.List(ctx, nonAdminBackupList, listOpts); err != nil {
+		return false, err
+	}
+
+	if len(nonAdminBackupList.Items) == 0 {
+		logger.V(1).Info("No NonAdminBackups found in NonAdminBackupStorageLocation namespace", "nabsl", nabsl.Name)
+		return false, nil
+	}
+
+	for _, nonAdminBackup := range nonAdminBackupList.Items {
+		// Ensure it belongs to this StorageLocation
+		if nonAdminBackup.Spec.BackupSpec == nil || nonAdminBackup.Spec.BackupSpec.StorageLocation != nabsl.Name {
+			continue
+		}
+
+		logger.V(1).Info("Deleting NonAdminBackup", "backup", nonAdminBackup.Name)
+
+		if err := r.Delete(ctx, &nonAdminBackup); err != nil {
+			if apierrors.IsNotFound(err) {
+				// Ignore NotFound errors (already deleted)
+				continue
+			}
+			logger.Error(err, "Failed to delete NonAdminBackup", "backup", nonAdminBackup.Name)
+			// Continue deleting other backups, this should not block the deletion of the NonAdminBackupStorageLocation
+			// NAC Garbage Collection will remove the orphaned NonAdminBackups
+			continue
+		}
+	}
+
+	logger.V(1).Info("Completed deletion of NonAdminBackups for NonAdminBackupStorageLocation", "nabsl", nabsl.Name)
 	return false, nil
 }
 
