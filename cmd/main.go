@@ -28,6 +28,7 @@ import (
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -114,7 +115,7 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 
-	enforcedBackupSpec, enforcedRestoreSpec, garbageCollectionPeriod, err := getDPAConfiguration(restConfig, oadpNamespace)
+	dpaConfiguration, err := getDPAConfiguration(restConfig, oadpNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get enforced spec")
 		os.Exit(1)
@@ -152,7 +153,7 @@ func main() {
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
 		OADPNamespace:      oadpNamespace,
-		EnforcedBackupSpec: enforcedBackupSpec,
+		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackup controller with manager")
 		os.Exit(1)
@@ -161,7 +162,7 @@ func main() {
 		Client:              mgr.GetClient(),
 		Scheme:              mgr.GetScheme(),
 		OADPNamespace:       oadpNamespace,
-		EnforcedRestoreSpec: enforcedRestoreSpec,
+		EnforcedRestoreSpec: dpaConfiguration.EnforceRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminRestore controller with manager")
 		os.Exit(1)
@@ -175,14 +176,16 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
-	if err = (&controller.GarbageCollectorReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		OADPNamespace: oadpNamespace,
-		Frequency:     garbageCollectionPeriod,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
-		os.Exit(1)
+	if dpaConfiguration.GarbageCollectionPeriod.Duration > 0 {
+		if err = (&controller.GarbageCollectorReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			OADPNamespace: oadpNamespace,
+			Frequency:     dpaConfiguration.GarbageCollectionPeriod.Duration,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
+			os.Exit(1)
+		}
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -201,8 +204,14 @@ func main() {
 	}
 }
 
-func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (*velerov1.BackupSpec, *velerov1.RestoreSpec, time.Duration, error) {
-	garbageCollectionPeriod := 5 * time.Minute
+func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, error) {
+	dpaConfiguration := v1alpha1.NonAdmin{
+		GarbageCollectionPeriod: &metav1.Duration{
+			Duration: 24 * time.Hour, //nolint:revive // 1 day
+		},
+		EnforceBackupSpec:  &velerov1.BackupSpec{},
+		EnforceRestoreSpec: &velerov1.RestoreSpec{},
+	}
 
 	dpaClientScheme := runtime.NewScheme()
 	utilruntime.Must(v1alpha1.AddToScheme(dpaClientScheme))
@@ -210,29 +219,27 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (*velero
 		Scheme: dpaClientScheme,
 	})
 	if err != nil {
-		return nil, nil, garbageCollectionPeriod, err
+		return dpaConfiguration, err
 	}
 	// TODO we could pass DPA name as env var and do a get call directly. Better?
 	dpaList := &v1alpha1.DataProtectionApplicationList{}
 	err = dpaClient.List(context.Background(), dpaList)
 	if err != nil {
-		return nil, nil, garbageCollectionPeriod, err
+		return dpaConfiguration, err
 	}
-	enforcedBackupSpec := &velerov1.BackupSpec{}
-	enforcedRestoreSpec := &velerov1.RestoreSpec{}
 	for _, dpa := range dpaList.Items {
 		if dpa.Namespace == oadpNamespace {
 			if dpa.Spec.NonAdmin != nil && dpa.Spec.NonAdmin.EnforceBackupSpec != nil {
-				enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
+				dpaConfiguration.EnforceBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
 			}
 			if dpa.Spec.NonAdmin.EnforceRestoreSpec != nil {
-				enforcedRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
+				dpaConfiguration.EnforceRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
 			}
 			if dpa.Spec.NonAdmin.GarbageCollectionPeriod != nil {
-				garbageCollectionPeriod = dpa.Spec.NonAdmin.GarbageCollectionPeriod.Duration
+				dpaConfiguration.GarbageCollectionPeriod.Duration = dpa.Spec.NonAdmin.GarbageCollectionPeriod.Duration
 			}
 		}
 	}
 
-	return enforcedBackupSpec, enforcedRestoreSpec, garbageCollectionPeriod, nil
+	return dpaConfiguration, nil
 }

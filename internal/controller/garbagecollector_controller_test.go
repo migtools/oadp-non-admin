@@ -25,6 +25,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -170,7 +171,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 					strings.Count(logOutput, startUplog) == 1, nil
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-			ginkgo.By("Waiting Reconcile of create event")
 			go func() {
 				defer ginkgo.GinkgoRecover()
 				for index := range 5 {
@@ -201,7 +201,30 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 				}
 			}()
 
-			time.Sleep(10 * time.Second)
+			go func() {
+				defer ginkgo.GinkgoRecover()
+				for index := range 3 {
+					secret := &corev1.Secret{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("test-garbage-collector-secret-%v", index),
+							Namespace: oadpNamespace,
+							Labels: map[string]string{
+								constant.OadpLabel:      constant.OadpLabelValue,
+								constant.ManagedByLabel: constant.ManagedByLabelValue,
+							},
+							Annotations: map[string]string{
+								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,
+								constant.NabslOriginNameAnnotation:      "non-existent",
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctx, secret)).To(gomega.Succeed())
+					time.Sleep(1 * time.Second)
+				}
+			}()
+
+			time.Sleep(8 * time.Second)
+			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Secret deleted")).Should(gomega.Equal(3))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan BackupStorageLocation deleted")).Should(gomega.Equal(5))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Backup deleted")).Should(gomega.Equal(scenario.orphanBackups))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Restore deleted")).Should(gomega.Equal(scenario.orphanRestores))
