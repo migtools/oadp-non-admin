@@ -28,16 +28,21 @@ flowchart TD
 
     %% Delete Flow
     OPERATION -->|**Delete**| SET_PHASE_DELETING[Set Phase: Deleting]
-    SET_PHASE_DELETING --> CHECK_SECRET_EXISTS{Check if Secret Exists}
+    SET_PHASE_DELETING --> CHECK_SECRET_EXISTS{Check if Secret for the NaBSL Exists}
     CHECK_SECRET_EXISTS -->|Yes| DELETE_SECRET[Delete Secret in OADP Namespace]
-    CHECK_SECRET_EXISTS -->|No| CHECK_BSL_EXISTS{Check if Velero BSL Exists}
+    CHECK_SECRET_EXISTS -->|No| CHECK_BSL_EXISTS{Check if Velero BSL for the NaBSL Exists}
 
     DELETE_SECRET --> CHECK_BSL_EXISTS
     CHECK_BSL_EXISTS -->|Yes| DELETE_BSL[Delete Velero BSL Resource in OADP Namespace]
-    CHECK_BSL_EXISTS -->|No| REMOVE_FINALIZER[Remove Finalizer from NaBSL Resource]
+    CHECK_BSL_EXISTS -->|No| CHECK_BACKUPS_EXISTS{Check if NonAdminBackups for the NaBSL Exists}
 
-    DELETE_BSL --> REMOVE_FINALIZER
+    DELETE_BSL --> CHECK_BACKUPS_EXISTS
+    CHECK_BACKUPS_EXISTS -->|Yes| SET_DELETE_BACKUPS[Call delete on the NonAdminBackup object]
+    CHECK_BACKUPS_EXISTS -->|No| REMOVE_FINALIZER[Remove Finalizer from NaBSL Resource]
 
+    SET_DELETE_BACKUPS --> |"delete call failed"| REQUEUE[Requeue the NaBSL Reconcile]
+    SET_DELETE_BACKUPS --> |"delete call succeeded"| DELETE_BACKUPS[Delete NonAdminBackups in the user's namespace, handled by the NonAdminBackup Controller]
+    SET_DELETE_BACKUPS --> |"delete call succeeded"| REMOVE_FINALIZER[Remove Finalizer from NaBSL Resource]
     %% Endpoints
     INVALID_CONFIG --> END[End Reconciliation]
     UPDATE_STATUS --> END
@@ -61,7 +66,13 @@ flowchart TD
     DELETE_SECRET
     CHECK_BSL_EXISTS
     DELETE_BSL
+    CHECK_BACKUPS_EXISTS
+    SET_DELETE_BACKUPS
     REMOVE_FINALIZER
+    end
+
+    subgraph "NonAdminBackup_Controller"
+    DELETE_BACKUPS
     end
 
     %% Styling
@@ -72,8 +83,8 @@ flowchart TD
 
     %% Apply styles
     class START,END endpoint
-    class OPERATION,VALIDATE_CONFIG,CHECK_SECRET_EXISTS,CHECK_BSL_EXISTS decision
-    class GENERATE_UUID,CREATE_OR_UPDATE_SECRET,CREATE_OR_UPDATE_BSL,DELETE_SECRET,DELETE_BSL,REMOVE_FINALIZER process
+    class OPERATION,VALIDATE_CONFIG,CHECK_SECRET_EXISTS,CHECK_BSL_EXISTS,CHECK_BACKUPS_EXISTS decision
+    class GENERATE_UUID,CREATE_OR_UPDATE_SECRET,CREATE_OR_UPDATE_BSL,DELETE_SECRET,DELETE_BSL,DELETE_BACKUPS,REMOVE_FINALIZER process
     class INVALID_CONFIG,UPDATE_STATUS,VALID_CONFIG,SET_PHASE_DELETING,SET_PHASE_NEW,SET_PHASE_CREATED phase
 ```
 
@@ -116,6 +127,9 @@ flowchart TD
 
 ### Deletion Flow
 1. User deletes the Non-Admin BSL resource.
-2. Controller deletes the Secret from the OADP namespace based on the Non-Admin BSL UUID.
-3. Controller deletes the Velero BSL resource from the OADP namespace based on the Non-Admin BSL UUID.
-4. Controller removes the finalizer from the Non-Admin BSL resource.
+2. NonAdmin BSL Controller deletes the Secret from the OADP namespace based on the Non-Admin BSL UUID.
+3. NonAdmin BSL Controller deletes the Velero BSL resource from the OADP namespace based on the Non-Admin BSL UUID.
+4. NonAdmin BSL Controller calls delete on the NonAdminBackups for the NaBSL from the user's namespace based on the Non-Admin BSL UUID.
+5. Non Admin Backup Controller deletes the NonAdminBackups from the user's namespace. This happens asynchronously. The NonAdmin Backup objects may not be deleted immediately or may fail to be deleted, but this does not block the removal of finalizer from the NonAdminBackupStorageLocation resource. Please refer to the NonAdminBackup Controller design for more details about the NonAdminBackup Controller deletion flow.
+6. NonAdmin BSL Controller removes the finalizer from the NonAdminBackupStorageLocation resource.
+7. The NonAdminBackupStorageLocation resource is deleted.
