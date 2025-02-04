@@ -540,6 +540,15 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 			).Result()
 	}
 
+	// NaBSL/BSL must have a unique prefix for proper function of the non-admin backup sync controller
+	// 1. Check if user has specified the prefix in NaBSL creation
+	// 2. TODO use the value from enforced spec if specified by the admin
+	// 3. If none of the above, then assign a unique prefix automatically, we will use the last 12 characters of the NACUUID from NaBSL status
+	prefix := veleroObjectsNACUUID[len(veleroObjectsNACUUID)-12:]
+	if len(nabsl.Spec.BackupStorageLocationSpec.Config["prefix"]) > 0 {
+		prefix = nabsl.Spec.BackupStorageLocationSpec.Config["prefix"]
+	}
+
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, veleroBsl, func() error {
 		veleroBsl.Spec = *nabsl.Spec.BackupStorageLocationSpec.DeepCopy()
 
@@ -550,6 +559,12 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 			},
 			Key: nabsl.Spec.BackupStorageLocationSpec.Credential.Key,
 		}
+
+		// Set prefix
+		if veleroBsl.Spec.Config == nil {
+			veleroBsl.Spec.Config = make(map[string]string)
+		}
+		veleroBsl.Spec.Config["prefix"] = prefix
 
 		return nil
 	})
