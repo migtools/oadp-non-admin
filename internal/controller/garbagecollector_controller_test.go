@@ -110,7 +110,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 		}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 	})
 
-	ginkgo.FDescribeTable("Reconcile triggered by BackupStorageLocation Create event",
+	ginkgo.DescribeTable("Reconcile triggered by BackupStorageLocation Create event",
 		func(scenario garbageCollectorFullReconcileScenario) {
 			ctx, cancel = context.WithCancel(context.Background())
 
