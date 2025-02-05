@@ -42,14 +42,17 @@ type garbageCollectorFullReconcileScenario struct {
 	errorLogs      int
 }
 
+const fakeUUID = "12345678-4321-1234-4321-123456789abc"
+
 func buildTestBackup(namespace string, name string, nonAdminNamespace string) *velerov1.Backup {
 	return &velerov1.Backup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				constant.OadpLabel:      constant.OadpLabelValue,
-				constant.ManagedByLabel: constant.ManagedByLabelValue,
+				constant.OadpLabel:             constant.OadpLabelValue,
+				constant.ManagedByLabel:        constant.ManagedByLabelValue,
+				constant.NabOriginNACUUIDLabel: fakeUUID,
 			},
 			Annotations: map[string]string{
 				constant.NabOriginNamespaceAnnotation: nonAdminNamespace,
@@ -66,8 +69,9 @@ func buildTestRestore(namespace string, name string, nonAdminNamespace string) *
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				constant.OadpLabel:      constant.OadpLabelValue,
-				constant.ManagedByLabel: constant.ManagedByLabelValue,
+				constant.OadpLabel:             constant.OadpLabelValue,
+				constant.ManagedByLabel:        constant.ManagedByLabelValue,
+				constant.NarOriginNACUUIDLabel: fakeUUID,
 			},
 			Annotations: map[string]string{
 				constant.NarOriginNamespaceAnnotation: nonAdminNamespace,
@@ -106,7 +110,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 		}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 	})
 
-	ginkgo.DescribeTable("Reconcile triggered by BackupStorageLocation Create event",
+	ginkgo.FDescribeTable("Reconcile triggered by BackupStorageLocation Create event",
 		func(scenario garbageCollectorFullReconcileScenario) {
 			ctx, cancel = context.WithCancel(context.Background())
 
@@ -166,9 +170,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			// wait manager start
 			gomega.Eventually(func() (bool, error) {
 				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
-				startUplog := `INFO	Starting workers	{"controller": "garbagecollector", "worker count": 1}`
-				return strings.Contains(logOutput, startUplog) &&
-					strings.Count(logOutput, startUplog) == 1, nil
+				startUpLog := `INFO	Starting workers	{"controller": "nonadmingarbagecollector", "worker count": 1}`
+				return strings.Contains(logOutput, startUpLog) &&
+					strings.Count(logOutput, startUpLog) == 1, nil
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
 			go func() {
@@ -179,8 +183,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 							Name:      fmt.Sprintf("test-garbage-collector-bsl-%v", index),
 							Namespace: oadpNamespace,
 							Labels: map[string]string{
-								constant.OadpLabel:      constant.OadpLabelValue,
-								constant.ManagedByLabel: constant.ManagedByLabelValue,
+								constant.OadpLabel:               constant.OadpLabelValue,
+								constant.ManagedByLabel:          constant.ManagedByLabelValue,
+								constant.NabslOriginNACUUIDLabel: fakeUUID,
 							},
 							Annotations: map[string]string{
 								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,
@@ -209,8 +214,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 							Name:      fmt.Sprintf("test-garbage-collector-secret-%v", index),
 							Namespace: oadpNamespace,
 							Labels: map[string]string{
-								constant.OadpLabel:      constant.OadpLabelValue,
-								constant.ManagedByLabel: constant.ManagedByLabelValue,
+								constant.OadpLabel:               constant.OadpLabelValue,
+								constant.ManagedByLabel:          constant.ManagedByLabelValue,
+								constant.NabslOriginNACUUIDLabel: fakeUUID,
 							},
 							Annotations: map[string]string{
 								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,

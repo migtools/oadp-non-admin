@@ -57,7 +57,7 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 
 	logger.V(1).Info("Garbage Collector Reconcile start")
 	// TODO duplication in delete logic
-	// TODO do deletion in parallel?
+	// TODO do deletion in parallel
 
 	secretList := &corev1.SecretList{}
 	if err := r.List(ctx, secretList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
@@ -65,8 +65,12 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	for _, secret := range secretList.Items {
+		if !function.CheckLabelAnnotationValueIsValid(secret.GetLabels(), constant.NabslOriginNACUUIDLabel) {
+			logger.V(1).Info("Secret does not have required label", constant.NameString, secret.Name)
+			// TODO delete?
+			continue
+		}
 		annotations := secret.GetAnnotations()
-		// TODO check UUID as well?
 		if !function.CheckVeleroBackupStorageLocationAnnotations(&secret) {
 			logger.V(1).Info("Secret does not have required annotations", constant.NameString, secret.Name)
 			// TODO delete?
@@ -96,8 +100,12 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	for _, backupStorageLocation := range veleroBackupStorageLocationList.Items {
+		if !function.CheckLabelAnnotationValueIsValid(backupStorageLocation.GetLabels(), constant.NabslOriginNACUUIDLabel) {
+			logger.V(1).Info("BackupStorageLocation does not have required label", constant.NameString, backupStorageLocation.Name)
+			// TODO delete?
+			continue
+		}
 		annotations := backupStorageLocation.GetAnnotations()
-		// TODO check UUID as well?
 		if !function.CheckVeleroBackupStorageLocationAnnotations(&backupStorageLocation) {
 			logger.V(1).Info("BackupStorageLocation does not have required annotations", constant.NameString, backupStorageLocation.Name)
 			// TODO delete?
@@ -127,8 +135,12 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	for _, backup := range veleroBackupList.Items {
+		if !function.CheckLabelAnnotationValueIsValid(backup.GetLabels(), constant.NabOriginNACUUIDLabel) {
+			logger.V(1).Info("Backup does not have required label", constant.NameString, backup.Name)
+			// TODO delete?
+			continue
+		}
 		annotations := backup.GetAnnotations()
-		// TODO check UUID as well?
 		if !function.CheckVeleroBackupAnnotations(&backup) {
 			logger.V(1).Info("Backup does not have required annotations", constant.NameString, backup.Name)
 			// TODO delete?
@@ -158,8 +170,12 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		return ctrl.Result{}, err
 	}
 	for _, restore := range veleroRestoreList.Items {
+		if !function.CheckLabelAnnotationValueIsValid(restore.GetLabels(), constant.NarOriginNACUUIDLabel) {
+			logger.V(1).Info("Restore does not have required label", constant.NameString, restore.Name)
+			// TODO delete?
+			continue
+		}
 		annotations := restore.GetAnnotations()
-		// TODO check UUID as well?
 		if !function.CheckVeleroRestoreAnnotations(&restore) {
 			logger.V(1).Info("Restore does not have required annotations", constant.NameString, restore.Name)
 			// TODO delete?
@@ -190,9 +206,9 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 // SetupWithManager sets up the controller with the Manager.
 func (r *GarbageCollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("garbagecollector").
+		Named("nonadmingarbagecollector").
 		WithLogConstructor(func(_ *reconcile.Request) logr.Logger {
-			return logr.New(ctrl.Log.GetSink().WithValues("controller", "garbagecollector"))
+			return logr.New(ctrl.Log.GetSink().WithValues("controller", "nonadmingarbagecollector"))
 		}).
 		WatchesRawSource(&source.PeriodicalSource{Frequency: r.Frequency}).
 		Complete(r)

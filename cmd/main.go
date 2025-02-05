@@ -229,14 +229,16 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 	}
 	for _, dpa := range dpaList.Items {
 		if dpa.Namespace == oadpNamespace {
-			if dpa.Spec.NonAdmin != nil && dpa.Spec.NonAdmin.EnforceBackupSpec != nil {
-				dpaConfiguration.EnforceBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
-			}
-			if dpa.Spec.NonAdmin.EnforceRestoreSpec != nil {
-				dpaConfiguration.EnforceRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
-			}
-			if dpa.Spec.NonAdmin.GarbageCollectionPeriod != nil {
-				dpaConfiguration.GarbageCollectionPeriod.Duration = dpa.Spec.NonAdmin.GarbageCollectionPeriod.Duration
+			if nonAdmin := dpa.Spec.NonAdmin; nonAdmin != nil {
+				if nonAdmin.EnforceBackupSpec != nil {
+					dpaConfiguration.EnforceBackupSpec = nonAdmin.EnforceBackupSpec
+				}
+				if nonAdmin.EnforceRestoreSpec != nil {
+					dpaConfiguration.EnforceRestoreSpec = nonAdmin.EnforceRestoreSpec
+				}
+				if nonAdmin.GarbageCollectionPeriod != nil {
+					dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
+				}
 			}
 		}
 	}
