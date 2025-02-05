@@ -89,8 +89,6 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	_, syncBackup := nab.Labels[constant.NabSyncLabel]
-
 	// Determine which path to take
 	var reconcileSteps []nonAdminBackupReconcileStepFunction
 
@@ -119,7 +117,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			r.removeNabFinalizerUponVeleroBackupDeletion,
 		}
 
-	case syncBackup:
+	case function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel):
 		logger.V(1).Info("Executing nab sync path")
 		reconcileSteps = []nonAdminBackupReconcileStepFunction{
 			r.setBackupUUIDInStatus,
