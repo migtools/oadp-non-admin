@@ -293,12 +293,6 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 
 // validateNaBSLSpec validates the NonAdminBackupStorageLocation spec
 func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
-	// Skip validation if not in New phase
-	if nabsl.Status.Phase != nacv1alpha1.NonAdminPhaseNew {
-		logger.V(1).Info("Skipping validation, not in New phase", constant.CurrentPhaseString, nabsl.Status.Phase)
-		return false, nil
-	}
-
 	err := function.ValidateBslSpec(ctx, r.Client, nabsl)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)

@@ -192,7 +192,7 @@ func main() {
 		Scheme:        mgr.GetScheme(),
 		OADPNamespace: oadpNamespace,
 		// TODO user input
-		SyncPeriod: 5 * time.Minute,
+		SyncPeriod: 2 * time.Minute,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackupSynchronizer controller with manager")
 		os.Exit(1)
