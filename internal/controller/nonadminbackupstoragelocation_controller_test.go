@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"reflect"
 	"strings"
 	"time"
@@ -461,6 +462,31 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 					},
 				},
 			},
+		}),
+	)
+})
+
+var _ = ginkgo.Describe("ComputePrefixForObjectStorage", func() {
+	type prefixTestScenario struct {
+		namespace      string
+		customPrefix   string
+		expectedPrefix string
+	}
+
+	ginkgo.DescribeTable("should compute the correct prefix",
+		func(sc prefixTestScenario) {
+			result := function.ComputePrefixForObjectStorage(sc.namespace, sc.customPrefix)
+			gomega.Expect(result).To(gomega.Equal(sc.expectedPrefix))
+		},
+		ginkgo.Entry("without custom prefix", prefixTestScenario{
+			namespace:      "test-nac-ns",
+			customPrefix:   "",
+			expectedPrefix: "test-nac-ns",
+		}),
+		ginkgo.Entry("with custom prefix", prefixTestScenario{
+			namespace:      "test-nac-ns",
+			customPrefix:   "foo",
+			expectedPrefix: "test-nac-ns-foo",
 		}),
 	)
 })
