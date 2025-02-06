@@ -137,8 +137,9 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 			field, _ := reflect.TypeOf(nonAdminBackup.Spec.BackupSpec).Elem().FieldByName(enforcedFieldName)
 			tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
 			return fmt.Errorf(
-				"NonAdminBackup spec.backupSpec.%v field value is enforced by admin user, can not override it",
+				"the administrator has restricted spec.backupSpec.%v field value to %v",
 				tagName,
+				reflect.Indirect(enforcedField),
 			)
 		}
 	}
@@ -185,8 +186,9 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 			field, _ := reflect.TypeOf(nonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(enforcedFieldName)
 			tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
 			return fmt.Errorf(
-				"NonAdminRestore spec.restoreSpec.%v field value is enforced by admin user, can not override it",
+				"the administrator has restricted spec.restoreSpec.%v field value to %v",
 				tagName,
+				reflect.Indirect(enforcedField),
 			)
 		}
 	}
