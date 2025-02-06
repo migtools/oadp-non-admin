@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/migtools/oadp-non-admin/internal/common/function"
 	"reflect"
 	"strings"
 	"time"
@@ -36,6 +35,7 @@ import (
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
 type nonAdminBackupStorageLocationClusterValidationScenario struct {
