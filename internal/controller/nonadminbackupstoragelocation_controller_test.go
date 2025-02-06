@@ -486,7 +486,7 @@ var _ = ginkgo.Describe("ComputePrefixForObjectStorage", func() {
 		ginkgo.Entry("with custom prefix", prefixTestScenario{
 			namespace:      "test-nac-ns",
 			customPrefix:   "foo",
-			expectedPrefix: "test-nac-ns-foo",
+			expectedPrefix: "test-nac-ns/foo",
 		}),
 	)
 })

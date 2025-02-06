@@ -634,11 +634,11 @@ func GetLogger(ctx context.Context, obj client.Object, key string) logr.Logger {
 }
 
 // ComputePrefixForObjectStorage returns the prefix to be used for the BackupStorageLocation.
-// If a custom prefix is provided, it returns "<namespace>-<customPrefix>".
+// If a custom prefix is provided, it returns "<namespace>/<customPrefix>".
 // Otherwise, it returns the namespace name.
 func ComputePrefixForObjectStorage(namespace, customPrefix string) string {
 	if len(customPrefix) > 0 {
-		return fmt.Sprintf("%s-%s", namespace, customPrefix)
+		return fmt.Sprintf("%s/%s", namespace, customPrefix)
 	}
 	return namespace
 }
