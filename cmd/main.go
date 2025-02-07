@@ -223,23 +223,22 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 	}
 	// TODO we could pass DPA name as env var and do a get call directly. Better?
 	dpaList := &v1alpha1.DataProtectionApplicationList{}
-	err = dpaClient.List(context.Background(), dpaList)
+	err = dpaClient.List(context.Background(), dpaList, &client.ListOptions{Namespace: oadpNamespace})
 	if err != nil {
 		return dpaConfiguration, err
 	}
 	for _, dpa := range dpaList.Items {
-		if dpa.Namespace == oadpNamespace {
-			if nonAdmin := dpa.Spec.NonAdmin; nonAdmin != nil {
-				if nonAdmin.EnforceBackupSpec != nil {
-					dpaConfiguration.EnforceBackupSpec = nonAdmin.EnforceBackupSpec
-				}
-				if nonAdmin.EnforceRestoreSpec != nil {
-					dpaConfiguration.EnforceRestoreSpec = nonAdmin.EnforceRestoreSpec
-				}
-				if nonAdmin.GarbageCollectionPeriod != nil {
-					dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
-				}
+		if nonAdmin := dpa.Spec.NonAdmin; nonAdmin != nil {
+			if nonAdmin.EnforceBackupSpec != nil {
+				dpaConfiguration.EnforceBackupSpec = nonAdmin.EnforceBackupSpec
 			}
+			if nonAdmin.EnforceRestoreSpec != nil {
+				dpaConfiguration.EnforceRestoreSpec = nonAdmin.EnforceRestoreSpec
+			}
+			if nonAdmin.GarbageCollectionPeriod != nil {
+				dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
+			}
+			break
 		}
 	}
 
