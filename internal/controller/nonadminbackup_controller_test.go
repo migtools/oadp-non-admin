@@ -977,7 +977,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 func testStorageLocation(name, namespace, provider, bucket, prefix string) velerov1.BackupStorageLocation {
 	return velerov1.BackupStorageLocation{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: velerov1.BackupStorageLocationSpec{
@@ -1076,7 +1076,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			if scenario.enforcedBackupSpec != nil {
 				scenario.enforcedBackupSpec.StorageLocation = testBSL.Name
 			}
-			
+
 			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminBackup)).To(gomega.Succeed())
 			// wait NAB reconcile
 			time.Sleep(2 * time.Second)
@@ -1151,7 +1151,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted, nil
 				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 			}
-
+			if nonAdminBackup != nil &&
+				nonAdminBackup.Status.VeleroBackup != nil &&
+				nonAdminBackup.Status.VeleroBackup.Status != nil &&
+				nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted {
+				gomega.Expect(nonAdminBackup.Status.LogsPath).To(gomega.Not(gomega.BeZero()))
+				gomega.Expect(nonAdminBackup.Status.ResourceListPath).To(gomega.Not(gomega.BeZero()))
+			}
 			ginkgo.By("Waiting Reconcile of delete event")
 			gomega.Expect(k8sClient.Delete(ctxTimeout, nonAdminBackup)).To(gomega.Succeed())
 			time.Sleep(1 * time.Second)
