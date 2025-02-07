@@ -15,9 +15,6 @@ OC_CLI ?= $(shell which oc)
 TARGETARCH = $(shell $(OC_CLI) get node -o jsonpath='{.items[0].status.nodeInfo.architecture}' 2> /dev/null)
 
 
-# .PHONY: print-arch
-# print-arch: ## Print the target architecture
-# 	@echo $(TARGETARCH)
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
