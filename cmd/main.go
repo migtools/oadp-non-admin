@@ -23,10 +23,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -113,7 +115,7 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 
-	enforcedBackupSpec, enforcedRestoreSpec, err := getEnforcedSpec(restConfig, oadpNamespace)
+	dpaConfiguration, err := getDPAConfiguration(restConfig, oadpNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get enforced spec")
 		os.Exit(1)
@@ -151,7 +153,7 @@ func main() {
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
 		OADPNamespace:      oadpNamespace,
-		EnforcedBackupSpec: enforcedBackupSpec,
+		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackup controller with manager")
 		os.Exit(1)
@@ -160,7 +162,7 @@ func main() {
 		Client:              mgr.GetClient(),
 		Scheme:              mgr.GetScheme(),
 		OADPNamespace:       oadpNamespace,
-		EnforcedRestoreSpec: enforcedRestoreSpec,
+		EnforcedRestoreSpec: dpaConfiguration.EnforceRestoreSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminRestore controller with manager")
 		os.Exit(1)
@@ -174,6 +176,17 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+	if dpaConfiguration.GarbageCollectionPeriod.Duration > 0 {
+		if err = (&controller.GarbageCollectorReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			OADPNamespace: oadpNamespace,
+			Frequency:     dpaConfiguration.GarbageCollectionPeriod.Duration,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
+			os.Exit(1)
+		}
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
@@ -191,32 +204,43 @@ func main() {
 	}
 }
 
-func getEnforcedSpec(restConfig *rest.Config, oadpNamespace string) (*velerov1.BackupSpec, *velerov1.RestoreSpec, error) {
+func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, error) {
+	dpaConfiguration := v1alpha1.NonAdmin{
+		GarbageCollectionPeriod: &metav1.Duration{
+			Duration: 24 * time.Hour, //nolint:revive // 1 day
+		},
+		EnforceBackupSpec:  &velerov1.BackupSpec{},
+		EnforceRestoreSpec: &velerov1.RestoreSpec{},
+	}
+
 	dpaClientScheme := runtime.NewScheme()
 	utilruntime.Must(v1alpha1.AddToScheme(dpaClientScheme))
 	dpaClient, err := client.New(restConfig, client.Options{
 		Scheme: dpaClientScheme,
 	})
 	if err != nil {
-		return nil, nil, err
+		return dpaConfiguration, err
 	}
 	// TODO we could pass DPA name as env var and do a get call directly. Better?
 	dpaList := &v1alpha1.DataProtectionApplicationList{}
-	err = dpaClient.List(context.Background(), dpaList)
+	err = dpaClient.List(context.Background(), dpaList, &client.ListOptions{Namespace: oadpNamespace})
 	if err != nil {
-		return nil, nil, err
+		return dpaConfiguration, err
 	}
-	enforcedBackupSpec := &velerov1.BackupSpec{}
-	enforcedRestoreSpec := &velerov1.RestoreSpec{}
 	for _, dpa := range dpaList.Items {
-		if dpa.Namespace == oadpNamespace {
-			if dpa.Spec.NonAdmin != nil && dpa.Spec.NonAdmin.EnforceBackupSpec != nil {
-				enforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
+		if nonAdmin := dpa.Spec.NonAdmin; nonAdmin != nil {
+			if nonAdmin.EnforceBackupSpec != nil {
+				dpaConfiguration.EnforceBackupSpec = nonAdmin.EnforceBackupSpec
 			}
-			if dpa.Spec.NonAdmin.EnforceRestoreSpec != nil {
-				enforcedRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
+			if nonAdmin.EnforceRestoreSpec != nil {
+				dpaConfiguration.EnforceRestoreSpec = nonAdmin.EnforceRestoreSpec
 			}
+			if nonAdmin.GarbageCollectionPeriod != nil {
+				dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
+			}
+			break
 		}
 	}
-	return enforcedBackupSpec, enforcedRestoreSpec, nil
+
+	return dpaConfiguration, nil
 }
