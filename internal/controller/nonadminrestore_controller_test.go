@@ -192,6 +192,31 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 
 			gomega.Expect(createTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
 
+			// Create test BSL
+			testBSL := testStorageLocation("test-create-event", oadpNamespace, "aws", "creative-bucket", "unique-prefix")
+			err := k8sClient.Create(context.Background(), &testBSL)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			// if scenario expect backup status completed, then create a velero backup with status completed.
+			if scenario.backupStatus.VeleroBackup != nil &&
+				scenario.backupStatus.VeleroBackup.Status != nil &&
+				scenario.backupStatus.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted {
+				veleroBackup := velerov1.Backup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      scenario.spec.RestoreSpec.BackupName,
+						Namespace: oadpNamespace,
+					},
+					Spec: velerov1.BackupSpec{
+						StorageLocation: testBSL.Name,
+					},
+					Status: velerov1.BackupStatus{
+						Phase:               velerov1.BackupPhaseCompleted,
+						CompletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
+				}
+				err := k8sClient.Create(context.Background(), &veleroBackup)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			}
+
 			nonAdminBackup := buildTestNonAdminBackup(nonAdminRestoreNamespace, scenario.spec.RestoreSpec.BackupName, nacv1alpha1.NonAdminBackupSpec{BackupSpec: &velerov1.BackupSpec{}})
 			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
 			nonAdminBackup.Status = *scenario.backupStatus.DeepCopy()
@@ -265,7 +290,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
 
 			veleroRestore := &velerov1.Restore{}
-			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 { // TODO: There is no entry with len(NACUUID) > 0
 				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminRestore.Spec,
@@ -293,6 +318,10 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				veleroRestore.Status = velerov1.RestoreStatus{
 					Phase: velerov1.RestorePhaseCompleted,
 				}
+
+				ginkgo.By("Fake filling velero restore with backup name to help debug path discovery")
+				veleroRestore.Spec.BackupName = scenario.spec.RestoreSpec.BackupName
+
 				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
 				gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
 
@@ -316,6 +345,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					}
 					return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted, nil
 				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			}
+			if nonAdminRestore != nil &&
+				nonAdminRestore.Status.VeleroRestore != nil &&
+				nonAdminRestore.Status.VeleroRestore.Status != nil &&
+				nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted {
+				gomega.Expect(nonAdminRestore.Status.LogsPath).To(gomega.Not(gomega.BeZero()))
+				gomega.Expect(nonAdminRestore.Status.ResourceListPath).To(gomega.Not(gomega.BeZero()))
 			}
 
 			ginkgo.By("Waiting NonAdminRestore deletion")
@@ -354,12 +390,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 		ginkgo.Entry("Should update NonAdminRestore until Velero Restore completes and then delete it", nonAdminRestoreFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminRestoreSpec{
 				RestoreSpec: &velerov1.RestoreSpec{
-					BackupName: "test",
+					BackupName: "test-uuid",
 				},
 			},
 			backupStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					NACUUID: "test-uuid",
 					Status: &velerov1.BackupStatus{
 						Phase:               velerov1.BackupPhaseCompleted,
 						CompletionTimestamp: &metav1.Time{Time: time.Now()},
