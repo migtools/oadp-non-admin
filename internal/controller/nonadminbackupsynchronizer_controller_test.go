@@ -47,28 +47,6 @@ type backupToCreate struct {
 	finished                      bool
 }
 
-const fakeUUID = "12345678-4321-1234-4321-123456789abc"
-
-// TODO delete
-func buildTestBackup(namespace string, name string, nonAdminNamespace string) *velerov1.Backup {
-	return &velerov1.Backup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				constant.OadpLabel:             constant.OadpLabelValue,
-				constant.ManagedByLabel:        constant.ManagedByLabelValue,
-				constant.NabOriginNACUUIDLabel: fakeUUID,
-			},
-			Annotations: map[string]string{
-				constant.NabOriginNamespaceAnnotation: nonAdminNamespace,
-				constant.NabOriginNameAnnotation:      "non-existent",
-			},
-		},
-		Spec: velerov1.BackupSpec{},
-	}
-}
-
 var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Synchronizer Controller", func() {
 	var (
 		ctx               context.Context

@@ -176,6 +176,17 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+	if dpaConfiguration.BackupSyncPeriod.Duration > 0 {
+		if err = (&controller.NonAdminBackupSynchronizerReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			OADPNamespace: oadpNamespace,
+			SyncPeriod:    dpaConfiguration.BackupSyncPeriod.Duration,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to setup NonAdminBackupSynchronizer controller with manager")
+			os.Exit(1)
+		}
+	}
 	if dpaConfiguration.GarbageCollectionPeriod.Duration > 0 {
 		if err = (&controller.GarbageCollectorReconciler{
 			Client:        mgr.GetClient(),
@@ -186,16 +197,6 @@ func main() {
 			setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
 			os.Exit(1)
 		}
-	}
-	if err = (&controller.NonAdminBackupSynchronizerReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		OADPNamespace: oadpNamespace,
-		// TODO user input
-		SyncPeriod: 2 * time.Minute,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to setup NonAdminBackupSynchronizer controller with manager")
-		os.Exit(1)
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -218,6 +219,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 	dpaConfiguration := v1alpha1.NonAdmin{
 		GarbageCollectionPeriod: &metav1.Duration{
 			Duration: 24 * time.Hour, //nolint:revive // 1 day
+		},
+		BackupSyncPeriod: &metav1.Duration{
+			Duration: 2 * time.Minute, //nolint:revive // velero default is 1 minute
 		},
 		EnforceBackupSpec:  &velerov1.BackupSpec{},
 		EnforceRestoreSpec: &velerov1.RestoreSpec{},
@@ -247,6 +251,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 			}
 			if nonAdmin.GarbageCollectionPeriod != nil {
 				dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
+			}
+			if nonAdmin.BackupSyncPeriod != nil {
+				dpaConfiguration.BackupSyncPeriod.Duration = nonAdmin.BackupSyncPeriod.Duration
 			}
 			break
 		}
