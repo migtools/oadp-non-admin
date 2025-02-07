@@ -974,6 +974,24 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 		}))
 })
 
+func testStorageLocation(name, namespace, provider, bucket, prefix string) velerov1.BackupStorageLocation {
+	return velerov1.BackupStorageLocation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Namespace: namespace,
+		},
+		Spec: velerov1.BackupStorageLocationSpec{
+			Provider: provider,
+			StorageType: velerov1.StorageType{
+				ObjectStorage: &velerov1.ObjectStorageLocation{
+					Bucket: bucket,
+					Prefix: prefix,
+				},
+			},
+		},
+	}
+}
+
 var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller", func() {
 	var (
 		ctx                     context.Context
@@ -1004,6 +1022,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			ctx, cancel = context.WithCancel(context.Background())
 
 			gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
+
+			// Create test BSL
+			testBSL := testStorageLocation("test-create-event", oadpNamespace, "aws", "creative-bucket", "unique-prefix")
+			err := k8sClient.Create(context.Background(), &testBSL)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
@@ -1047,6 +1070,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			ginkgo.By("Waiting Reconcile of create event")
 			nonAdminBackup := buildTestNonAdminBackup(nonAdminObjectNamespace, nonAdminObjectName, scenario.spec)
+			// insert bsl name into nab spec
+			// TODO: NaBSL test
+			nonAdminBackup.Spec.BackupSpec.StorageLocation = testBSL.Name
+			if scenario.enforcedBackupSpec != nil {
+				scenario.enforcedBackupSpec.StorageLocation = testBSL.Name
+			}
+			
 			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminBackup)).To(gomega.Succeed())
 			// wait NAB reconcile
 			time.Sleep(2 * time.Second)
