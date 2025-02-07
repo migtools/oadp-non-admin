@@ -290,7 +290,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
 
 			veleroRestore := &velerov1.Restore{}
-			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 { // TODO: There is no entry with len(NACUUID) > 0
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 { // NACUUID is populated by NAR reconcile
 				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
 					nonAdminRestore.Spec,

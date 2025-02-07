@@ -632,13 +632,14 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		// Included Namespaces are set by the controller and can not be overridden by the user
 		// nor admin user
 		backupSpec.IncludedNamespaces = []string{nab.Namespace}
+		// If not empty, has to be a NaBSL, so override to a NaBSL with that name.
 		if backupSpec.StorageLocation != constant.EmptyString {
 			nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
 
 			if nabslErr := r.Client.Get(ctx, types.NamespacedName{Name: backupSpec.StorageLocation, Namespace: nab.Namespace}, nonAdminBsl); nabslErr != nil {
 				return false, nabslErr
 			}
-			// Should there be a warning that we are overriding the user's storage location?
+
 			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
 		}
 
