@@ -61,10 +61,10 @@ type NonAdminRestoreStatus struct {
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminRestore.
 	Phase NonAdminPhase `json:"phase,omitempty"`
 
-	// logsPath is path to backup logs in the storage location
+	// logsPath is path to restore logs in the storage location
 	LogsPath string `json:"logsPath,omitempty"`
 
-	// resourceListPath is path to resource list of backup in storage location
+	// resourceListPath is path to resource list of restore in storage location
 	ResourceListPath string `json:"resourceListPath,omitempty"`
 
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
