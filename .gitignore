@@ -26,3 +26,6 @@ go.work
 *.swp
 *.swo
 *~
+
+# artifacts generated when debugging
+debug.*

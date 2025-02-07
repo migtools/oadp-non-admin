@@ -1099,7 +1099,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				},
 			}
 			gomega.Expect(k8sClient.Status().Update(ctxTimeout, nonAdminBackupStorageLocation)).To(gomega.Succeed())
-			
+
 			// wait NAB reconcile
 			time.Sleep(2 * time.Second)
 
