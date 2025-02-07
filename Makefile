@@ -11,6 +11,13 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+OC_CLI ?= $(shell which oc)
+TARGETARCH = $(shell $(OC_CLI) get node -o jsonpath='{.items[0].status.nodeInfo.architecture}' 2> /dev/null)
+
+
+# .PHONY: print-arch
+# print-arch: ## Print the target architecture
+# 	@echo $(TARGETARCH)
 
 # CONTAINER_TOOL defines the container tool to be used for building images.
 # Be aware that the target commands are only tested with Docker which is
@@ -93,7 +100,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+	$(CONTAINER_TOOL) build --platform=linux/${TARGETARCH} -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
