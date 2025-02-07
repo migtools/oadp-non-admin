@@ -973,7 +973,9 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			resultError: reconcile.TerminalError(fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ")),
 		}))
 })
+
 const testuuid = "test-uuid"
+
 func testStorageLocation(name, namespace, uuid, provider, bucket, prefix string) velerov1.BackupStorageLocation {
 	return velerov1.BackupStorageLocation{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1083,7 +1085,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			// so create one
 			nonAdminBackupStorageLocation := &nacv1alpha1.NonAdminBackupStorageLocation{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: nonAdminBackup.Spec.BackupSpec.StorageLocation,
+					Name:      nonAdminBackup.Spec.BackupSpec.StorageLocation,
 					Namespace: nonAdminBackup.Namespace,
 				},
 				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
@@ -1095,7 +1097,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			nonAdminBackupStorageLocation.Status = nacv1alpha1.NonAdminBackupStorageLocationStatus{
 				VeleroBackupStorageLocation: &nacv1alpha1.VeleroBackupStorageLocation{
 					NACUUID: testuuid,
-					Name: testBSL.Name,
+					Name:    testBSL.Name,
 				},
 			}
 			gomega.Expect(k8sClient.Status().Update(ctxTimeout, nonAdminBackupStorageLocation)).To(gomega.Succeed())

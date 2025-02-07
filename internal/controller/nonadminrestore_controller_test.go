@@ -213,7 +213,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						CompletionTimestamp: &metav1.Time{Time: time.Now()},
 					},
 				}
-				err := k8sClient.Create(context.Background(), &veleroBackup)
+				err = k8sClient.Create(context.Background(), &veleroBackup)
 				gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			}
 
