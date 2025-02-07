@@ -30,6 +30,10 @@ Choose one of the authentication method sections to follow.
         fileData:
           name: # non-admin-user-secret-name
   ```
+- Additional instructions can be found in the following links:
+  - [How to create new users in OpenShift with htpasswd and OAuth](https://www.redhat.com/en/blog/openshift-htpasswd-oauth)
+  - [OpenShift documentation](https://docs.openshift.com/container-platform/latest/authentication/identity_providers/configuring-htpasswd-identity-provider.html)
+
 - [Apply permissions to your non admin user](#permissions)
 
 ## Permissions
