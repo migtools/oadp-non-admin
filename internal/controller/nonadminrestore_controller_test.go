@@ -193,7 +193,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			gomega.Expect(createTestNamespaces(ctx, nonAdminRestoreNamespace, oadpNamespace)).To(gomega.Succeed())
 
 			// Create test BSL
-			testBSL := testStorageLocation("test-create-event", oadpNamespace, "aws", "creative-bucket", "unique-prefix")
+			testBSL := testStorageLocation("test-create-event", oadpNamespace, testuuid, "aws", "creative-bucket", "unique-prefix")
 			err := k8sClient.Create(context.Background(), &testBSL)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			// if scenario expect backup status completed, then create a velero backup with status completed.
@@ -390,13 +390,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 		ginkgo.Entry("Should update NonAdminRestore until Velero Restore completes and then delete it", nonAdminRestoreFullReconcileScenario{
 			spec: nacv1alpha1.NonAdminRestoreSpec{
 				RestoreSpec: &velerov1.RestoreSpec{
-					BackupName: "test-uuid",
+					BackupName: testuuid,
 				},
 			},
 			backupStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
-					NACUUID: "test-uuid",
+					NACUUID: testuuid,
 					Status: &velerov1.BackupStatus{
 						Phase:               velerov1.BackupPhaseCompleted,
 						CompletionTimestamp: &metav1.Time{Time: time.Now()},

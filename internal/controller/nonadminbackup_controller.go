@@ -638,7 +638,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			if nabslErr := r.Client.Get(ctx, types.NamespacedName{Name: backupSpec.StorageLocation, Namespace: nab.Namespace}, nonAdminBsl); nabslErr != nil {
 				return false, nabslErr
 			}
-
+			// Should there be a warning that we are overriding the user's storage location?
 			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
 		}
 
