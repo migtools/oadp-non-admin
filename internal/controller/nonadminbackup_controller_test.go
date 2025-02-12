@@ -1013,6 +1013,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
+				Cache: cache.Options{
+					DefaultNamespaces: map[string]cache.Config{
+						nonAdminObjectNamespace: {},
+						oadpNamespace:           {},
+					},
+				},
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
