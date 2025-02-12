@@ -48,6 +48,8 @@ type NonAdminBackupSynchronizerReconciler struct {
 	SyncPeriod    time.Duration
 }
 
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NonAdminBackupSynchronizerReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result, error) {

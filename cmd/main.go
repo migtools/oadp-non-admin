@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
@@ -218,10 +217,10 @@ func main() {
 func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, error) {
 	dpaConfiguration := v1alpha1.NonAdmin{
 		GarbageCollectionPeriod: &metav1.Duration{
-			Duration: 24 * time.Hour, //nolint:revive // 1 day
+			Duration: v1alpha1.DefaultGarbageCollectionPeriod,
 		},
 		BackupSyncPeriod: &metav1.Duration{
-			Duration: 2 * time.Minute, //nolint:revive // velero default is 1 minute
+			Duration: v1alpha1.DefaultBackupSyncPeriod,
 		},
 		EnforceBackupSpec:  &velerov1.BackupSpec{},
 		EnforceRestoreSpec: &velerov1.RestoreSpec{},
