@@ -1036,8 +1036,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			// wait manager start
 			managerStartTimeout := 10 * time.Second
 			pollInterval := 100 * time.Millisecond
-			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
-			defer cancel()
+			ctxTimeout, cancel2 := context.WithTimeout(ctx, managerStartTimeout)
+			defer cancel2()
 
 			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
 				select {
