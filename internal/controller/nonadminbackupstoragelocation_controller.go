@@ -21,6 +21,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	oadpcommon "github.com/openshift/oadp-operator/pkg/common"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	corev1 "k8s.io/api/core/v1"
@@ -538,6 +539,12 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 				builder.WithLabelsMap(function.GetNonAdminLabels()),
 				builder.WithAnnotationsMap(function.GetNonAdminBackupStorageLocationAnnotations(nabsl.ObjectMeta)),
 			).Result()
+	}
+
+	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *nabsl.Spec.BackupStorageLocationSpec)
+	if err != nil {
+		logger.Error(err, "Failed to update VeleroBackupStorageLocation spec")
+		return false, err
 	}
 
 	// NaBSL/BSL must have a unique prefix for proper function of the non-admin backup sync controller
