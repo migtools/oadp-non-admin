@@ -51,8 +51,15 @@ type QueueInfo struct {
 	EstimatedQueuePosition int `json:"estimatedQueuePosition"`
 }
 
+// Constants representing resource names for non-admin objects
+// These are used to identify custom resources managed for non-admin users.
 const (
-	NonAdminBackups                = "nonadminbackups"
-	NonAdminRestores               = "nonadminrestores"
+	// NonAdminBackups represents the resource name for non-admin backups.
+	NonAdminBackups = "nonadminbackups"
+
+	// NonAdminRestores represents the resource name for non-admin restores.
+	NonAdminRestores = "nonadminrestores"
+
+	// NonAdminBackupStorageLocations represents the resource name for non-admin backup storage locations.
 	NonAdminBackupStorageLocations = "nonadminbackupstoragelocations"
 )
