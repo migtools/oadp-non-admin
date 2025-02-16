@@ -50,3 +50,9 @@ type QueueInfo struct {
 	// estimatedQueuePosition is the number of operations ahead in the queue (0 if not queued)
 	EstimatedQueuePosition int `json:"estimatedQueuePosition"`
 }
+
+const (
+	NonAdminBackups                = "nonadminbackups"
+	NonAdminRestores               = "nonadminrestores"
+	NonAdminBackupStorageLocations = "nonadminbackupstoragelocations"
+)
