@@ -642,11 +642,10 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		}
 
 		// Exclude NAC resources (NAB, NAR, NABSL) from Non-Admin backups
-		backupSpec.ExcludedResources = []string{
+		backupSpec.ExcludedResources = append(backupSpec.ExcludedResources,
 			nacv1alpha1.NonAdminBackups,
 			nacv1alpha1.NonAdminRestores,
-			nacv1alpha1.NonAdminBackupStorageLocations,
-		}
+			nacv1alpha1.NonAdminBackupStorageLocations)
 
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
