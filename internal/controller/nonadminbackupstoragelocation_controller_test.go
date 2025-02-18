@@ -35,6 +35,7 @@ import (
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
 type nonAdminBackupStorageLocationClusterValidationScenario struct {
@@ -461,6 +462,31 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 					},
 				},
 			},
+		}),
+	)
+})
+
+var _ = ginkgo.Describe("ComputePrefixForObjectStorage", func() {
+	type prefixTestScenario struct {
+		namespace      string
+		customPrefix   string
+		expectedPrefix string
+	}
+
+	ginkgo.DescribeTable("should compute the correct prefix",
+		func(sc prefixTestScenario) {
+			result := function.ComputePrefixForObjectStorage(sc.namespace, sc.customPrefix)
+			gomega.Expect(result).To(gomega.Equal(sc.expectedPrefix))
+		},
+		ginkgo.Entry("without custom prefix", prefixTestScenario{
+			namespace:      "test-nac-ns",
+			customPrefix:   "",
+			expectedPrefix: "test-nac-ns",
+		}),
+		ginkgo.Entry("with custom prefix", prefixTestScenario{
+			namespace:      "test-nac-ns",
+			customPrefix:   "foo",
+			expectedPrefix: "test-nac-ns/foo",
 		}),
 	)
 })
