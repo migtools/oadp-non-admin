@@ -53,8 +53,18 @@ func (VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q 
 }
 
 // Delete event handler
-func (VeleroBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
-	// Delete event handler for the Backup object
+func (VeleroBackupHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	logger := function.GetLogger(ctx, evt.Object, "VeleroBackupHandler")
+
+	annotations := evt.Object.GetAnnotations()
+	nabOriginNamespace := annotations[constant.NabOriginNamespaceAnnotation]
+	nabOriginName := annotations[constant.NabOriginNameAnnotation]
+
+	q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
+		Name:      nabOriginName,
+		Namespace: nabOriginNamespace,
+	}})
+	logger.V(1).Info("Handled Delete event")
 }
 
 // Generic event handler

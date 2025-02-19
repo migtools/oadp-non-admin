@@ -61,6 +61,8 @@ func (p CompositeBackupPredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Delete(p.Context, evt)
+	case *velerov1.Backup:
+		return p.VeleroBackupPredicate.Delete(p.Context, evt)
 	default:
 		return false
 	}

@@ -47,6 +47,7 @@ type nonAdminRestoreFullReconcileScenario struct {
 	spec                nacv1alpha1.NonAdminRestoreSpec
 	status              nacv1alpha1.NonAdminRestoreStatus
 	backupStatus        nacv1alpha1.NonAdminBackupStatus
+	deleteVeleroRestore bool
 }
 
 func buildTestNonAdminRestore(nonAdminNamespace string, nonAdminName string, spec nacv1alpha1.NonAdminRestoreSpec) *nacv1alpha1.NonAdminRestore {
@@ -260,18 +261,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				nonAdminRestore,
 			)).To(gomega.Succeed())
 
-			ginkgo.By("Validating NonAdminRestore Status")
-
-			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
-
 			veleroRestore := &velerov1.Restore{}
-			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
-				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
-				gomega.Expect(reflect.DeepEqual(
-					nonAdminRestore.Spec,
-					scenario.spec,
-				)).To(gomega.BeTrue())
-
+			if scenario.status.VeleroRestore != nil {
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
 					types.NamespacedName{
@@ -280,43 +271,88 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					},
 					veleroRestore,
 				)).To(gomega.Succeed())
+				if scenario.deleteVeleroRestore {
+					ginkgo.By("Simulating Velero Restore deletion")
+					gomega.Expect(k8sClient.Delete(ctxTimeout, veleroRestore)).To(gomega.Succeed())
 
-				if scenario.enforcedRestoreSpec != nil {
-					ginkgo.By("Validating Velero Restore Spec")
-					expectedSpec := scenario.enforcedRestoreSpec.DeepCopy()
-					expectedSpec.IncludedNamespaces = []string{nonAdminRestoreNamespace}
-					expectedSpec.ExcludedResources = []string{"volumesnapshotclasses"}
-					gomega.Expect(reflect.DeepEqual(veleroRestore.Spec, *expectedSpec)).To(gomega.BeTrue())
-				}
+					gomega.Eventually(func() (bool, error) {
+						err := k8sClient.Get(
+							ctxTimeout,
+							types.NamespacedName{
+								Name:      nonAdminRestore.Status.VeleroRestore.Name,
+								Namespace: oadpNamespace,
+							},
+							veleroRestore,
+						)
+						if apierrors.IsNotFound(err) {
+							return true, nil
+						}
+						return false, err
+					}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-				ginkgo.By("Simulating Velero Restore update to finished state")
+					// wait NonAdminRestore reconcile
+					time.Sleep(2 * time.Second)
 
-				veleroRestore.Status = velerov1.RestoreStatus{
-					Phase: velerov1.RestorePhaseCompleted,
-				}
-				// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
-				gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
-
-				ginkgo.By("Velero Restore updated")
-
-				// wait NonAdminRestore reconcile
-				gomega.Eventually(func() (bool, error) {
-					err := k8sClient.Get(
+					gomega.Expect(k8sClient.Get(
 						ctxTimeout,
 						types.NamespacedName{
 							Name:      nonAdminRestoreName,
 							Namespace: nonAdminRestoreNamespace,
 						},
 						nonAdminRestore,
-					)
-					if err != nil {
-						return false, err
+					)).To(gomega.Succeed())
+				}
+			}
+
+			ginkgo.By("Validating NonAdminRestore Status")
+
+			gomega.Expect(checkTestNonAdminRestoreStatus(nonAdminRestore, scenario.status)).To(gomega.Succeed())
+
+			if scenario.status.VeleroRestore != nil && len(nonAdminRestore.Status.VeleroRestore.NACUUID) > 0 {
+				ginkgo.By("Checking if NonAdminRestore Spec was not changed")
+				gomega.Expect(reflect.DeepEqual(
+					nonAdminRestore.Spec,
+					scenario.spec,
+				)).To(gomega.BeTrue())
+
+				if !scenario.deleteVeleroRestore {
+					if scenario.enforcedRestoreSpec != nil {
+						ginkgo.By("Validating Velero Restore Spec")
+						expectedSpec := scenario.enforcedRestoreSpec.DeepCopy()
+						expectedSpec.IncludedNamespaces = []string{nonAdminRestoreNamespace}
+						expectedSpec.ExcludedResources = []string{"volumesnapshotclasses"}
+						gomega.Expect(reflect.DeepEqual(veleroRestore.Spec, *expectedSpec)).To(gomega.BeTrue())
 					}
-					if nonAdminRestore == nil || nonAdminRestore.Status.VeleroRestore == nil || nonAdminRestore.Status.VeleroRestore.Status == nil {
-						return false, nil
+
+					ginkgo.By("Simulating Velero Restore update to finished state")
+
+					veleroRestore.Status = velerov1.RestoreStatus{
+						Phase: velerov1.RestorePhaseCompleted,
 					}
-					return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted, nil
-				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+					// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
+					gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
+
+					ginkgo.By("Velero Restore updated")
+
+					// wait NonAdminRestore reconcile
+					gomega.Eventually(func() (bool, error) {
+						err := k8sClient.Get(
+							ctxTimeout,
+							types.NamespacedName{
+								Name:      nonAdminRestoreName,
+								Namespace: nonAdminRestoreNamespace,
+							},
+							nonAdminRestore,
+						)
+						if err != nil {
+							return false, err
+						}
+						if nonAdminRestore == nil || nonAdminRestore.Status.VeleroRestore == nil || nonAdminRestore.Status.VeleroRestore.Status == nil {
+							return false, nil
+						}
+						return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted, nil
+					}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+				}
 			}
 
 			ginkgo.By("Waiting NonAdminRestore deletion")
@@ -416,6 +452,65 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 				UploaderConfig: &velerov1.UploaderConfigForRestore{
 					WriteSparseFiles: ptr.To(true),
+				},
+			},
+		}),
+		ginkgo.Entry("Should update NonAdminRestore when Velero Restore is deleted and then delete it", nonAdminRestoreFullReconcileScenario{
+			deleteVeleroRestore: true,
+			spec: nacv1alpha1.NonAdminRestoreSpec{
+				RestoreSpec: &velerov1.RestoreSpec{
+					BackupName: "test",
+				},
+			},
+			backupStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Status: &velerov1.BackupStatus{
+						Phase:               velerov1.BackupPhaseCompleted,
+						CompletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Accepted",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               "Queued",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
+				},
+			},
+			status: nacv1alpha1.NonAdminRestoreStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				VeleroRestore: &nacv1alpha1.VeleroRestore{
+					Status: nil,
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionFalse,
+						Reason:  "VeleroRestoreNotFound",
+						Message: "Velero Restore has been removed",
+					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "RestoreScheduled",
+						Message: "Created Velero Restore object",
+					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
 				},
 			},
 		}),

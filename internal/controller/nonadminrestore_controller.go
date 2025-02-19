@@ -87,9 +87,8 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	case !nar.DeletionTimestamp.IsZero():
 		logger.V(1).Info("Executing delete path")
 		reconcileSteps = []nonAdminRestoreReconcileStepFunction{
-			r.setStatusAndConditionForDeletionAndCallDelete,
-			r.deleteVeleroRestore,
-			r.removeNarFinalizerUponVeleroRestoreDeletion,
+			r.setStatusAndConditionForDeletion,
+			r.deleteVeleroRestoreAndRemoveFinalizer,
 		}
 	default:
 		logger.V(1).Info("Executing creation/update path")
@@ -116,8 +115,7 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
-// setStatusAndConditionForDeletionAndCallDelete updates the NonAdminBackup status and conditions
-// to reflect that deletion has been initiated, and triggers the actual deletion if needed.
+// setStatusAndConditionForDeletion updates the NonAdminBackup status and conditions
 //
 // Parameters:
 //   - ctx: Context for managing request lifetime.
@@ -127,8 +125,7 @@ func (r *NonAdminRestoreReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 // Returns:
 //   - bool: true if reconciliation should be requeued, false otherwise
 //   - error: any error encountered during the process
-func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletionAndCallDelete(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
-	requeueRequired := false
+func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletion(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseDeleting)
 	updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
 		metav1.Condition{
@@ -144,22 +141,13 @@ func (r *NonAdminRestoreReconciler) setStatusAndConditionForDeletionAndCallDelet
 			return false, err
 		}
 		logger.V(1).Info("NonAdminRestore status marked for deletion")
-		requeueRequired = true // Requeue to ensure latest NAR object in the next reconciliation steps
 	} else {
 		logger.V(1).Info("NonAdminRestore status unchanged during deletion")
 	}
-	if nar.ObjectMeta.DeletionTimestamp.IsZero() {
-		logger.V(1).Info("Marking NonAdminRestore for deletion", constant.NameString, nar.Name)
-		if err := r.Delete(ctx, nar); err != nil {
-			logger.Error(err, "Failed to call Delete on the NonAdminRestore object")
-			return false, err
-		}
-		requeueRequired = true // Requeue to allow deletion to proceed
-	}
-	return requeueRequired, nil
+	return false, nil
 }
 
-func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
+func (r *NonAdminRestoreReconciler) deleteVeleroRestoreAndRemoveFinalizer(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
 	if nar.Status.VeleroRestore == nil || nar.Status.VeleroRestore.NACUUID == constant.EmptyString {
 		return false, nil
 	}
@@ -183,41 +171,20 @@ func (r *NonAdminRestoreReconciler) deleteVeleroRestore(ctx context.Context, log
 			return false, err
 		}
 		logger.V(1).Info("VeleroRestore deletion initiated", constant.NameString, veleroRestore.Name)
-	} else {
-		logger.V(1).Info("VeleroRestore already deleted")
+		return false, nil
 	}
-	return false, nil // Continue
-}
 
-func (r *NonAdminRestoreReconciler) removeNarFinalizerUponVeleroRestoreDeletion(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error) {
-	if !nar.ObjectMeta.DeletionTimestamp.IsZero() {
-		if nar.Status.VeleroRestore != nil && nar.Status.VeleroRestore.NACUUID != constant.EmptyString {
-			veleroRestoreNACUUID := nar.Status.VeleroRestore.NACUUID
+	logger.V(1).Info("VeleroRestore deleted, removing NonAdminRestore finalizer")
 
-			veleroRestore, err := function.GetVeleroRestoreByLabel(ctx, r.Client, r.OADPNamespace, veleroRestoreNACUUID)
-			if err != nil {
-				// Case in which more then one VeleroRestore is found with the same label UUID
-				logger.Error(err, findSingleVRError, constant.UUIDString, veleroRestoreNACUUID)
-				return false, err
-			}
+	controllerutil.RemoveFinalizer(nar, constant.NarFinalizerName)
 
-			if veleroRestore != nil {
-				logger.V(1).Info("Waiting for VeleroRestore to be deleted", constant.NameString, veleroRestoreNACUUID)
-				return true, nil // Requeue
-			}
-		}
-		// VeleroRestore is deleted, proceed with deleting the NonAdminRestore
-		logger.V(1).Info("VeleroRestore deleted, removing NonAdminRestore finalizer")
-
-		controllerutil.RemoveFinalizer(nar, constant.NarFinalizerName)
-
-		if err := r.Update(ctx, nar); err != nil {
-			logger.Error(err, "Failed to remove finalizer from NonAdminRestore")
-			return false, err
-		}
-
-		logger.V(1).Info("NonAdminRestore finalizer removed and object deleted")
+	if err := r.Update(ctx, nar); err != nil {
+		logger.Error(err, "Failed to remove finalizer from NonAdminRestore")
+		return false, err
 	}
+
+	logger.V(1).Info("NonAdminRestore finalizer removed and object deleted")
+
 	return false, nil
 }
 
@@ -333,6 +300,27 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 	}
 
 	if veleroRestore == nil {
+		if meta.IsStatusConditionTrue(nar.Status.Conditions, string(nacv1alpha1.NonAdminConditionQueued)) {
+			err = errors.New("NonAdminRestore is finalized and its associated Velero Restore has been removed. Please create a new NonAdminRestore to initiate a new Restore")
+			logger.Error(err, "related Velero Restore not found")
+			updatedPhase := updateNonAdminPhase(&nar.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
+			updatedCondition := meta.SetStatusCondition(&nar.Status.Conditions,
+				metav1.Condition{
+					// TODO create new condition?
+					Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+					Status:  metav1.ConditionFalse,
+					Reason:  "VeleroRestoreNotFound",
+					Message: err.Error(),
+				},
+			)
+			if updatedPhase || updatedCondition {
+				if updateErr := r.Status().Update(ctx, nar); updateErr != nil {
+					logger.Error(updateErr, nonAdminRestoreStatusUpdateFailureMessage)
+					return false, updateErr
+				}
+			}
+			return false, reconcile.TerminalError(err)
+		}
 		logger.Info("VeleroRestore with label not found, creating one", constant.UUIDString, veleroRestoreNACUUID)
 		nab := &nacv1alpha1.NonAdminBackup{}
 		err = r.Get(ctx, types.NamespacedName{Name: nar.Spec.RestoreSpec.BackupName, Namespace: nar.Namespace}, nab)
