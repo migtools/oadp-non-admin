@@ -122,6 +122,20 @@ func TestValidateBackupSpec(t *testing.T) {
 			},
 			errMessage: "NonAdminBackupStorageLocation not found in the namespace: nonadminbackupstoragelocations.oadp.openshift.io \"user-defined-backup-storage-location\" not found",
 		},
+		{
+			name: "non admin users specify includeClusterResources as true",
+			spec: &velerov1.BackupSpec{
+				IncludeClusterResources: ptr.To(true),
+			},
+			errMessage: "Non-admin users are not allowed to set includeClusterResources to true, it must be either nil or false",
+		},
+		{
+			name: "non admin users specify includedClusterScopedResources",
+			spec: &velerov1.BackupSpec{
+				IncludedClusterScopedResources: []string{"foo", "bar"},
+			},
+			errMessage: "Non-admin users must not specify includedClusterScopedResources, only an empty list is allowed",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
