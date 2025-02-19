@@ -100,10 +100,12 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 		return fmt.Errorf("NonAdminBackup spec.backupSpec.excludedNamespaces is restricted")
 	}
 
-	if enforcedBackupSpec.IncludedNamespaces != nil {
-		if !containsOnlyNamespace(enforcedBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces enforced value by admin user violates NAC usage")
-		}
+	if nonAdminBackup.Spec.BackupSpec.IncludeClusterResources != nil && *nonAdminBackup.Spec.BackupSpec.IncludeClusterResources {
+		return fmt.Errorf("NonAdminBackup spec.backupSpec.includeClusterResources can not be set or must be set to false")
+	}
+
+	if len(nonAdminBackup.Spec.BackupSpec.IncludedClusterScopedResources) > 0 {
+		return fmt.Errorf("NonAdminBackup spec.backupSpec.includedClusterScopedResources is restricted, only an empty list is allowed")
 	}
 
 	if nonAdminBackup.Spec.BackupSpec.StorageLocation != constant.EmptyString {

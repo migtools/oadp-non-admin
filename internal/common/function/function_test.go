@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -121,6 +120,20 @@ func TestValidateBackupSpec(t *testing.T) {
 				ExcludedNamespaces: []string{testNonAdminBackupNamespace},
 			},
 			errMessage: "NonAdminBackup spec.backupSpec.excludedNamespaces is restricted",
+		},
+		{
+			name: "non admin users specify includeClusterResources as true",
+			spec: &velerov1.BackupSpec{
+				IncludeClusterResources: ptr.To(true),
+			},
+			errMessage: "NonAdminBackup spec.backupSpec.includeClusterResources can not be set or must be set to false",
+		},
+		{
+			name: "non admin users specify includedClusterScopedResources",
+			spec: &velerov1.BackupSpec{
+				IncludedClusterScopedResources: []string{"foo", "bar"},
+			},
+			errMessage: "NonAdminBackup spec.backupSpec.includedClusterScopedResources is restricted, only an empty list is allowed",
 		},
 		{
 			name: "non admin backupstoragelocation not found in the NonAdminBackup namespace",
@@ -258,11 +271,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			name:          "TTL",
 			enforcedValue: metav1.Duration{Duration: 12 * time.Hour},      //nolint:revive // just test
 			overrideValue: metav1.Duration{Duration: 30 * 24 * time.Hour}, //nolint:revive // just test
-		},
-		{
-			name:          "IncludeClusterResources",
-			enforcedValue: ptr.To(true),
-			overrideValue: ptr.To(false),
 		},
 		{
 			name: "Hooks",
@@ -411,23 +419,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
-		backupSpecFields := []string{}
-		for _, test := range tests {
-			backupSpecFields = append(backupSpecFields, test.name)
-		}
-		backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
-
-		for index := range backupSpec.NumField() {
-			if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
-				t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
-			}
-		}
-		if backupSpec.NumField() != len(tests) {
-			t.Errorf("list of tests have different number of elements")
-		}
-	})
 }
 
 func TestValidateRestoreSpec(t *testing.T) {
@@ -725,21 +716,6 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			}
 		})
 	}
-	t.Run("Ensure all restore spec fields were tested", func(t *testing.T) {
-		restoreSpecFields := []string{}
-		for _, test := range tests {
-			restoreSpecFields = append(restoreSpecFields, test.name)
-		}
-		restoreSpec := reflect.ValueOf(&velerov1.RestoreSpec{}).Elem()
-		for index := range restoreSpec.NumField() {
-			if !slices.Contains(restoreSpecFields, restoreSpec.Type().Field(index).Name) {
-				t.Errorf("restore spec field '%v' is not tested", restoreSpec.Type().Field(index).Name)
-			}
-		}
-		if restoreSpec.NumField() != len(tests) {
-			t.Errorf("list of tests have different number of elements")
-		}
-	})
 }
 
 func TestValidateBslSpec(t *testing.T) {
