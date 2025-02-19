@@ -95,6 +95,11 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
 		}
 	}
+
+	if nonAdminBackup.Spec.BackupSpec.ExcludedNamespaces != nil {
+		return fmt.Errorf("NonAdminBackup spec.backupSpec.excludedNamespaces is restricted")
+	}
+
 	if enforcedBackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(enforcedBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces enforced value by admin user violates NAC usage")

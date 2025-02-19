@@ -116,6 +116,13 @@ func TestValidateBackupSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid spec, excluded ns specified in nab backu spec",
+			spec: &velerov1.BackupSpec{
+				ExcludedNamespaces: []string{testNonAdminBackupNamespace},
+			},
+			errMessage: "NonAdminBackup spec.backupSpec.excludedNamespaces is restricted",
+		},
+		{
 			name: "non admin backupstoragelocation not found in the NonAdminBackup namespace",
 			spec: &velerov1.BackupSpec{
 				StorageLocation: "user-defined-backup-storage-location",
