@@ -131,7 +131,7 @@ func TestValidateBackupSpec(t *testing.T) {
 		{
 			name: "non admin users specify includedClusterScopedResources",
 			spec: &velerov1.BackupSpec{
-				IncludedClusterScopedResources: []string{"foo", "bar"},
+				IncludedClusterScopedResources: []string{"foo-something-coz-lint", "bar"},
 			},
 			errMessage: "NonAdminBackup spec.backupSpec.includedClusterScopedResources is restricted, only an empty list is allowed",
 		},
