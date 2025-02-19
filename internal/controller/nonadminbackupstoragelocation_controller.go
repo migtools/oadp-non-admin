@@ -73,7 +73,7 @@ type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, na
 // move the current state of the cluster closer to the desired state.
 func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
-	logger.V(1).Info("NonAdminBackup Reconcile start")
+	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile start")
 
 	// Get the NonAdminBackupStorageLocation object
 	nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
@@ -125,7 +125,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 		}
 	}
 
-	logger.V(1).Info("NonAdminBackup Reconcile exit")
+	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile exit")
 	return ctrl.Result{}, nil
 }
 
@@ -293,12 +293,6 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 
 // validateNaBSLSpec validates the NonAdminBackupStorageLocation spec
 func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
-	// Skip validation if not in New phase
-	if nabsl.Status.Phase != nacv1alpha1.NonAdminPhaseNew {
-		logger.V(1).Info("Skipping validation, not in New phase", constant.CurrentPhaseString, nabsl.Status.Phase)
-		return false, nil
-	}
-
 	err := function.ValidateBslSpec(ctx, r.Client, nabsl)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)

@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
@@ -176,6 +175,17 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+	if dpaConfiguration.BackupSyncPeriod.Duration > 0 {
+		if err = (&controller.NonAdminBackupSynchronizerReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			OADPNamespace: oadpNamespace,
+			SyncPeriod:    dpaConfiguration.BackupSyncPeriod.Duration,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to setup NonAdminBackupSynchronizer controller with manager")
+			os.Exit(1)
+		}
+	}
 	if dpaConfiguration.GarbageCollectionPeriod.Duration > 0 {
 		if err = (&controller.GarbageCollectorReconciler{
 			Client:        mgr.GetClient(),
@@ -207,7 +217,10 @@ func main() {
 func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, error) {
 	dpaConfiguration := v1alpha1.NonAdmin{
 		GarbageCollectionPeriod: &metav1.Duration{
-			Duration: 24 * time.Hour, //nolint:revive // 1 day
+			Duration: v1alpha1.DefaultGarbageCollectionPeriod,
+		},
+		BackupSyncPeriod: &metav1.Duration{
+			Duration: v1alpha1.DefaultBackupSyncPeriod,
 		},
 		EnforceBackupSpec:  &velerov1.BackupSpec{},
 		EnforceRestoreSpec: &velerov1.RestoreSpec{},
@@ -237,6 +250,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 			}
 			if nonAdmin.GarbageCollectionPeriod != nil {
 				dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration
+			}
+			if nonAdmin.BackupSyncPeriod != nil {
+				dpaConfiguration.BackupSyncPeriod.Duration = nonAdmin.BackupSyncPeriod.Duration
 			}
 			break
 		}

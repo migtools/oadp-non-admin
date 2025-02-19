@@ -117,6 +117,14 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			r.removeNabFinalizerUponVeleroBackupDeletion,
 		}
 
+	case function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel):
+		logger.V(1).Info("Executing nab sync path")
+		reconcileSteps = []nonAdminBackupReconcileStepFunction{
+			r.setBackupUUIDInStatus,
+			r.setFinalizerOnNonAdminBackup,
+			r.createVeleroBackupAndSyncWithNonAdminBackup,
+		}
+
 	default:
 		// Standard creation/update path
 		logger.V(1).Info("Executing nab creation/update path")
@@ -555,7 +563,12 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 	}
 
 	if nab.Status.VeleroBackup == nil || nab.Status.VeleroBackup.NACUUID == constant.EmptyString {
-		veleroBackupNACUUID := function.GenerateNacObjectUUID(nab.Namespace, nab.Name)
+		var veleroBackupNACUUID string
+		if value, ok := nab.Labels[constant.NabSyncLabel]; ok {
+			veleroBackupNACUUID = value
+		} else {
+			veleroBackupNACUUID = function.GenerateNacObjectUUID(nab.Namespace, nab.Name)
+		}
 		nab.Status.VeleroBackup = &nacv1alpha1.VeleroBackup{
 			NACUUID:   veleroBackupNACUUID,
 			Namespace: r.OADPNamespace,

@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -995,8 +996,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 		gomega.Expect(deleteTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 
 		cancel()
-		// wait cancel
-		time.Sleep(1 * time.Second)
+
+		// wait manager shutdown
+		gomega.Eventually(func() (bool, error) {
+			logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+			shutdownlog := "INFO	Wait completed, proceeding to shutdown the manager"
+			return strings.Contains(logOutput, shutdownlog) && strings.Count(logOutput, shutdownlog) == 1, nil
+		}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 	})
 
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup Create event",
@@ -1007,6 +1013,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 				Scheme: k8sClient.Scheme(),
+				Cache: cache.Options{
+					DefaultNamespaces: map[string]cache.Config{
+						nonAdminObjectNamespace: {},
+						oadpNamespace:           {},
+					},
+				},
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -1030,8 +1042,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			// wait manager start
 			managerStartTimeout := 10 * time.Second
 			pollInterval := 100 * time.Millisecond
-			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
-			defer cancel()
+			ctxTimeout, cancel2 := context.WithTimeout(ctx, managerStartTimeout)
+			defer cancel2()
 
 			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
 				select {
@@ -1183,6 +1195,179 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			},
 			enforcedBackupSpec: &velerov1.BackupSpec{
 				SnapshotVolumes: ptr.To(false),
+			},
+		}),
+	)
+
+	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup sync event",
+		func(scenario nonAdminBackupFullReconcileScenario) {
+			ctx, cancel = context.WithCancel(context.Background())
+
+			gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
+
+			veleroBackup := &velerov1.Backup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      scenario.status.VeleroBackup.Name,
+					Namespace: oadpNamespace,
+					Labels: map[string]string{
+						constant.OadpLabel:             constant.OadpLabelValue,
+						constant.ManagedByLabel:        constant.ManagedByLabelValue,
+						constant.NabOriginNACUUIDLabel: scenario.status.VeleroBackup.NACUUID,
+					},
+					Annotations: map[string]string{
+						constant.NabOriginNamespaceAnnotation: nonAdminObjectNamespace,
+						constant.NabOriginNameAnnotation:      nonAdminObjectName,
+					},
+				},
+				Spec: *scenario.spec.BackupSpec,
+			}
+			gomega.Expect(k8sClient.Create(ctx, veleroBackup)).To(gomega.Succeed())
+
+			veleroBackup.Status = velerov1.BackupStatus{
+				Phase:               velerov1.BackupPhaseCompleted,
+				CompletionTimestamp: scenario.status.VeleroBackup.Status.CompletionTimestamp,
+			}
+			// can not call .Status().Update() for veleroBackup object https://github.com/vmware-tanzu/velero/issues/8285
+			gomega.Expect(k8sClient.Update(ctx, veleroBackup)).To(gomega.Succeed())
+
+			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Scheme: k8sClient.Scheme(),
+				Cache: cache.Options{
+					DefaultNamespaces: map[string]cache.Config{
+						nonAdminObjectNamespace: {},
+						oadpNamespace:           {},
+					},
+				},
+			})
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+			enforcedBackupSpec := &velerov1.BackupSpec{}
+			if scenario.enforcedBackupSpec != nil {
+				enforcedBackupSpec = scenario.enforcedBackupSpec
+			}
+			err = (&NonAdminBackupReconciler{
+				Client:             k8sManager.GetClient(),
+				Scheme:             k8sManager.GetScheme(),
+				OADPNamespace:      oadpNamespace,
+				EnforcedBackupSpec: enforcedBackupSpec,
+			}).SetupWithManager(k8sManager)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+
+			go func() {
+				defer ginkgo.GinkgoRecover()
+				err = k8sManager.Start(ctx)
+				gomega.Expect(err).ToNot(gomega.HaveOccurred(), "failed to run manager")
+			}()
+			// wait manager start
+			gomega.Eventually(func() (bool, error) {
+				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+				startUpLog := `INFO	Starting workers	{"controller": "nonadminbackup", "controllerGroup": "oadp.openshift.io", "controllerKind": "NonAdminBackup", "worker count": 1}`
+				return strings.Contains(logOutput, startUpLog) &&
+					strings.Count(logOutput, startUpLog) == 1, nil
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+			ginkgo.By("Waiting Reconcile of sync event")
+			nonAdminBackup := buildTestNonAdminBackup(nonAdminObjectNamespace, nonAdminObjectName, scenario.spec)
+			nonAdminBackup.Labels = map[string]string{
+				constant.NabSyncLabel: scenario.status.VeleroBackup.NACUUID,
+			}
+			gomega.Expect(k8sClient.Create(ctx, nonAdminBackup)).To(gomega.Succeed())
+
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminObjectName,
+						Namespace: nonAdminObjectNamespace,
+					},
+					nonAdminBackup,
+				)
+				if err != nil {
+					return false, err
+				}
+				err = checkTestNonAdminBackupStatus(nonAdminBackup, scenario.status, oadpNamespace)
+				return err == nil, err
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+			if scenario.status.VeleroBackup != nil && len(nonAdminBackup.Status.VeleroBackup.NACUUID) > 0 {
+				ginkgo.By("Checking if NonAdminBackup Spec was not changed")
+				gomega.Expect(reflect.DeepEqual(
+					nonAdminBackup.Spec,
+					scenario.spec,
+				)).To(gomega.BeTrue())
+			}
+
+			ginkgo.By("Waiting Reconcile of delete event")
+			gomega.Expect(k8sClient.Delete(ctx, nonAdminBackup)).To(gomega.Succeed())
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      scenario.status.VeleroBackup.Name,
+						Namespace: oadpNamespace,
+					},
+					veleroBackup,
+				)
+				if errors.IsNotFound(err) {
+					return true, nil
+				}
+				return false, err
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			gomega.Eventually(func() (bool, error) {
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Name:      nonAdminObjectName,
+						Namespace: nonAdminObjectNamespace,
+					},
+					nonAdminBackup,
+				)
+				if errors.IsNotFound(err) {
+					return true, nil
+				}
+				return false, err
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+			gomega.Eventually(func() (bool, error) {
+				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
+				deletelog := "DEBUG	Accepted NAB Delete event"
+				return strings.Contains(logOutput, deletelog) && strings.Count(logOutput, deletelog) == 1, nil
+			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+		},
+		ginkgo.Entry("Should re create NonAdminBackup and then delete it", nonAdminBackupFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{
+					TTL: metav1.Duration{
+						Duration: 20 * time.Hour,
+					},
+				},
+			},
+			status: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Namespace: oadpNamespace,
+					Status: &velerov1.BackupStatus{
+						Phase:               velerov1.BackupPhaseCompleted,
+						CompletionTimestamp: &metav1.Time{Time: time.Date(2025, 2, 10, 12, 12, 12, 0, time.Local)},
+					},
+					Name:    "test",
+					NACUUID: "test",
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+				},
+			},
+			enforcedBackupSpec: &velerov1.BackupSpec{
+				TTL: metav1.Duration{
+					Duration: 10 * time.Hour,
+				},
 			},
 		}),
 	)
