@@ -116,7 +116,7 @@ func TestValidateBackupSpec(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid spec, excluded ns specified in nab backu spec",
+			name: "invalid spec, excluded ns specified in nab backup spec",
 			spec: &velerov1.BackupSpec{
 				ExcludedNamespaces: []string{testNonAdminBackupNamespace},
 			},
@@ -183,11 +183,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			name:          "IncludedNamespaces",
 			enforcedValue: []string{"self-service-namespace"},
 			overrideValue: []string{"openshift-adp"},
-		},
-		{
-			name:          "ExcludedNamespaces",
-			enforcedValue: []string{"openshift-adp"},
-			overrideValue: []string{"cherry"},
 		},
 		{
 			name:          "IncludedResources",
