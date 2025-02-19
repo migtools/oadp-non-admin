@@ -641,6 +641,27 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 			backupSpec.StorageLocation = nonAdminBsl.Status.VeleroBackupStorageLocation.Name
 		}
 
+		// Exclude NAC resources (NAB, NAR, NABSL) from Non-Admin backups
+		// Determine if any of the new-style resource filter parameters are set
+		haveNewResourceFilterParameters := len(backupSpec.IncludedClusterScopedResources) > 0 ||
+			len(backupSpec.ExcludedClusterScopedResources) > 0 ||
+			len(backupSpec.IncludedNamespaceScopedResources) > 0 ||
+			len(backupSpec.ExcludedNamespaceScopedResources) > 0
+
+		if haveNewResourceFilterParameters {
+			// Use the new-style exclusion list
+			backupSpec.ExcludedNamespaceScopedResources = append(backupSpec.ExcludedNamespaceScopedResources,
+				nacv1alpha1.NonAdminBackups,
+				nacv1alpha1.NonAdminRestores,
+				nacv1alpha1.NonAdminBackupStorageLocations)
+		} else {
+			// Fallback to the old-style exclusion list
+			backupSpec.ExcludedResources = append(backupSpec.ExcludedResources,
+				nacv1alpha1.NonAdminBackups,
+				nacv1alpha1.NonAdminRestores,
+				nacv1alpha1.NonAdminBackupStorageLocations)
+		}
+
 		veleroBackup := velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroBackupNACUUID,

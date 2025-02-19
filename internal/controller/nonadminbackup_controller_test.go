@@ -1086,6 +1086,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					ginkgo.By("Validating Velero Backup Spec")
 					expectedSpec := scenario.enforcedBackupSpec.DeepCopy()
 					expectedSpec.IncludedNamespaces = []string{nonAdminObjectNamespace}
+					expectedSpec.ExcludedResources = []string{
+						nacv1alpha1.NonAdminBackups,
+						nacv1alpha1.NonAdminRestores,
+						nacv1alpha1.NonAdminBackupStorageLocations,
+					}
 					gomega.Expect(reflect.DeepEqual(veleroBackup.Spec, *expectedSpec)).To(gomega.BeTrue())
 				}
 
