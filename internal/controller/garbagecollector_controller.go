@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"golang.org/x/sync/errgroup"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,151 +57,166 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 	}
 
 	logger.V(1).Info("Garbage Collector Reconcile start")
+
+	var execution errgroup.Group
+
 	// TODO duplication in delete logic
-	// TODO do deletion in parallel
+	execution.Go(func() error {
+		secretList := &corev1.SecretList{}
+		if err := r.List(ctx, secretList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch Secret in OADP namespace")
+			return err
+		}
+		for _, secret := range secretList.Items {
+			if !function.CheckLabelAnnotationValueIsValid(secret.GetLabels(), constant.NabslOriginNACUUIDLabel) {
+				logger.V(1).Info("Secret does not have required label", constant.NameString, secret.Name)
+				// TODO delete?
+				continue
+			}
+			annotations := secret.GetAnnotations()
+			if !function.CheckVeleroBackupStorageLocationAnnotations(&secret) {
+				logger.V(1).Info("Secret does not have required annotations", constant.NameString, secret.Name)
+				// TODO delete?
+				continue
+			}
+			nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+			err := r.Get(ctx, types.NamespacedName{
+				Name:      annotations[constant.NabslOriginNameAnnotation],
+				Namespace: annotations[constant.NabslOriginNamespaceAnnotation],
+			}, nabsl)
+			if err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
+					return err
+				}
+				if err = r.Delete(ctx, &secret); err != nil {
+					logger.Error(err, "Failed to delete orphan Secret", constant.NameString, secret.Name)
+					return err
+				}
+				logger.V(1).Info("orphan Secret deleted", constant.NameString, secret.Name)
+			}
+		}
+		return nil
+	})
 
-	secretList := &corev1.SecretList{}
-	if err := r.List(ctx, secretList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
-		logger.Error(err, "Unable to fetch Secret in OADP namespace")
-		return ctrl.Result{}, err
-	}
-	for _, secret := range secretList.Items {
-		if !function.CheckLabelAnnotationValueIsValid(secret.GetLabels(), constant.NabslOriginNACUUIDLabel) {
-			logger.V(1).Info("Secret does not have required label", constant.NameString, secret.Name)
-			// TODO delete?
-			continue
+	execution.Go(func() error {
+		veleroBackupStorageLocationList := &velerov1.BackupStorageLocationList{}
+		if err := r.List(ctx, veleroBackupStorageLocationList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch BackupStorageLocations in OADP namespace")
+			return err
 		}
-		annotations := secret.GetAnnotations()
-		if !function.CheckVeleroBackupStorageLocationAnnotations(&secret) {
-			logger.V(1).Info("Secret does not have required annotations", constant.NameString, secret.Name)
-			// TODO delete?
-			continue
-		}
-		nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      annotations[constant.NabslOriginNameAnnotation],
-			Namespace: annotations[constant.NabslOriginNamespaceAnnotation],
-		}, nabsl)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
-				return ctrl.Result{}, err
+		for _, backupStorageLocation := range veleroBackupStorageLocationList.Items {
+			if !function.CheckLabelAnnotationValueIsValid(backupStorageLocation.GetLabels(), constant.NabslOriginNACUUIDLabel) {
+				logger.V(1).Info("BackupStorageLocation does not have required label", constant.NameString, backupStorageLocation.Name)
+				// TODO delete?
+				continue
 			}
-			if err = r.Delete(ctx, &secret); err != nil {
-				logger.Error(err, "Failed to delete orphan Secret", constant.NameString, secret.Name)
-				return ctrl.Result{}, err
+			annotations := backupStorageLocation.GetAnnotations()
+			if !function.CheckVeleroBackupStorageLocationAnnotations(&backupStorageLocation) {
+				logger.V(1).Info("BackupStorageLocation does not have required annotations", constant.NameString, backupStorageLocation.Name)
+				// TODO delete?
+				continue
 			}
-			logger.V(1).Info("orphan Secret deleted", constant.NameString, secret.Name)
+			nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+			err := r.Get(ctx, types.NamespacedName{
+				Name:      annotations[constant.NabslOriginNameAnnotation],
+				Namespace: annotations[constant.NabslOriginNamespaceAnnotation],
+			}, nabsl)
+			if err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
+					return err
+				}
+				if err = r.Delete(ctx, &backupStorageLocation); err != nil {
+					logger.Error(err, "Failed to delete orphan BackupStorageLocation", constant.NameString, backupStorageLocation.Name)
+					return err
+				}
+				logger.V(1).Info("orphan BackupStorageLocation deleted", constant.NameString, backupStorageLocation.Name)
+			}
 		}
-	}
+		return nil
+	})
 
-	veleroBackupStorageLocationList := &velerov1.BackupStorageLocationList{}
-	if err := r.List(ctx, veleroBackupStorageLocationList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
-		logger.Error(err, "Unable to fetch BackupStorageLocations in OADP namespace")
-		return ctrl.Result{}, err
-	}
-	for _, backupStorageLocation := range veleroBackupStorageLocationList.Items {
-		if !function.CheckLabelAnnotationValueIsValid(backupStorageLocation.GetLabels(), constant.NabslOriginNACUUIDLabel) {
-			logger.V(1).Info("BackupStorageLocation does not have required label", constant.NameString, backupStorageLocation.Name)
-			// TODO delete?
-			continue
+	execution.Go(func() error {
+		veleroBackupList := &velerov1.BackupList{}
+		if err := r.List(ctx, veleroBackupList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch Backups in OADP namespace")
+			return err
 		}
-		annotations := backupStorageLocation.GetAnnotations()
-		if !function.CheckVeleroBackupStorageLocationAnnotations(&backupStorageLocation) {
-			logger.V(1).Info("BackupStorageLocation does not have required annotations", constant.NameString, backupStorageLocation.Name)
-			// TODO delete?
-			continue
-		}
-		nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      annotations[constant.NabslOriginNameAnnotation],
-			Namespace: annotations[constant.NabslOriginNamespaceAnnotation],
-		}, nabsl)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
-				return ctrl.Result{}, err
+		for _, backup := range veleroBackupList.Items {
+			if !function.CheckLabelAnnotationValueIsValid(backup.GetLabels(), constant.NabOriginNACUUIDLabel) {
+				logger.V(1).Info("Backup does not have required label", constant.NameString, backup.Name)
+				// TODO delete?
+				continue
 			}
-			if err = r.Delete(ctx, &backupStorageLocation); err != nil {
-				logger.Error(err, "Failed to delete orphan BackupStorageLocation", constant.NameString, backupStorageLocation.Name)
-				return ctrl.Result{}, err
+			annotations := backup.GetAnnotations()
+			if !function.CheckVeleroBackupAnnotations(&backup) {
+				logger.V(1).Info("Backup does not have required annotations", constant.NameString, backup.Name)
+				// TODO delete?
+				continue
 			}
-			logger.V(1).Info("orphan BackupStorageLocation deleted", constant.NameString, backupStorageLocation.Name)
+			nab := &nacv1alpha1.NonAdminBackup{}
+			err := r.Get(ctx, types.NamespacedName{
+				Name:      annotations[constant.NabOriginNameAnnotation],
+				Namespace: annotations[constant.NabOriginNamespaceAnnotation],
+			}, nab)
+			if err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminBackup")
+					return err
+				}
+				if err = r.Delete(ctx, &backup); err != nil {
+					logger.Error(err, "Failed to delete orphan backup", constant.NameString, backup.Name)
+					return err
+				}
+				logger.V(1).Info("orphan Backup deleted", constant.NameString, backup.Name)
+			}
 		}
-	}
+		return nil
+	})
 
-	veleroBackupList := &velerov1.BackupList{}
-	if err := r.List(ctx, veleroBackupList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
-		logger.Error(err, "Unable to fetch Backups in OADP namespace")
-		return ctrl.Result{}, err
-	}
-	for _, backup := range veleroBackupList.Items {
-		if !function.CheckLabelAnnotationValueIsValid(backup.GetLabels(), constant.NabOriginNACUUIDLabel) {
-			logger.V(1).Info("Backup does not have required label", constant.NameString, backup.Name)
-			// TODO delete?
-			continue
+	execution.Go(func() error {
+		veleroRestoreList := &velerov1.RestoreList{}
+		if err := r.List(ctx, veleroRestoreList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch Restores in OADP namespace")
+			return err
 		}
-		annotations := backup.GetAnnotations()
-		if !function.CheckVeleroBackupAnnotations(&backup) {
-			logger.V(1).Info("Backup does not have required annotations", constant.NameString, backup.Name)
-			// TODO delete?
-			continue
-		}
-		nab := &nacv1alpha1.NonAdminBackup{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      annotations[constant.NabOriginNameAnnotation],
-			Namespace: annotations[constant.NabOriginNamespaceAnnotation],
-		}, nab)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.Error(err, "Unable to fetch NonAdminBackup")
-				return ctrl.Result{}, err
+		for _, restore := range veleroRestoreList.Items {
+			if !function.CheckLabelAnnotationValueIsValid(restore.GetLabels(), constant.NarOriginNACUUIDLabel) {
+				logger.V(1).Info("Restore does not have required label", constant.NameString, restore.Name)
+				// TODO delete?
+				continue
 			}
-			if err = r.Delete(ctx, &backup); err != nil {
-				logger.Error(err, "Failed to delete orphan backup", constant.NameString, backup.Name)
-				return ctrl.Result{}, err
+			annotations := restore.GetAnnotations()
+			if !function.CheckVeleroRestoreAnnotations(&restore) {
+				logger.V(1).Info("Restore does not have required annotations", constant.NameString, restore.Name)
+				// TODO delete?
+				continue
 			}
-			logger.V(1).Info("orphan Backup deleted", constant.NameString, backup.Name)
+			nar := &nacv1alpha1.NonAdminRestore{}
+			err := r.Get(ctx, types.NamespacedName{
+				Name:      annotations[constant.NarOriginNameAnnotation],
+				Namespace: annotations[constant.NarOriginNamespaceAnnotation],
+			}, nar)
+			if err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminRestore")
+					return err
+				}
+				if err = r.Delete(ctx, &restore); err != nil {
+					logger.Error(err, "Failed to delete orphan Restore", constant.NameString, restore.Name)
+					return err
+				}
+				logger.V(1).Info("orphan Restore deleted", constant.NameString, restore.Name)
+			}
 		}
-	}
+		return nil
+	})
 
-	veleroRestoreList := &velerov1.RestoreList{}
-	if err := r.List(ctx, veleroRestoreList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
-		logger.Error(err, "Unable to fetch Restores in OADP namespace")
-		return ctrl.Result{}, err
-	}
-	for _, restore := range veleroRestoreList.Items {
-		if !function.CheckLabelAnnotationValueIsValid(restore.GetLabels(), constant.NarOriginNACUUIDLabel) {
-			logger.V(1).Info("Restore does not have required label", constant.NameString, restore.Name)
-			// TODO delete?
-			continue
-		}
-		annotations := restore.GetAnnotations()
-		if !function.CheckVeleroRestoreAnnotations(&restore) {
-			logger.V(1).Info("Restore does not have required annotations", constant.NameString, restore.Name)
-			// TODO delete?
-			continue
-		}
-		nar := &nacv1alpha1.NonAdminRestore{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      annotations[constant.NarOriginNameAnnotation],
-			Namespace: annotations[constant.NarOriginNamespaceAnnotation],
-		}, nar)
-		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.Error(err, "Unable to fetch NonAdminRestore")
-				return ctrl.Result{}, err
-			}
-			if err = r.Delete(ctx, &restore); err != nil {
-				logger.Error(err, "Failed to delete orphan Restore", constant.NameString, restore.Name)
-				return ctrl.Result{}, err
-			}
-			logger.V(1).Info("orphan Restore deleted", constant.NameString, restore.Name)
-		}
-	}
+	err := execution.Wait()
 
 	logger.V(1).Info("Garbage Collector Reconcile end")
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.
