@@ -54,9 +54,10 @@ const (
 // NonAdminBackupStorageLocationReconciler reconciles a NonAdminBackupStorageLocation object
 type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	EnforcedBslSpec *velerov1.BackupStorageLocationSpec
-	OADPNamespace   string
+	Scheme                     *runtime.Scheme
+	EnforcedBslSpec            *velerov1.BackupStorageLocationSpec
+	OADPNamespace              string
+	RequireAdminApprovalForBSL bool
 }
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
@@ -69,11 +70,15 @@ type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, na
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocations/finalizers,verbs=update
 
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocationapprovalrequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocationapprovalrequests/status,verbs=get;update;patch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile start")
+	logger.V(1).Info("RequireAdminApprovalForBSL", "value", r.RequireAdminApprovalForBSL)
 
 	// Get the NonAdminBackupStorageLocation object
 	nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}

@@ -29,6 +29,7 @@ type NonAdminBSLCondition string
 const (
 	NonAdminBSLConditionSecretSynced NonAdminBSLCondition = "SecretSynced"
 	NonAdminBSLConditionBSLSynced    NonAdminBSLCondition = "BackupStorageLocationSynced"
+	NonAdminBSLConditionApproved     NonAdminBSLCondition = "ClusterAdminApproved"
 )
 
 // NonAdminBackupStorageLocationSpec defines the desired state of NonAdminBackupStorageLocation
