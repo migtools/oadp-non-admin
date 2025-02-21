@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -175,9 +176,10 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 	all := "*"
 
 	tests := []struct {
-		enforcedValue any
-		overrideValue any
-		name          string
+		enforcedValue       any
+		overrideValue       any
+		name                string
+		expectErrorEnforced bool
 	}{
 		{
 			name: "Metadata",
@@ -199,6 +201,24 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			overrideValue: []string{"openshift-adp"},
 		},
 		{
+			name:                "ExcludedNamespaces",
+			enforcedValue:       []string{"nonadminbackups.nac.oadp.openshift.io"},
+			overrideValue:       []string{},
+			expectErrorEnforced: true,
+		},
+		{
+			name:                "IncludeClusterResources",
+			enforcedValue:       ptr.To(true),
+			overrideValue:       ptr.To(true),
+			expectErrorEnforced: true,
+		},
+		{
+			name:                "IncludedClusterScopedResources",
+			enforcedValue:       []string{"sample.io"},
+			overrideValue:       []string{all},
+			expectErrorEnforced: true,
+		},
+		{
 			name:          "IncludedResources",
 			enforcedValue: []string{"pods"},
 			overrideValue: []string{"secrets"},
@@ -207,11 +227,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			name:          "ExcludedResources",
 			enforcedValue: []string{"nonadminbackups.nac.oadp.openshift.io"},
 			overrideValue: []string{},
-		},
-		{
-			name:          "IncludedClusterScopedResources",
-			enforcedValue: []string{},
-			overrideValue: []string{all},
 		},
 		{
 			name:          "ExcludedClusterScopedResources",
@@ -409,8 +424,14 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
 			err = ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", userNonAdminBackup, enforcedSpec)
-			if err != nil {
-				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
+			if test.expectErrorEnforced {
+				if err == nil {
+					t.Errorf("expected error when setting field '%v' to enforced value, but got none", test.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("setting backup spec field '%v' with enforced value test failed: %v", test.name, err)
+				}
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
@@ -418,6 +439,22 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			if err == nil {
 				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
 			}
+			t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
+				backupSpecFields := []string{}
+				for _, test := range tests {
+					backupSpecFields = append(backupSpecFields, test.name)
+				}
+				backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
+
+				for index := range backupSpec.NumField() {
+					if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
+						t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
+					}
+				}
+				if backupSpec.NumField() != len(tests) {
+					t.Errorf("list of tests have different number of elements")
+				}
+			})
 		})
 	}
 }
@@ -717,6 +754,21 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Ensure all restore spec fields were tested", func(t *testing.T) {
+		restoreSpecFields := []string{}
+		for _, test := range tests {
+			restoreSpecFields = append(restoreSpecFields, test.name)
+		}
+		restoreSpec := reflect.ValueOf(&velerov1.RestoreSpec{}).Elem()
+		for index := range restoreSpec.NumField() {
+			if !slices.Contains(restoreSpecFields, restoreSpec.Type().Field(index).Name) {
+				t.Errorf("restore spec field '%v' is not tested", restoreSpec.Type().Field(index).Name)
+			}
+		}
+		if restoreSpec.NumField() != len(tests) {
+			t.Errorf("list of tests have different number of elements")
+		}
+	})
 }
 
 func TestValidateBslSpec(t *testing.T) {
