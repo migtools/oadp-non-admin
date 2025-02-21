@@ -92,13 +92,20 @@ func containsOnlyNamespace(namespaces []string, namespace string) bool {
 func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpNamespace string, nonAdminBackup *nacv1alpha1.NonAdminBackup, enforcedBackupSpec *velerov1.BackupSpec) error {
 	if nonAdminBackup.Spec.BackupSpec.IncludedNamespaces != nil {
 		if !containsOnlyNamespace(nonAdminBackup.Spec.BackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: %s", nonAdminBackup.Namespace)
+			return fmt.Errorf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", nonAdminBackup.Namespace)
 		}
 	}
-	if enforcedBackupSpec.IncludedNamespaces != nil {
-		if !containsOnlyNamespace(enforcedBackupSpec.IncludedNamespaces, nonAdminBackup.Namespace) {
-			return fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces enforced value by admin user violates NAC usage")
-		}
+
+	if nonAdminBackup.Spec.BackupSpec.ExcludedNamespaces != nil {
+		return fmt.Errorf(constant.NABRestrictedErr, "spec.backupSpec.excludedNamespaces")
+	}
+
+	if nonAdminBackup.Spec.BackupSpec.IncludeClusterResources != nil && *nonAdminBackup.Spec.BackupSpec.IncludeClusterResources {
+		return fmt.Errorf(constant.NABRestrictedErr+", can only be set to false", "spec.backupSpec.includeClusterResources")
+	}
+
+	if len(nonAdminBackup.Spec.BackupSpec.IncludedClusterScopedResources) > 0 {
+		return fmt.Errorf(constant.NABRestrictedErr+", must remain empty", "spec.backupSpec.includedScopedResources")
 	}
 
 	if nonAdminBackup.Spec.BackupSpec.StorageLocation != constant.EmptyString {

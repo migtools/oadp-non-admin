@@ -19,6 +19,7 @@ package function
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"strings"
@@ -107,13 +108,34 @@ func TestValidateBackupSpec(t *testing.T) {
 			spec: &velerov1.BackupSpec{
 				IncludedNamespaces: []string{"namespace1", "namespace2", "namespace3"},
 			},
-			errMessage: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: non-admin-backup-namespace",
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", "non-admin-backup-namespace"),
 		},
 		{
 			name: "valid spec",
 			spec: &velerov1.BackupSpec{
 				IncludedNamespaces: []string{testNonAdminBackupNamespace},
 			},
+		},
+		{
+			name: "invalid spec, excluded ns specified in nab backup spec",
+			spec: &velerov1.BackupSpec{
+				ExcludedNamespaces: []string{testNonAdminBackupNamespace},
+			},
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr, "spec.backupSpec.excludedNamespaces"),
+		},
+		{
+			name: "non admin users specify includeClusterResources as true",
+			spec: &velerov1.BackupSpec{
+				IncludeClusterResources: ptr.To(true),
+			},
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", can only be set to false", "spec.backupSpec.includeClusterResources"),
+		},
+		{
+			name: "non admin users specify includedClusterScopedResources",
+			spec: &velerov1.BackupSpec{
+				IncludedClusterScopedResources: []string{"foo-something-coz-lint", "bar"},
+			},
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", must remain empty", "spec.backupSpec.includedScopedResources"),
 		},
 		{
 			name: "non admin backupstoragelocation not found in the NonAdminBackup namespace",
@@ -154,9 +176,10 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 	all := "*"
 
 	tests := []struct {
-		enforcedValue any
-		overrideValue any
-		name          string
+		enforcedValue       any
+		overrideValue       any
+		name                string
+		expectErrorEnforced bool
 	}{
 		{
 			name: "Metadata",
@@ -178,9 +201,22 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			overrideValue: []string{"openshift-adp"},
 		},
 		{
-			name:          "ExcludedNamespaces",
-			enforcedValue: []string{"openshift-adp"},
-			overrideValue: []string{"cherry"},
+			name:                "ExcludedNamespaces",
+			enforcedValue:       []string{"sample-ns"},
+			overrideValue:       []string{},
+			expectErrorEnforced: true,
+		},
+		{
+			name:                "IncludeClusterResources",
+			enforcedValue:       ptr.To(true),
+			overrideValue:       ptr.To(true),
+			expectErrorEnforced: true,
+		},
+		{
+			name:                "IncludedClusterScopedResources",
+			enforcedValue:       []string{"sample.io"},
+			overrideValue:       []string{all},
+			expectErrorEnforced: true,
 		},
 		{
 			name:          "IncludedResources",
@@ -191,11 +227,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			name:          "ExcludedResources",
 			enforcedValue: []string{"nonadminbackups.nac.oadp.openshift.io"},
 			overrideValue: []string{},
-		},
-		{
-			name:          "IncludedClusterScopedResources",
-			enforcedValue: []string{},
-			overrideValue: []string{all},
 		},
 		{
 			name:          "ExcludedClusterScopedResources",
@@ -256,11 +287,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			name:          "TTL",
 			enforcedValue: metav1.Duration{Duration: 12 * time.Hour},      //nolint:revive // just test
 			overrideValue: metav1.Duration{Duration: 30 * 24 * time.Hour}, //nolint:revive // just test
-		},
-		{
-			name:          "IncludeClusterResources",
-			enforcedValue: ptr.To(true),
-			overrideValue: ptr.To(false),
 		},
 		{
 			name: "Hooks",
@@ -398,8 +424,14 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
 			err = ValidateBackupSpec(context.Background(), fakeClient, "oadp-namespace", userNonAdminBackup, enforcedSpec)
-			if err != nil {
-				t.Errorf("setting backup spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
+			if test.expectErrorEnforced {
+				if err == nil {
+					t.Errorf("expected error when setting field '%v' to enforced value, but got none", test.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("setting backup spec field '%v' with enforced value test failed: %v", test.name, err)
+				}
 			}
 
 			reflect.ValueOf(userNonAdminBackup.Spec.BackupSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
@@ -407,25 +439,24 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			if err == nil {
 				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
 			}
+			t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
+				backupSpecFields := []string{}
+				for _, test := range tests {
+					backupSpecFields = append(backupSpecFields, test.name)
+				}
+				backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
+
+				for index := range backupSpec.NumField() {
+					if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
+						t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
+					}
+				}
+				if backupSpec.NumField() != len(tests) {
+					t.Errorf("list of tests have different number of elements")
+				}
+			})
 		})
 	}
-
-	t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
-		backupSpecFields := []string{}
-		for _, test := range tests {
-			backupSpecFields = append(backupSpecFields, test.name)
-		}
-		backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
-
-		for index := range backupSpec.NumField() {
-			if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
-				t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
-			}
-		}
-		if backupSpec.NumField() != len(tests) {
-			t.Errorf("list of tests have different number of elements")
-		}
-	})
 }
 
 func TestValidateRestoreSpec(t *testing.T) {
@@ -559,7 +590,7 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:          "ExcludedResources",
-			enforcedValue: []string{"nonadminbackups.nac.oadp.openshift.io"},
+			enforcedValue: []string{"foobar.io"},
 			overrideValue: []string{},
 		},
 		{
