@@ -82,3 +82,6 @@ const CommaString = ","
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
+
+// NABRestrictedErr holds an error message template for a non-admin backup operation that is restricted.
+const NABRestrictedErr = "NonAdminBackup %s is restricted"

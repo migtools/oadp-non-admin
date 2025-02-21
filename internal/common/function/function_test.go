@@ -19,6 +19,7 @@ package function
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -106,7 +107,7 @@ func TestValidateBackupSpec(t *testing.T) {
 			spec: &velerov1.BackupSpec{
 				IncludedNamespaces: []string{"namespace1", "namespace2", "namespace3"},
 			},
-			errMessage: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: non-admin-backup-namespace",
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", "non-admin-backup-namespace"),
 		},
 		{
 			name: "valid spec",
@@ -119,21 +120,21 @@ func TestValidateBackupSpec(t *testing.T) {
 			spec: &velerov1.BackupSpec{
 				ExcludedNamespaces: []string{testNonAdminBackupNamespace},
 			},
-			errMessage: "NonAdminBackup spec.backupSpec.excludedNamespaces is restricted",
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr, "spec.backupSpec.excludedNamespaces"),
 		},
 		{
 			name: "non admin users specify includeClusterResources as true",
 			spec: &velerov1.BackupSpec{
 				IncludeClusterResources: ptr.To(true),
 			},
-			errMessage: "NonAdminBackup spec.backupSpec.includeClusterResources can not be set or must be set to false",
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", can only be set to false", "spec.backupSpec.includeClusterResources"),
 		},
 		{
 			name: "non admin users specify includedClusterScopedResources",
 			spec: &velerov1.BackupSpec{
 				IncludedClusterScopedResources: []string{"foo-something-coz-lint", "bar"},
 			},
-			errMessage: "NonAdminBackup spec.backupSpec.includedClusterScopedResources is restricted, only an empty list is allowed",
+			errMessage: fmt.Sprintf(constant.NABRestrictedErr+", must remain empty", "spec.backupSpec.includedScopedResources"),
 		},
 		{
 			name: "non admin backupstoragelocation not found in the NonAdminBackup namespace",

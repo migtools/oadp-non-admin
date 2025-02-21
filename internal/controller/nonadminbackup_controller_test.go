@@ -496,11 +496,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ",
+						Message: fmt.Sprintf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", ""),
 					},
 				},
 			},
-			resultError: reconcile.TerminalError(fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ")),
+			resultError: reconcile.TerminalError(fmt.Errorf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", "")),
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup Create event with not existing NonAdminBackupStorageLocation, should update NonAdminBackup phase to BackingOff and exit with terminal error", nonAdminBackupSingleReconcileScenario{
 			createNonAdminBackupStorageLocation: false,
@@ -966,11 +966,11 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
 						Status:  metav1.ConditionFalse,
 						Reason:  "InvalidBackupSpec",
-						Message: "NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than:",
+						Message: fmt.Sprintf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", ""),
 					},
 				},
 			},
-			resultError: reconcile.TerminalError(fmt.Errorf("NonAdminBackup spec.backupSpec.includedNamespaces can not contain namespaces other than: ")),
+			resultError: reconcile.TerminalError(fmt.Errorf(constant.NABRestrictedErr+", can not contain namespaces other than: %s", "spec.backupSpec.includedNamespaces", "")),
 		}))
 })
 
