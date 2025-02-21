@@ -38,19 +38,18 @@ The self-service functionality is implemented in a way that ensures users can on
 * NAR - Non Admin Restore
 * NAC - Non Admin Controller
 * NABSL - Non Admin Backup Storage Location
+* NADR - Non Admin Download Request
 
 
 ## Cluster Administrator Setup
 
 Install and configure the OADP operator according to the documentation and your requirements.
 
-To enable OADP Self-Service the DPA spec must have these 2 things:
+To enable OADP Self-Service the DPA spec must the spec.nonAdmin.enable field to true.
 
 ```
   nonAdmin:
     enable: true
-  unsupportedOverrides:
-    tech-preview-ack: "true"
 ```
 
 Once the OADP DPA is reconciled the cluster administrator should see the non-admin-controller running in the openshift-adp namespace.
@@ -65,7 +64,7 @@ Prior to OpenShift users taking advantage of OADP self-service feature the OpenS
 * The cluster administrator has created the users 
   * account 
   * namespace
-  * namespace admin privileges
+  * namespace privileges, e.g. namespace admin.
 
 Non Cluster Administrators can utilize OADP self-service by creating NonAdminBackup (NAB) and NonAdminRestore (NAR) objects in the namespace to be backed up or restored.  A NonAdminBackup is an OpenShift custom resource that securely facilitates the creation, status and lifecycle of a Velero Backup custom resource.  
 
@@ -106,10 +105,118 @@ The phase field is a simple one high-level summary of the lifecycle of the objec
 | Deletion | *NonAdminBackup/NonAdminRestore* resource has been marked for deletion. The NAB/NAR Controller will delete the corresponding Velero *Backup/Restore* if it exists. Once this deletion completes, the *NonAdminBackup/NonAdminRestore* object itself will also be removed |
 
 
+## Advanced Cluster Administrator Features
+
+### Restricted NonAdminBackupStorageLocation 
+
+Cluster administrators can gain efficiencies by delegating backup and restore operations to OpenShift users. It is recommended that cluster administrators carefully manage the NABSL to conform to any company policies, compliance requirements, etc.  There are two ways cluster administrators can manage the NABSL's.
+
+1. Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.
+
+```
+  nonAdmin:
+    enable: true
+    requireAdminApprovalForBSL: true
+```
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NABSLApprovalRequest
+metadata:
+  name: nabsl-hash-name
+  namespace: openshift-adp<Operator NS, this is the key here>
+spec:
+  nabslName: nabsl-name
+  nabslNamespace: nac-user-ns
+  creationApproved: false  # Tracks approval for creation
+  updateApproved: false    # Tracks approval for updates
+  lastApprovedSpec: {}  # Stores last approved NABSL spec
+```
+  This ensures the cluster administrator has reviewed the NABSL to ensure the correct object storage location options are used.
+
+### Cluster Administrator Enforceable Spec Fields
+
+Cluster administrators may also enforce templated NABSL's, NAB's and NAR's that require fields values to be set and conform to the administrator defined policy.  Admin Enforceable fields are fields that the cluster administrator can enforce non cluster admin users to use. Restricted fields are automatically managed by OADP and cannot be modified by either administrators or users.
+
+#### NABSL
+The following NABSL fields are currently supported for template enforcement:
+
+| **NABSL Field**            | **Admin Enforceable** | **Restricted** |
+|----------------------------|-----------------|----------------|
+| `backupSyncPeriod`         | ⚠️ special case |                |
+| `provider`                 | ⚠️ special case |                |
+| `objectStorage`            | ✅ Yes          |                |
+| `credential`               | ✅ Yes          |                |
+| `config`                   | ✅ Yes          |                |
+| `accessMode`               | ✅ Yes          |                |
+| `validationFrequency`      | ✅ Yes          |                |
+
+
+TODO need example NABSL enforcement
+
+#### Restricted NonAdminBackups
+
+In the same sense as the NABSL, cluster administrators can also restrict the NonAdminBackup spec fields to ensure the backup request conforms to the administrator defined policy.  Most of the backup spec fields can be restricted by the cluster administrator, below is a table of reference for the current implementation.
+
+
+| **Backup Spec Field**                                  | **Admin Enforceable** | **Restricted** |
+|--------------------------------------------|--------------|--------------------------|
+| `csiSnapshotTimeout`                       | ✅ Yes       |                          |
+| `itemOperationTimeout`                     | ✅ Yes       |                          |
+| `resourcePolicy`                           | ✅ Yes       | ⚠️ special case           |
+| `includedNamespaces`                       | ❌ No        | ✅ Yes                   |
+| `excludedNamespaces`                       | ✅ Yes       |        ✅ Yes             |
+| `includedResources`                        | ✅ Yes       |                          |
+| `excludedResources`                        | ✅ Yes       |                          |
+| `orderedResources`                         | ✅ Yes       |                          |
+| `includeClusterResources`                  | ✅ Yes       |             ⚠️ special case               |
+| `excludedClusterScopedResources`           | ✅ Yes       |                          |
+| `includedClusterScopedResources`           | ✅ Yes       |        ⚠️ special case                    |
+| `excludedNamespaceScopedResources`         | ✅ Yes       |                          |
+| `includedNamespaceScopedResources`         | ✅ Yes       |                          |
+| `labelSelector`                            | ✅ Yes       |                          |
+| `orLabelSelectors`                         | ✅ Yes       |                          |
+| `snapshotVolumes`                          | ✅ Yes       |                          |
+| `storageLocation`                          | ⚠️ special case |                          |
+| `volumeSnapshotLocations`                  | ⚠️ special case |                          |
+| `ttl`                                      | ✅ Yes       |                          |
+| `defaultVolumesToFsBackup`                 | ✅ Yes       |                          |
+| `snapshotMoveData`                         | ✅ Yes       |                          |
+| `datamover`                                | ✅ Yes       |                          |
+| `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |
+| `hooks`                                    | ⚠️ special case |                          |
 
 
 
+#### Restricted NonAdminRestore NAR
+
+NonAdminRestores spec fields can also be restricted by the cluster administrator.  The following NAR spec fields are currently supported for template enforcement:
+
+| **Field**                     | **Admin Enforceable** | **Restricted**    |
+|-------------------------------|--------------|--------------------|
+| `backupName`                  | ❌ No        |                    |
+| `scheduleName`                | ❌ No        | ✅ Yes         |
+| `itemOperationTimeout`        | ✅ Yes       |                |
+| `uploaderConfig`              | ✅ Yes       |                |
+| `includedNamespaces`          | ❌ No        | ✅ Yes         |
+| `excludedNamespaces`          | ❌ No        | ✅ Yes         |
+| `includedResources`           | ✅ Yes       |                |
+| `excludedResources`           | ✅ Yes       |                |
+| `restoreStatus`               | ✅ Yes       |                |
+| `includeClusterResources`     | ✅ Yes       |                |
+| `labelSelector`               | ✅ Yes       |                |
+| `orLabelSelectors`            | ✅ Yes       |                |
+| `namespaceMapping`            | ❌ No        | ✅ Yes         |
+| `restorePVs`                  | ✅ Yes       |                |
+| `preserveNodePorts`           | ✅ Yes       |                |
+| `existingResourcePolicy`      | ✅ Yes       |                |
+| `resourceModifier`            | ⚠️ special case |                |
+| `hooks`                       | ⚠️ special case |                |
 
 
 
-
+## TODO
+* add a section that describes which backup spec fields can be restricted by the cluster administrator https://github.com/migtools/oadp-non-admin/issues/151
+* Document limited non-admin console use - via 
+  * administrator -> Home -> API Explorer -> Filter on NonAdminBackup or NonAdminRestore -> Instances -> Create NonAdminBackup or NonAdminRestore
+  
