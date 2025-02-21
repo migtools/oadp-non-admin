@@ -134,7 +134,7 @@ spec:
 
 ### Cluster Administrator Enforceable Spec Fields
 
-Cluster administrators may also enforce templated NABSL's, NAB's and NAR's that require fields values to be set and conform to the administrator defined policy.  Admin Enforceable fields are fields that the cluster administrator can enforce non cluster admin users to use. Restricted fields are automatically managed by OADP and cannot be modified by either administrators or users.
+Cluster administrators may also enforce company or compliance policy by utilizing templated NABSL's, NAB's and NAR's that require fields values to be set and conform to the administrator defined policy.  Admin Enforceable fields are fields that the cluster administrator can enforce non cluster admin users to use. Restricted fields are automatically managed by OADP and cannot be modified by either administrators or users.
 
 #### NABSL
 The following NABSL fields are currently supported for template enforcement:
@@ -149,8 +149,24 @@ The following NABSL fields are currently supported for template enforcement:
 | `accessMode`               | ✅ Yes          |                |
 | `validationFrequency`      | ✅ Yes          |                |
 
+For example if the cluster administrator wanted to mandate that all NABSL's used a particular aws s3 bucket.
 
-TODO need example NABSL enforcement
+```
+spec:
+  config:
+    checksumAlgorithm: ""
+    profile: default
+    region: us-west-2
+  credential:
+    key: cloud
+    name: cloud-credentials
+  default: true
+  objectStorage:
+    bucket: my-company-bucket <---
+    prefix: velero
+  provider: aws
+```
+The DPA spec must be set in the following way:  TODO GET NABSL ENFORCEMENT EXAMPLE
 
 #### Restricted NonAdminBackups
 
@@ -184,7 +200,16 @@ In the same sense as the NABSL, cluster administrators can also restrict the Non
 | `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |
 | `hooks`                                    | ⚠️ special case |                          |
 
+An example enforcement set in the DPA spec to enforce the 
+  * ttl to be set to "158h0m0s"
+  * snapshotMoveData to be set to true
 
+```
+  nonAdmin:
+    enable: true
+    enforcedBackupSpec.ttl: "158h0m0s"
+    enforcedBackupSpec.snapshotMoveData: true
+```
 
 #### Restricted NonAdminRestore NAR
 
