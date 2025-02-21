@@ -109,7 +109,7 @@ The phase field is a simple one high-level summary of the lifecycle of the objec
 
 Cluster administrators can gain efficiencies by delegating backup and restore operations to OpenShift users. It is recommended that cluster administrators carefully manage the NABSL to conform to any company policies, compliance requirements, etc.  There are two ways cluster administrators can manage the NABSL's.
 
-1. Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.
+Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.
 
 ```
   nonAdmin:
