@@ -89,6 +89,139 @@ For the most part one can think of a NonAdminBackup and a Velero Backup in very 
 2. A user cannot specify the namespace that will be backed up.  The namespace from which the NAB object is created is the defined namespace to be backed up.
 3. In addition to the creation of the Velero Backup the NonAdminBackup object's main purpose is to track the status of the Velero Backup in a secure and clear way.
 
+### NonAdminBackup NAB Example:
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminBackup
+metadata:
+  name: mybackup-1
+  namespace: nacuser1
+spec:
+  backupSpec:
+    snapshotMoveData: true
+```
+
+Once created the NAB will look similar to the following:
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminBackup
+metadata:
+  creationTimestamp: "2025-02-21T20:57:35Z"
+  finalizers:
+  - nonadminbackup.oadp.openshift.io/finalizer
+  generation: 2
+  name: mybackup-1
+  namespace: nacuser1  <--- The namespace is set by the NAC controller
+  resourceVersion: "20714121"
+  uid: 93effb39-9762-4d04-8e9e-194ebe6b9b31
+spec:
+  backupSpec:
+    snapshotMoveData: true  
+status:
+  conditions:
+  - lastTransitionTime: "2025-02-21T20:57:35Z"
+    message: backup accepted  <--- The NAC controller reconciled the NAB object and created the Velero Backup object
+    reason: BackupAccepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: "2025-02-21T20:57:35Z"
+    message: Created Velero Backup object
+    reason: BackupScheduled
+    status: "True"
+    type: Queued
+  phase: Created  <--- The NAB object is in the Created phase
+  queueInfo:
+    estimatedQueuePosition: 0  <--- The NAB object status in the queue, once complete it is set to 0
+  veleroBackup:
+    nacuuid: nacuser1-mybackup-1-588ce989-387e-4352-b04a-1fd6b7712370  <--- The NAC controller created the Velero Backup object and set the nacuuid
+    name: nacuser1-mybackup-1-588ce989-387e-4352-b04a-1fd6b7712370 <--- The associated Velero Backup name
+    namespace: openshift-adp
+    status:  <--- The status of the Velero backup object displayed by the NAB object
+      backupItemOperationsAttempted: 3
+      backupItemOperationsCompleted: 3
+      completionTimestamp: "2025-02-21T20:59:28Z"
+      expiration: "2025-03-23T20:57:35Z"
+      formatVersion: 1.1.0
+      hookStatus: {}
+      phase: Completed  <--- The Velero backup object is in the Completed phase, successful
+      progress:
+        itemsBackedUp: 57
+        totalItems: 57
+      startTimestamp: "2025-02-21T20:57:35Z"
+      version: 1
+```
+The complete nonAdminBackup resource definition can be found here: [NonAdminBackup CRD](https://github.com/openshift/oadp-operator/blob/master/bundle/manifests/oadp.openshift.io_nonadminbackups.yaml)
+
+### NonAdminRestore NAR Example:
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminRestore
+metadata:
+  name: example
+  namespace: nacuser1
+spec: 
+  restoreSpec:
+    backupName: mybackup-1
+```
+
+Once created the NAR will look similar to the following:
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminRestore
+metadata:
+  creationTimestamp: "2025-02-21T21:12:54Z"
+  finalizers:
+  - nonadminrestore.oadp.openshift.io/finalizer
+  generation: 2
+  name: example
+  namespace: nacuser1
+  resourceVersion: "20719136"
+  uid: 0f1d8346-d8be-4621-8d67-0877f15e82fb
+spec:
+  restoreSpec:
+    backupName: mybackup-1
+    hooks: {}
+    itemOperationTimeout: 0s
+status:
+  conditions:
+  - lastTransitionTime: "2025-02-21T21:12:54Z"
+    message: restore accepted  <--- The NAC controller reconciled the NAR object and created the Velero Restore object
+    reason: RestoreAccepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: "2025-02-21T21:12:54Z"
+    message: Created Velero Restore object  <--- The NAC controller created the Velero Restore object
+    reason: RestoreScheduled
+    status: "True"
+    type: Queued
+  phase: Created  <--- The NAR object is in the Created phase
+  queueInfo:
+    estimatedQueuePosition: 0  <--- The NAR object status in the queue, once complete it is set to 0
+  veleroRestore:
+    nacuuid: nacuser1-example-b844be97-7ee4-4702-91b8-ffc84697675a  <--- The NAC controller created the Velero Restore object and set the nacuuid
+    name: nacuser1-example-b844be97-7ee4-4702-91b8-ffc84697675a  <--- The associated Velero Restore name
+    namespace: openshift-adp
+    status:
+      completionTimestamp: "2025-02-21T21:12:57Z"
+      hookStatus: {}
+      phase: Completed  <--- The Velero restore object is in the Completed phase, successful
+      progress:
+        itemsRestored: 54
+        totalItems: 54
+      startTimestamp: "2025-02-21T21:12:55Z"
+      warnings: 0
+```
+
+
+
+
+
+
+
 
 ### NAB / NAR Status
 
