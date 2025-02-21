@@ -52,9 +52,7 @@ To enable OADP Self-Service the DPA spec must the spec.nonAdmin.enable field to 
     enable: true
 ```
 
-Once the OADP DPA is reconciled the cluster administrator should see the non-admin-controller running in the openshift-adp namespace.
-
-The Openshift users without cluster admin rights can create NAB objects in their namespace to create a backup.
+Once the OADP DPA is reconciled the cluster administrator should see the non-admin-controller running in the openshift-adp namespace.  The Openshift users without cluster admin rights will now be able to create NAB or NAR objects in their namespace to create a backup or restore.
 
 ## OpenShift User Instructions
 
