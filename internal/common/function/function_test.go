@@ -202,7 +202,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:                "ExcludedNamespaces",
-			enforcedValue:       []string{"nonadminbackups.nac.oadp.openshift.io"},
+			enforcedValue:       []string{"sample-ns"},
 			overrideValue:       []string{},
 			expectErrorEnforced: true,
 		},
@@ -590,7 +590,7 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 		},
 		{
 			name:          "ExcludedResources",
-			enforcedValue: []string{"nonadminbackups.nac.oadp.openshift.io"},
+			enforcedValue: []string{"foobar.io"},
 			overrideValue: []string{},
 		},
 		{
