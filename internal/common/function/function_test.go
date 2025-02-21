@@ -64,9 +64,14 @@ const (
 	bucket                        = "bucket"
 	region                        = "region"
 	test                          = "test"
+	readWrite                     = "ReadWrite"
+	readOnly                      = "ReadOnly"
 	expectedIntZero               = 0
 	expectedIntOne                = 1
 	expectedIntTwo                = 2
+	expectedIntFive               = 5
+	expectedIntTen                = 10
+	expectedIntSixHundred         = 600
 )
 
 func TestGetNonAdminLabels(t *testing.T) {
@@ -1406,6 +1411,106 @@ func TestCheckVeleroRestoreMetadata(t *testing.T) {
 	}
 }
 
+func TestGetNabslRequestByLabel(t *testing.T) {
+	log := zap.New(zap.UseDevMode(true))
+	ctx := context.Background()
+	ctx = ctrl.LoggerInto(ctx, log)
+	scheme := runtime.NewScheme()
+
+	if err := nacv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("Failed to register NonAdminBackupStorageLocationRequest type in TestGetNabslRequestByLabel: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		namespace     string
+		labelValue    string
+		expected      *nacv1alpha1.NonAdminBackupStorageLocationRequest
+		expectedError error
+		mockRequests  []nacv1alpha1.NonAdminBackupStorageLocationRequest
+	}{
+		{
+			name:       "Single NABSLRequest found",
+			namespace:  defaultNS,
+			labelValue: testNonAdminBackupUUID,
+			mockRequests: []nacv1alpha1.NonAdminBackupStorageLocationRequest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultNS,
+						Name:      "nabsl-request-1",
+						Labels:    map[string]string{constant.NabslOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+			},
+			expected: &nacv1alpha1.NonAdminBackupStorageLocationRequest{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultNS,
+					Name:      "nabsl-request-1",
+					Labels:    map[string]string{constant.NabslOriginNACUUIDLabel: testNonAdminBackupUUID},
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			name:          "No NABSLRequests found",
+			namespace:     defaultNS,
+			labelValue:    testNonAdminBackupUUID,
+			mockRequests:  []nacv1alpha1.NonAdminBackupStorageLocationRequest{},
+			expected:      nil,
+			expectedError: nil,
+		},
+		{
+			name:       "Multiple NABSLRequests found",
+			namespace:  defaultNS,
+			labelValue: testNonAdminBackupUUID,
+			mockRequests: []nacv1alpha1.NonAdminBackupStorageLocationRequest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultNS,
+						Name:      "nabsl-request-2",
+						Labels:    map[string]string{constant.NabslOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: defaultNS,
+						Name:      "nabsl-request-3",
+						Labels:    map[string]string{constant.NabslOriginNACUUIDLabel: testNonAdminBackupUUID},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: fmt.Errorf("multiple NonAdminBackupStorageLocationRequest objects found with label %s=%s in namespace '%s'", constant.NabslOriginNACUUIDLabel, testNonAdminBackupUUID, defaultNS),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var objects []client.Object
+			for _, request := range tt.mockRequests {
+				requestCopy := request // Create a copy to avoid memory aliasing
+				objects = append(objects, &requestCopy)
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
+
+			result, err := GetNabslRequestByLabel(ctx, client, tt.namespace, tt.labelValue)
+
+			if tt.expectedError != nil {
+				assert.EqualError(t, err, tt.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+				if tt.expected != nil && result != nil {
+					assert.Equal(t, tt.expected.Name, result.Name, "NABSLRequest Name should match")
+					assert.Equal(t, tt.expected.Namespace, result.Namespace, "NABSLRequest Namespace should match")
+					assert.Equal(t, tt.expected.Labels, result.Labels, "NABSLRequest Labels should match")
+				} else {
+					assert.Nil(t, result, "Expected result should be nil")
+				}
+			}
+		})
+	}
+}
+
 func TestGetVeleroDeleteBackupRequestByLabel(t *testing.T) {
 	log := zap.New(zap.UseDevMode(true))
 	ctx := context.Background()
@@ -1775,6 +1880,95 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 			queueInfo, err := GetRestoreQueueInfo(ctx, client, tt.namespace, tt.targetRestore)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
+		})
+	}
+}
+
+func TestHasBSLChangesForApproval(t *testing.T) {
+	tests := []struct {
+		oldSpec  *velerov1.BackupStorageLocationSpec
+		newSpec  *velerov1.BackupStorageLocationSpec
+		name     string
+		expected bool
+	}{
+		{
+			name:     "No changes, should return false",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{Provider: awsProvider, AccessMode: readWrite},
+			newSpec:  &velerov1.BackupStorageLocationSpec{Provider: awsProvider, AccessMode: readWrite},
+			expected: false,
+		},
+		{
+			name:     "Provider changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{Provider: awsProvider},
+			newSpec:  &velerov1.BackupStorageLocationSpec{Provider: gcpProvider},
+			expected: true,
+		},
+		{
+			name:     "AccessMode changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{AccessMode: readOnly},
+			newSpec:  &velerov1.BackupStorageLocationSpec{AccessMode: readWrite},
+			expected: true,
+		},
+		{
+			name:     "BackupSyncPeriod changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{BackupSyncPeriod: &metav1.Duration{Duration: expectedIntTen * time.Minute}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{BackupSyncPeriod: &metav1.Duration{Duration: expectedIntFive * time.Minute}},
+			expected: true,
+		},
+		{
+			name:     "ValidationFrequency changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{ValidationFrequency: &metav1.Duration{Duration: expectedIntFive * time.Minute}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{ValidationFrequency: &metav1.Duration{Duration: expectedIntTen * time.Minute}},
+			expected: true,
+		},
+		{
+			name:     "ValidationFrequency format changed, should return false",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{ValidationFrequency: &metav1.Duration{Duration: expectedIntTen * time.Minute}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{ValidationFrequency: &metav1.Duration{Duration: expectedIntSixHundred * time.Second}},
+			expected: false,
+		},
+		{
+			name:     "Config changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{Config: map[string]string{"key": "value"}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{Config: map[string]string{"key": "newValue"}},
+			expected: true,
+		},
+		{
+			name:     "ObjectStorage changed, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{StorageType: velerov1.StorageType{ObjectStorage: &velerov1.ObjectStorageLocation{Bucket: "old-bucket"}}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{StorageType: velerov1.StorageType{ObjectStorage: &velerov1.ObjectStorageLocation{Bucket: "new-bucket"}}},
+			expected: true,
+		},
+		{
+			name:     "Credentials changed, should return false",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{Credential: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "old-credential"}, Key: "old-key"}},
+			newSpec:  &velerov1.BackupStorageLocationSpec{Credential: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "new-credential"}, Key: "new-key"}},
+			expected: false,
+		},
+		{
+			name:     "Old spec is nil, should return true",
+			oldSpec:  nil,
+			newSpec:  &velerov1.BackupStorageLocationSpec{Provider: "aws"},
+			expected: true,
+		},
+		{
+			name:     "New spec is nil, should return true",
+			oldSpec:  &velerov1.BackupStorageLocationSpec{Provider: "aws"},
+			newSpec:  nil,
+			expected: true,
+		},
+		{
+			name:     "Both specs are nil, should return false",
+			oldSpec:  nil,
+			newSpec:  nil,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasBSLChangesForApproval(tt.oldSpec, tt.newSpec)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

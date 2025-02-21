@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -44,19 +45,21 @@ import (
 )
 
 const (
-	veleroBSLReferenceUpdated  = "NonAdminBackupStorageLocation - Status Updated with UUID reference"
-	statusBslUpdateError       = "Failed to update NonAdminBackupStorageLocation Status"
-	findSingleVBSLSecretError  = "Error encountered while retrieving Velero BSL Secret for NABSL"
-	failedUpdateStatusError    = "Failed to update status"
-	failedUpdateConditionError = "Failed to update status condition"
+	veleroBSLReferenceUpdated   = "NonAdminBackupStorageLocation - Status Updated with UUID reference"
+	statusBslUpdateError        = "Failed to update NonAdminBackupStorageLocation Status"
+	findSingleVBSLSecretError   = "Error encountered while retrieving Velero BSL Secret for NABSL"
+	findSingleNABSLRequestError = "Error encountered while retrieving NonAdminBackupStorageLocationRequest for NABSL"
+	failedUpdateStatusError     = "Failed to update status"
+	failedUpdateConditionError  = "Failed to update status condition"
 )
 
 // NonAdminBackupStorageLocationReconciler reconciles a NonAdminBackupStorageLocation object
 type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
-	Scheme          *runtime.Scheme
-	EnforcedBslSpec *velerov1.BackupStorageLocationSpec
-	OADPNamespace   string
+	Scheme                     *runtime.Scheme
+	EnforcedBslSpec            *velerov1.BackupStorageLocationSpec
+	OADPNamespace              string
+	RequireAdminApprovalForBSL bool
 }
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
@@ -69,11 +72,15 @@ type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, na
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocations/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocations/finalizers,verbs=update
 
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocationrequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackupstoragelocationrequests/status,verbs=get;update;patch
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile start")
+	logger.V(1).Info("RequireAdminApprovalForBSL", "value", r.RequireAdminApprovalForBSL)
 
 	// Get the NonAdminBackupStorageLocation object
 	nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
@@ -96,6 +103,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 		logger.V(1).Info("Executing direct deletion path")
 		reconcileSteps = []naBSLReconcileStepFunction{
 			r.initNaBSLDelete,
+			r.deleteNonAdminRequest,
 			r.deleteVeleroBSLSecret,
 			r.deleteVeleroBSL,
 			r.deleteNonAdminBackups,
@@ -108,7 +116,9 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 			r.initNaBSLCreate,
 			r.validateNaBSLSpec,
 			r.setVeleroBSLUUIDInNaBSLStatus,
+			r.createNonAdminRequest,
 			r.setFinalizerOnNaBSL,
+			r.ensureNonAdminRequest,
 			r.syncSecrets,
 			r.createVeleroBSL,
 			r.syncStatus,
@@ -148,6 +158,7 @@ func (r *NonAdminBackupStorageLocationReconciler) SetupWithManager(mgr ctrl.Mana
 				},
 			}).
 		Watches(&velerov1.BackupStorageLocation{}, &handler.VeleroBackupStorageLocationHandler{}).
+		Watches(&nacv1alpha1.NonAdminBackupStorageLocationRequest{}, &handler.NonAdminBackupStorageLocationRequestHandler{}).
 		Complete(r)
 }
 
@@ -198,6 +209,31 @@ func (r *NonAdminBackupStorageLocationReconciler) deleteNonAdminBackups(ctx cont
 	}
 
 	logger.V(1).Info("Completed deletion of NonAdminBackups for NonAdminBackupStorageLocation", "nabsl", nabsl.Name)
+	return false, nil
+}
+
+// deleteNonAdminRequest deletes the NonAdminBackupStorageLocationRequest object associated with the NonAdminBackupStorageLocation object
+func (r *NonAdminBackupStorageLocationReconciler) deleteNonAdminRequest(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+	veleroObjectsNACUUID := nabsl.Status.VeleroBackupStorageLocation.NACUUID
+
+	nabslRequest, err := function.GetNabslRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroObjectsNACUUID)
+	if err != nil {
+		logger.Error(err, findSingleNABSLRequestError)
+		return false, err
+	}
+
+	if nabslRequest == nil {
+		logger.V(1).Info("NonAdminBackupStorageLocationRequest not found")
+		return false, nil
+	}
+
+	if err := r.Delete(ctx, nabslRequest); err != nil {
+		logger.Error(err, "Failed to delete NonAdminBackupStorageLocationRequest")
+		return false, err
+	}
+
+	logger.V(1).Info("NonAdminBackupStorageLocationRequest deleted")
+
 	return false, nil
 }
 
@@ -375,6 +411,180 @@ func (r *NonAdminBackupStorageLocationReconciler) setFinalizerOnNaBSL(ctx contex
 		logger.V(1).Info("Finalizer exists on the NonAdminBackupStorageLocation object", "finalizer", constant.NabslFinalizerName)
 	}
 	return false, nil
+}
+
+// ensureNonAdminRequest updates the NonAdminBackupStorageLocation object based on the
+// cluster admin's approval decision on the NonAdminBackupStorageLocationRequest object
+// and ensures Velero BackupStorageLocation and secret are deleted if the approval decision
+// is rejected
+func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
+	ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+	veleroObjectsNACUUID := nabsl.Status.VeleroBackupStorageLocation.NACUUID
+
+	nabslRequest, err := function.GetNabslRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroObjectsNACUUID)
+	if err != nil {
+		logger.Error(err, findSingleNABSLRequestError)
+		return false, err
+	}
+
+	var terminalErr error
+	var reason, message string
+
+	statusCondition := metav1.ConditionFalse
+	shouldRequeue := false
+	expectedPhase := nacv1alpha1.NonAdminPhaseNew
+	updatedRejectedCondition := false
+	updatedApprovedCondition := false
+
+	if !reflect.DeepEqual(nabslRequest.Status.VeleroBackupStorageLocationRequest.DeepCopy().RequestedSpec, nabsl.Spec.BackupStorageLocationSpec) {
+		message = "NaBSL Spec update not allowed. Changes will not be applied. Delete NaBSL and create new one with updated spec"
+		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
+			Type:    string(nacv1alpha1.NonAdminBSLConditionSpecUpdateApproved),
+			Status:  metav1.ConditionFalse,
+			Reason:  "BslSpecUpdateRejected",
+			Message: message,
+		})
+		statusCondition = metav1.ConditionTrue
+		expectedPhase = nabsl.Status.Phase
+		terminalErr = reconcile.TerminalError(errors.New(message))
+	} else if nabslRequest.Status.VeleroBackupStorageLocationRequest.NACUUID == constant.EmptyString || nabslRequest.Status.VeleroBackupStorageLocationRequest.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
+		message = "NonAdminBackupStorageLocationRequest does not contain valid NAC UUID and can not be approved"
+		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
+			Type:    string(nacv1alpha1.NonAdminBSLConditionApproved),
+			Status:  metav1.ConditionFalse,
+			Reason:  "BslSpecUpdateRejected",
+			Message: message,
+		})
+		terminalErr = reconcile.TerminalError(errors.New(message))
+		expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
+	} else {
+		switch {
+		case nabslRequest == nil:
+			shouldRequeue = true
+			reason, message = "BslSpecApprovalPending", "NonAdminBackupStorageLocationRequest not found, creating one"
+		case nabslRequest.Spec.ApprovalDecision == "pending" || nabslRequest.Spec.ApprovalDecision == constant.EmptyString:
+			reason, message = "BslSpecApprovalPending", "NonAdminBackupStorageLocationRequest approval pending"
+			terminalErr = reconcile.TerminalError(errors.New(message))
+		case nabslRequest.Spec.ApprovalDecision == "approve":
+			statusCondition = metav1.ConditionTrue
+			reason, message = "BslSpecApproved", "NonAdminBackupStorageLocationRequest approval decision set to Approve"
+		case nabslRequest.Spec.ApprovalDecision == "reject":
+			reason, message = "BslSpecRejected", "NonAdminBackupStorageLocationRequest approval decision set to Reject"
+			expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
+			terminalErr = reconcile.TerminalError(errors.New(message))
+		default:
+			reason, message = "BslSpecInvalid", "NonAdminBackupStorageLocationRequest approval decision is invalid"
+			expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
+			terminalErr = reconcile.TerminalError(errors.New(message))
+		}
+		updatedApprovedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
+			Type:    string(nacv1alpha1.NonAdminBSLConditionApproved),
+			Status:  statusCondition,
+			Reason:  reason,
+			Message: message,
+		})
+	}
+
+	updatePhase := updateNonAdminPhase(&nabsl.Status.Phase, expectedPhase)
+
+	if statusCondition == metav1.ConditionFalse {
+		var deleteErr error
+		updatedApprovedCondition = true
+		_, deleteErr = r.deleteVeleroBSLSecret(ctx, logger, nabsl)
+		meta.RemoveStatusCondition(&nabsl.Status.Conditions, string(nacv1alpha1.NonAdminBSLConditionSecretSynced))
+		if deleteErr != nil {
+			logger.Error(deleteErr, "Failed to delete VeleroBackupStorageLocation secret")
+			return false, deleteErr
+		}
+		_, deleteErr = r.deleteVeleroBSL(ctx, logger, nabsl)
+		meta.RemoveStatusCondition(&nabsl.Status.Conditions, string(nacv1alpha1.NonAdminBSLConditionBSLSynced))
+		if deleteErr != nil {
+			logger.Error(deleteErr, "Failed to delete VeleroBackupStorageLocation")
+			return false, deleteErr
+		}
+	}
+
+	if updatePhase || updatedApprovedCondition || updatedRejectedCondition {
+		if updateErr := r.Status().Update(ctx, nabsl); updateErr != nil {
+			logger.Error(updateErr, failedUpdateStatusError)
+			return false, updateErr
+		}
+		logger.V(1).Info("NonAdminBackupStorageLocation condition updated", "Reason", reason)
+	}
+
+	return shouldRequeue, terminalErr
+}
+
+// createNonAdminRequest should create NonAdminBackupStorageLocationRequest object
+// that contains NACUUID as well spec from the NonAdminBackupStorageLocation object
+func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
+	veleroObjectsNACUUID := nabsl.Status.VeleroBackupStorageLocation.NACUUID
+
+	nabslRequest, err := function.GetNabslRequestByLabel(ctx, r.Client, r.OADPNamespace, veleroObjectsNACUUID)
+	if err != nil {
+		logger.Error(err, findSingleNABSLRequestError)
+		return false, err
+	}
+
+	if nabslRequest != nil {
+		// We allow only to update the phase of the NonAdminBackupStorageLocationRequest
+		// and not the spec
+		logger.V(1).Info("NonAdminBackupStorageLocationRequest already exists")
+		if updatePhaseIfNeeded(&nabslRequest.Status.Phase, nabslRequest.Spec.ApprovalDecision) {
+			if updateErr := r.Status().Update(ctx, nabslRequest); updateErr != nil {
+				logger.Error(updateErr, failedUpdateStatusError)
+				return false, updateErr
+			}
+		}
+
+		if !r.RequireAdminApprovalForBSL && nabslRequest.Spec.ApprovalDecision != nacv1alpha1.NonAdminBSLRequestApproved {
+			logger.V(1).Info("NonAdminBackupStorageLocationRequest already exists and is not approved, updating to approved")
+			patch := client.MergeFrom(nabslRequest.DeepCopy())
+			nabslRequest.Spec.ApprovalDecision = nacv1alpha1.NonAdminBSLRequestApproved
+			if errPatch := r.Patch(ctx, nabslRequest, patch); errPatch != nil {
+				logger.Error(errPatch, "Failed to patch NonAdminBackupStorageLocationRequest")
+				return false, errPatch
+			}
+		}
+		return false, nil
+	}
+
+	approvalDecision := nacv1alpha1.NonAdminBSLRequestPending
+	if !r.RequireAdminApprovalForBSL {
+		approvalDecision = nacv1alpha1.NonAdminBSLRequestApproved
+	}
+
+	labels := function.GetNonAdminLabels()
+	labels[constant.NabslOriginNACUUIDLabel] = veleroObjectsNACUUID
+
+	nonAdminBslRequest := nacv1alpha1.NonAdminBackupStorageLocationRequest{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        veleroObjectsNACUUID,
+			Namespace:   r.OADPNamespace,
+			Labels:      labels,
+			Annotations: function.GetNonAdminBackupStorageLocationAnnotations(nabsl.ObjectMeta),
+		},
+		Spec: nacv1alpha1.NonAdminBackupStorageLocationRequestSpec{
+			ApprovalDecision: approvalDecision,
+		},
+	}
+
+	err = r.Create(ctx, &nonAdminBslRequest)
+	if err != nil {
+		logger.Error(err, "Failed to create NonAdminBackupStorageLocationRequest")
+		return false, err
+	}
+
+	if updated := updateNonAdminRequestStatus(&nonAdminBslRequest.Status, nabsl, approvalDecision); updated {
+		if updateErr := r.Status().Update(ctx, &nonAdminBslRequest); updateErr != nil {
+			logger.Error(updateErr, failedUpdateStatusError)
+			return false, updateErr
+		}
+	}
+
+	logger.V(1).Info("NonAdminBackupStorageLocationRequest created successfully")
+
+	return true, nil
 }
 
 // syncSecrets creates the VeleroBackupStorageLocation secret in the OADP namespace
@@ -684,4 +894,44 @@ func updateNaBSLVeleroBackupStorageLocationStatus(status *nacv1alpha1.NonAdminBa
 	// Update and return true if they differ
 	status.VeleroBackupStorageLocation.Status = veleroBackupStorageLocation.Status.DeepCopy()
 	return true
+}
+
+// updateNonAdminRequestStatus updates the NonAdminBackupStorageLocationRequest status field
+// in NonAdminBackupStorageLocationRequest object status and returns true if the fields are changed.
+func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocationRequestStatus, nabsl *nacv1alpha1.NonAdminBackupStorageLocation, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
+	updatedStatus := nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
+		VeleroBackupStorageLocationRequest: &nacv1alpha1.VeleroBackupStorageLocationRequest{
+			NACUUID:       nabsl.Status.VeleroBackupStorageLocation.NACUUID,
+			Name:          nabsl.Name,
+			Namespace:     nabsl.Namespace,
+			RequestedSpec: nabsl.Spec.BackupStorageLocationSpec.DeepCopy(),
+		},
+	}
+
+	// Update the phase and check if an update is needed
+	if updatePhaseIfNeeded(&updatedStatus.Phase, nabslApprovalDecision) {
+		if !reflect.DeepEqual(*status, updatedStatus) {
+			*status = updatedStatus
+			return true
+		}
+	}
+
+	return false
+}
+
+// updatePhaseIfNeeded sets the phase based on the approval decision and returns true if the phase changes.
+func updatePhaseIfNeeded(currentPhase *nacv1alpha1.NonAdminBSLRequestPhase, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
+	newPhase := nacv1alpha1.NonAdminBSLRequestPhasePending
+
+	if nabslApprovalDecision == nacv1alpha1.NonAdminBSLRequestApproved {
+		newPhase = nacv1alpha1.NonAdminBSLRequestPhaseApproved
+	} else if nabslApprovalDecision == nacv1alpha1.NonAdminBSLRequestRejected {
+		newPhase = nacv1alpha1.NonAdminBSLRequestPhaseRejected
+	}
+
+	if *currentPhase != newPhase {
+		*currentPhase = newPhase
+		return true
+	}
+	return false
 }

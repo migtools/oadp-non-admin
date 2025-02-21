@@ -41,9 +41,10 @@ import (
 // GarbageCollectorReconciler reconciles Velero objects
 type GarbageCollectorReconciler struct {
 	client.Client
-	Scheme        *runtime.Scheme
-	OADPNamespace string
-	Frequency     time.Duration
+	Scheme                     *runtime.Scheme
+	OADPNamespace              string
+	Frequency                  time.Duration
+	RequireAdminApprovalForBSL bool
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -208,6 +209,57 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 					return err
 				}
 				logger.V(1).Info("orphan Restore deleted", constant.NameString, restore.Name)
+			}
+		}
+		return nil
+	})
+
+	execution.Go(func() error {
+		nonAdminBackupStorageLocationRequestList := &nacv1alpha1.NonAdminBackupStorageLocationRequestList{}
+		if err := r.List(ctx, nonAdminBackupStorageLocationRequestList, client.InNamespace(r.OADPNamespace), labelSelector); err != nil {
+			logger.Error(err, "Unable to fetch NonAdminBackupStorageLocationRequests in OADP namespace")
+			return err
+		}
+
+		for _, nabslRequest := range nonAdminBackupStorageLocationRequestList.Items {
+			shouldDelete := false
+
+			if !r.RequireAdminApprovalForBSL {
+				// If RequireAdminApprovalForBSL is false, delete all NaBSLRequests unconditionally
+				shouldDelete = true
+			} else if nabslRequest.Status.VeleroBackupStorageLocationRequest == nil ||
+				nabslRequest.Status.VeleroBackupStorageLocationRequest.Name == "" ||
+				nabslRequest.Status.VeleroBackupStorageLocationRequest.Namespace == "" {
+				// No NaBSLName or NaBSLNamespace in the NaBSLRequest (orphan case)
+				shouldDelete = true
+			} else {
+				nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
+				err := r.Get(ctx, types.NamespacedName{
+					Name:      nabslRequest.Status.VeleroBackupStorageLocationRequest.Name,
+					Namespace: nabslRequest.Status.VeleroBackupStorageLocationRequest.Namespace,
+				}, nabsl)
+
+				// NaBSL exists (not orphan case)
+				if err == nil {
+					continue
+				}
+
+				// If an error other than NotFound occurs, log it and return
+				if !apierrors.IsNotFound(err) {
+					logger.Error(err, "Unable to fetch NonAdminBackupStorageLocation")
+					return err
+				}
+
+				// NaBSL does NOT exist (orphan case)
+				shouldDelete = true
+			}
+
+			if shouldDelete {
+				if err := r.Delete(ctx, &nabslRequest); err != nil {
+					logger.Error(err, "Failed to delete orphan NonAdminBackupStorageLocationRequest", constant.NameString, nabslRequest.Name)
+					return err
+				}
+				logger.V(1).Info("orphan NonAdminBackupStorageLocationRequest deleted", constant.NameString, nabslRequest.Name)
 			}
 		}
 		return nil
