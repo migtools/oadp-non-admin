@@ -215,10 +215,7 @@ status:
       startTimestamp: "2025-02-21T21:12:55Z"
       warnings: 0
 ```
-
-
-
-
+The complete nonAdminRestore resource definition can be found here: [NonAdminRestore CRD](https://github.com/openshift/oadp-operator/blob/master/bundle/manifests/oadp.openshift.io_nonadminrestores.yaml)
 
 
 
