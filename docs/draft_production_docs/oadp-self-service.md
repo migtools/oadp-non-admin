@@ -408,8 +408,18 @@ NonAdminRestores spec fields can also be restricted by the cluster administrator
 
 
 
-## TODO
-* add a section that describes which backup spec fields can be restricted by the cluster administrator https://github.com/migtools/oadp-non-admin/issues/151
-* Document limited non-admin console use - via 
-  * administrator -> Home -> API Explorer -> Filter on NonAdminBackup or NonAdminRestore -> Instances -> Create NonAdminBackup or NonAdminRestore
-  
+## OpenShift Console and OADP Self-Service
+
+At the time of writing OADP self-service objects can only be created in the OpenShift Console via the API Explorer.
+
+Navigate to: Administrator -> Home -> API Explorer -> Filter on `NonAdmin`. Choose the object you wish to create.
+
+   * NonAdminBackup
+   * NonAdminRestore
+   * NonAdminBackupStorageLocation
+
+Click on instances and the create button.
+
+ 
+
+
