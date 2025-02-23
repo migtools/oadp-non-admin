@@ -1,4 +1,4 @@
-# OADP Self Service Documentation
+# OADP Self Service Overview
 
 ## Overview
 
@@ -9,7 +9,8 @@ OADP Self Service enables non-administrator users to perform backup and restore 
 - Allows namespace-scoped backup and restore operations
 - Provides secure access to backup logs and status information
 - Enables users to create dedicated backup storage locations
-- Maintains cluster administrator control over non-administrator operations through templates and policies
+- Maintains cluster administrator control over non-administrator operations through 
+templates and policies
 
 ### Components
 
@@ -20,18 +21,10 @@ The self-service functionality is implemented through several custom resources:
 - NonAdminBackupStorageLocation (NABSL) - Defines user-specific backup storage locations
 - NonAdminController (NAC) - Controls and orchestrates the self-service operations
 
-## OADP Self Service
+## OADP Self Service Details
 
-Previously, the OADP (OpenShift API for Data Protection) Operator required cluster administrator privileges to perform any backup and restore operations. With OADP self-service, regular users can now safely perform backup and restore operations within namespaces where they have appropriate permissions.
-OADP self-service enables regular OpenShift users to perform backup and restore operations within their authorized namespaces. This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. Users can:
-
-- Create and manage backups of their authorized namespaces
-- Restore data to their authorized namespaces 
-- Monitor backup and restore status
-- Access relevant logs and descriptions
-- Configure their own backup storage locations
-
-The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
+OADP self-service introduces a significant change to backup and restore operations in OpenShift. Previously, only cluster administrators could perform these operations. 
+Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
  
 ## Glossary of terms
 * NAB - Non Admin Backup
