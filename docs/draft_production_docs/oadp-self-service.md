@@ -49,6 +49,59 @@ Prior to OpenShift users taking advantage of OADP self-service feature the OpenS
   * namespace
   * namespace privileges, e.g. namespace admin.
 
+### OpenShift self-service required permissions:
+
+Ensure users have appropriate permissions in its namespace.  Users must have editor roles for the following objects in their namespace.
+  * nonadminbackups.oadp.openshift.io                                
+  * nonadminbackupstoragelocations.oadp.openshift.io                
+  * nonadminrestores.oadp.openshift.io                              
+
+  For example
+  ```yaml
+    # config/rbac/nonadminbackup_editor_role.yaml
+    - apiGroups:
+        - oadp.openshift.io
+      resources:
+        - nonadminbackups
+        - nonadminrestores
+        - nonadminbackupstoragelocations
+      verbs:
+        - create
+        - delete
+        - get
+        - list
+        - patch
+        - update
+        - watch
+    - apiGroups:
+        - oadp.openshift.io
+      resources:
+        - nonadminbackups/status
+      verbs:
+        - get
+    # config/rbac/nonadminrestore_editor_role.yaml
+    - apiGroups:
+      - oadp.openshift.io
+      resources:
+      - nonadminrestores
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - oadp.openshift.io
+      resources:
+      - nonadminrestores/status
+      verbs:
+      - get
+  ```
+
+  **note** users will not be able to edit the NABSL's. Users will only be able to create NABSL's.  
+
 Non Cluster Administrators can utilize OADP self-service by creating NonAdminBackup (NAB) and NonAdminRestore (NAR) objects in the namespace to be backed up or restored.  A NonAdminBackup is an OpenShift custom resource that securely facilitates the creation, status and lifecycle of a Velero Backup custom resource.  
 
 ```mermaid
