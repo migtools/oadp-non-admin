@@ -102,6 +102,8 @@ Ensure users have appropriate permissions in its namespace.  Users must have edi
 
   **note** users will not be able to edit the NABSL's. Users will only be able to create NABSL's.  
 
+## Self-Service workflow
+
 Non Cluster Administrators can utilize OADP self-service by creating NonAdminBackup (NAB) and NonAdminRestore (NAR) objects in the namespace to be backed up or restored.  A NonAdminBackup is an OpenShift custom resource that securely facilitates the creation, status and lifecycle of a Velero Backup custom resource.  
 
 ```mermaid
