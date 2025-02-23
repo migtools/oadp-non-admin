@@ -12,6 +12,19 @@ OADP Self Service enables non-administrator users to perform backup and restore 
 - Maintains cluster administrator control over non-administrator operations through 
 templates and policies
 
+
+## OADP Self Service Details
+
+OADP self-service introduces a significant change to backup and restore operations in OpenShift. Previously, only cluster administrators could perform these operations. 
+Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
+ 
+### Glossary of terms
+* NAB - Non Admin Backup
+* NAR - Non Admin Restore
+* NAC - Non Admin Controller
+* NABSL - Non Admin Backup Storage Location
+* NADR - Non Admin Download Request
+
 ### Components
 
 The self-service functionality is implemented through several custom resources:
@@ -21,20 +34,8 @@ The self-service functionality is implemented through several custom resources:
 - NonAdminBackupStorageLocation (NABSL) - Defines user-specific backup storage locations
 - NonAdminController (NAC) - Controls and orchestrates the self-service operations
 
-## OADP Self Service Details
 
-OADP self-service introduces a significant change to backup and restore operations in OpenShift. Previously, only cluster administrators could perform these operations. 
-Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
- 
-## Glossary of terms
-* NAB - Non Admin Backup
-* NAR - Non Admin Restore
-* NAC - Non Admin Controller
-* NABSL - Non Admin Backup Storage Location
-* NADR - Non Admin Download Request
-
-
-## Cluster Administrator Setup
+### Cluster Administrator Setup
 
 Install and configure the OADP operator according to the documentation and your requirements.
 
