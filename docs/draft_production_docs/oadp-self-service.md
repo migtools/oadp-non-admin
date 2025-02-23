@@ -6,8 +6,8 @@ OADP Self Service enables non-administrator users to perform backup and restore 
 
 ### Key Benefits
 
-- Allows namespace-scoped backup and restore operations
-- Provides secure access to backup logs and status information
+- Allows users to perform namespace-scoped backup and restore operations
+- Provides users with secure access to backup logs and status information
 - Enables users to create dedicated backup storage locations
 - Maintains cluster administrator control over non-administrator operations through 
 templates and policies
@@ -19,21 +19,12 @@ OADP self-service introduces a significant change to backup and restore operatio
 Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
  
 ### Glossary of terms
-* NAB - Non Admin Backup
-* NAR - Non Admin Restore
-* NAC - Non Admin Controller
-* NABSL - Non Admin Backup Storage Location
-* NADR - Non Admin Download Request
 
-### Components
-
-The self-service functionality is implemented through several custom resources:
-
-- NonAdminBackup (NAB) - Manages namespace-scoped backup operations
-- NonAdminRestore (NAR) - Handles namespace-scoped restore operations  
-- NonAdminBackupStorageLocation (NABSL) - Defines user-specific backup storage locations
-- NonAdminController (NAC) - Controls and orchestrates the self-service operations
-
+* **NAB**   - NonAdminBackup. A custom resource that users directly create to request a velero backup of the namespace from which the NAB object is created.  
+* **NAR**   - NonAdminRestore. A custom resource that users directly create to request a velero restore of the namespace from which the NAR object is created.  
+* **NAC**   - NonAdminController. A controller that validates the NAB and NAR objects and creates the velero backup and restore objects. The NAC is essentially a proxy between non admin users and velero.
+* **NABSL** - NonAdminBackupStorageLocation. A custom resource that users directly create to request a velero backup storage location.  Users can use object storage that is specifically created for their project, deliniated from other users and projects.
+* **NADR**  - NonAdminDownloadRequest. A custom resource that users directly create to request a velero backup download.  Users will be provided with a secured URL to download details regarding the backup or restore.
 
 ### Cluster Administrator Setup
 
