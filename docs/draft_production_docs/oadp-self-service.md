@@ -420,6 +420,22 @@ Navigate to: Administrator -> Home -> API Explorer -> Filter on `NonAdmin`. Choo
 
 Click on instances and the create button.
 
+
+## Unsupported features of OADP regarding self-service
+ * non-admin VSL's are not supported.  The VSL created by the cluster-admin in DPA would be the only VSL non-admin users can employ.
+ * Resource policy and volume policy is not supported for non-admin user backup and restore operations.
+ * Backup and restore logs via NonAdminDownloadRequest is not supported for default BSL's.  If the cluster administrator would like users to have access to logs, NonAdminBackupStorageLocation's must be created for the non-admin users.
+ 
+
+## Security Considerations for Cluster Administrators
+
+  * By enabling self-service, cluster administrators will expose the name of the namespace where OADP is running.  non-admin users are NOT granted any access to the OADP operator namespace.
+
+
+
+
+
+
  
 
 
