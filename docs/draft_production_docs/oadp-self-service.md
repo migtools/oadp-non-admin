@@ -430,7 +430,7 @@ Click on instances and the create button.
 ## Security Considerations for Cluster Administrators
 
   * By enabling self-service, cluster administrators will expose the name of the namespace where OADP is running.  non-admin users are NOT granted any access to the OADP operator namespace.
-
+  * The nonadmin controller will not allow users to set includeClusterResources in a backup or restore.  This is to prevent a scenario where a non-admin user would attempt to restore a cluster scoped resource to a namespace. OADP's backup policy is to automatically include cluster scoped resources like PV's that are associated with the namespace being backed up. Additionally cluster administrators can template an enforcement to `excludedClusterScopedResources` to prevent cluster scoped resources from being backed up.
 
 
 
