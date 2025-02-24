@@ -37,7 +37,7 @@ func (NonAdminBackupStorageLocationRequestPredicate) Create(ctx context.Context,
 	return false
 }
 
-// Update event filter only accepts NonAdminBackupStorageLocation update events that include spec change
+// Update event filter only accepts NonAdminBackupStorageLocationRequest update events that include spec change
 func (NonAdminBackupStorageLocationRequestPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupStorageLocationRequestPredicateKey)
 
@@ -51,7 +51,7 @@ func (NonAdminBackupStorageLocationRequestPredicate) Update(ctx context.Context,
 	return false
 }
 
-// Delete event filter accepts all NonAdminBackupStorageLocation delete events
+// Delete event filter accepts all NonAdminBackupStorageLocationRequest delete events
 func (NonAdminBackupStorageLocationRequestPredicate) Delete(ctx context.Context, evt event.DeleteEvent) bool {
 	logger := function.GetLogger(ctx, evt.Object, nonAdminBackupStorageLocationRequestPredicateKey)
 	logger.V(1).Info("Accepted Delete event")

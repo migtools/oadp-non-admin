@@ -37,7 +37,7 @@ func (NonAdminBackupStorageLocationRequestHandler) Create(_ context.Context, _ e
 	// Create event handler for the NonAdminBackupStorageLocationRequest object
 }
 
-// Update event handler adds Velero Backup's NonAdminBackup to controller queue
+// Update event handler adds NonAdminBackupStorageLocationRequest's NonAdminBackupStorageLocation to controller queue
 func (NonAdminBackupStorageLocationRequestHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "NonAdminBackupStorageLocationRequestHandler")
 
