@@ -50,7 +50,7 @@ type NonAdminBackupStorageLocationRequestSpec struct {
 	ApprovalDecision NonAdminBSLRequest `json:"approvalDecision,omitempty"`
 }
 
-// VeleroBackupStorageLocationRequest contains information of the related Velero backup object.
+// VeleroBackupStorageLocationRequest contains information of the related Velero BackupStorageLocation object.
 type VeleroBackupStorageLocationRequest struct {
 	// requestedSpec contains the requested spec request for the NonAdminBackupStorageLocation
 	// +optionl
