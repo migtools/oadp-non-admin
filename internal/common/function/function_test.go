@@ -311,9 +311,10 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			overrideValue: "lemon",
 		},
 		{
-			name:          "VolumeSnapshotLocations",
-			enforcedValue: []string{awsProvider},
-			overrideValue: []string{gcpProvider},
+			name:                "VolumeSnapshotLocations",
+			enforcedValue:       []string{awsProvider},
+			overrideValue:       []string{gcpProvider},
+			expectErrorEnforced: true,
 		},
 		{
 			name:          "DefaultVolumesToRestic",
@@ -439,24 +440,25 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			if err == nil {
 				t.Errorf("setting backup spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
 			}
-			t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
-				backupSpecFields := []string{}
-				for _, test := range tests {
-					backupSpecFields = append(backupSpecFields, test.name)
-				}
-				backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
-
-				for index := range backupSpec.NumField() {
-					if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
-						t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
-					}
-				}
-				if backupSpec.NumField() != len(tests) {
-					t.Errorf("list of tests have different number of elements")
-				}
-			})
 		})
 	}
+
+	t.Run("Ensure all backup spec fields were tested", func(t *testing.T) {
+		backupSpecFields := []string{}
+		for _, test := range tests {
+			backupSpecFields = append(backupSpecFields, test.name)
+		}
+		backupSpec := reflect.ValueOf(&velerov1.BackupSpec{}).Elem()
+
+		for index := range backupSpec.NumField() {
+			if !slices.Contains(backupSpecFields, backupSpec.Type().Field(index).Name) {
+				t.Errorf("backup spec field '%v' is not tested", backupSpec.Type().Field(index).Name)
+			}
+		}
+		if backupSpec.NumField() != len(tests) {
+			t.Errorf("list of tests have different number of elements")
+		}
+	})
 }
 
 func TestValidateRestoreSpec(t *testing.T) {
