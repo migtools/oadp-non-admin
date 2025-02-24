@@ -135,6 +135,10 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 		}
 	}
 
+	if nonAdminBackup.Spec.BackupSpec.VolumeSnapshotLocations != nil {
+		return fmt.Errorf(constant.NABRestrictedErr, "spec.backupSpec.volumeSnapshotLocations")
+	}
+
 	enforcedSpec := reflect.ValueOf(enforcedBackupSpec).Elem()
 	for index := range enforcedSpec.NumField() {
 		enforcedField := enforcedSpec.Field(index)
