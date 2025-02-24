@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
@@ -139,7 +140,7 @@ func main() {
 
 	restConfig := ctrl.GetConfigOrDie()
 
-	dpaConfiguration, err := getDPAConfiguration(restConfig, oadpNamespace)
+	dpaConfiguration, defaultSyncPeriod, err := getDPAConfiguration(restConfig, oadpNamespace)
 	if err != nil {
 		setupLog.Error(err, "unable to get enforced spec")
 		os.Exit(1)
@@ -197,6 +198,8 @@ func main() {
 		Scheme:                mgr.GetScheme(),
 		OADPNamespace:         oadpNamespace,
 		RequireApprovalForBSL: *dpaConfiguration.RequireApprovalForBSL,
+		SyncPeriod:            dpaConfiguration.BackupSyncPeriod.Duration,
+		DefaultSyncPeriod:     defaultSyncPeriod,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
@@ -242,7 +245,7 @@ func main() {
 	}
 }
 
-func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, error) {
+func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha1.NonAdmin, *time.Duration, error) {
 	dpaConfiguration := v1alpha1.NonAdmin{
 		GarbageCollectionPeriod: &metav1.Duration{
 			Duration: v1alpha1.DefaultGarbageCollectionPeriod,
@@ -254,6 +257,7 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 		EnforceRestoreSpec:    &velerov1.RestoreSpec{},
 		RequireApprovalForBSL: ptr.To(false),
 	}
+	var defaultSyncPeriod *time.Duration
 
 	dpaClientScheme := runtime.NewScheme()
 	utilruntime.Must(v1alpha1.AddToScheme(dpaClientScheme))
@@ -261,13 +265,13 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 		Scheme: dpaClientScheme,
 	})
 	if err != nil {
-		return dpaConfiguration, err
+		return dpaConfiguration, defaultSyncPeriod, err
 	}
 	// TODO we could pass DPA name as env var and do a get call directly. Better?
 	dpaList := &v1alpha1.DataProtectionApplicationList{}
 	err = dpaClient.List(context.Background(), dpaList, &client.ListOptions{Namespace: oadpNamespace})
 	if err != nil {
-		return dpaConfiguration, err
+		return dpaConfiguration, defaultSyncPeriod, err
 	}
 	for _, dpa := range dpaList.Items {
 		if nonAdmin := dpa.Spec.NonAdmin; nonAdmin != nil {
@@ -286,11 +290,14 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 			if nonAdmin.RequireApprovalForBSL != nil {
 				dpaConfiguration.RequireApprovalForBSL = nonAdmin.RequireApprovalForBSL
 			}
+			if dpa.Spec.Configuration.Velero.Args != nil && dpa.Spec.Configuration.Velero.Args.BackupSyncPeriod != nil {
+				defaultSyncPeriod = dpa.Spec.Configuration.Velero.Args.BackupSyncPeriod
+			}
 			break
 		}
 	}
 
-	return dpaConfiguration, nil
+	return dpaConfiguration, defaultSyncPeriod, nil
 }
 
 func translateLogrusToZapLevel(level logrus.Level) (logLevel zapcore.Level, logLevelEnvInvalid bool) {

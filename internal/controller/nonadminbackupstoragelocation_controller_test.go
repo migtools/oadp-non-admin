@@ -224,6 +224,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 				Scheme:          k8sManager.GetScheme(),
 				OADPNamespace:   oadpNamespace,
 				EnforcedBslSpec: enforcedBslSpec,
+				SyncPeriod:      2 * time.Minute,
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 

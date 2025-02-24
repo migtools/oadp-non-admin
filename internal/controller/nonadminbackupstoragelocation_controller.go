@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/go-logr/logr"
 	oadpcommon "github.com/openshift/oadp-operator/pkg/common"
@@ -58,8 +59,10 @@ type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
 	EnforcedBslSpec       *velerov1.BackupStorageLocationSpec
+	DefaultSyncPeriod     *time.Duration
 	OADPNamespace         string
 	RequireApprovalForBSL bool
+	SyncPeriod            time.Duration
 }
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
@@ -329,7 +332,7 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 
 // validateNaBSLSpec validates the NonAdminBackupStorageLocation spec
 func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
-	err := function.ValidateBslSpec(ctx, r.Client, nabsl)
+	err := function.ValidateBslSpec(ctx, r.Client, nabsl, r.SyncPeriod, r.DefaultSyncPeriod)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nabsl.Status.Conditions,
