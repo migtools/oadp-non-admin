@@ -119,8 +119,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
-github.com/mpryc/oadp-operator v0.0.0-20250221133840-ea9258b228ac h1:Y2RvXCxj05Lcg1p6QoAi7CviyDM5O9XaF3JJFIRpY0M=
-github.com/mpryc/oadp-operator v0.0.0-20250221133840-ea9258b228ac/go.mod h1:gNUsBZgNcoS90Z68mNSUgx7pwtOc3THddWJx6uGV14A=
+github.com/mpryc/oadp-operator v0.0.0-20250224220004-d1db31beed2a h1:FchBLG7+X2sLlNuwqo3RWIVcDfb7TjcMro+u2aR8ekE=
+github.com/mpryc/oadp-operator v0.0.0-20250224220004-d1db31beed2a/go.mod h1:gNUsBZgNcoS90Z68mNSUgx7pwtOc3THddWJx6uGV14A=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/onsi/ginkgo/v2 v2.19.0 h1:9Cnnf7UHo57Hy3k6/m5k3dRfGTMXGvxhHFvkDTCTpvA=

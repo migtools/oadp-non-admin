@@ -56,10 +56,10 @@ const (
 // NonAdminBackupStorageLocationReconciler reconciles a NonAdminBackupStorageLocation object
 type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
-	Scheme                     *runtime.Scheme
-	EnforcedBslSpec            *velerov1.BackupStorageLocationSpec
-	OADPNamespace              string
-	RequireAdminApprovalForBSL bool
+	Scheme                *runtime.Scheme
+	EnforcedBslSpec       *velerov1.BackupStorageLocationSpec
+	OADPNamespace         string
+	RequireApprovalForBSL bool
 }
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
@@ -80,7 +80,7 @@ type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, na
 func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.V(1).Info("NonAdminBackupStorageLocation Reconcile start")
-	logger.V(1).Info("RequireAdminApprovalForBSL", "value", r.RequireAdminApprovalForBSL)
+	logger.V(1).Info("RequireApprovalForBSL", "value", r.RequireApprovalForBSL)
 
 	// Get the NonAdminBackupStorageLocation object
 	nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
@@ -537,7 +537,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 			}
 		}
 
-		if !r.RequireAdminApprovalForBSL && nabslRequest.Spec.ApprovalDecision != nacv1alpha1.NonAdminBSLRequestApproved {
+		if !r.RequireApprovalForBSL && nabslRequest.Spec.ApprovalDecision != nacv1alpha1.NonAdminBSLRequestApproved {
 			logger.V(1).Info("NonAdminBackupStorageLocationRequest already exists and is not approved, updating to approved")
 			patch := client.MergeFrom(nabslRequest.DeepCopy())
 			nabslRequest.Spec.ApprovalDecision = nacv1alpha1.NonAdminBSLRequestApproved
@@ -550,7 +550,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 	}
 
 	approvalDecision := nacv1alpha1.NonAdminBSLRequestPending
-	if !r.RequireAdminApprovalForBSL {
+	if !r.RequireApprovalForBSL {
 		approvalDecision = nacv1alpha1.NonAdminBSLRequestApproved
 	}
 

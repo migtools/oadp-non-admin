@@ -41,10 +41,10 @@ import (
 // GarbageCollectorReconciler reconciles Velero objects
 type GarbageCollectorReconciler struct {
 	client.Client
-	Scheme                     *runtime.Scheme
-	OADPNamespace              string
-	Frequency                  time.Duration
-	RequireAdminApprovalForBSL bool
+	Scheme                *runtime.Scheme
+	OADPNamespace         string
+	Frequency             time.Duration
+	RequireApprovalForBSL bool
 }
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -224,8 +224,8 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 		for _, nabslRequest := range nonAdminBackupStorageLocationRequestList.Items {
 			shouldDelete := false
 
-			if !r.RequireAdminApprovalForBSL {
-				// If RequireAdminApprovalForBSL is false, delete all NaBSLRequests unconditionally
+			if !r.RequireApprovalForBSL {
+				// If RequireApprovalForBSL is false, delete all NaBSLRequests unconditionally
 				shouldDelete = true
 			} else if nabslRequest.Status.VeleroBackupStorageLocationRequest == nil ||
 				nabslRequest.Status.VeleroBackupStorageLocationRequest.Name == "" ||

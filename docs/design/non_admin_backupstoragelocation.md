@@ -161,7 +161,7 @@ The `NonAdminBackupStorageLocationRequest` is a custom resource that allows non-
 1. User submits a Non-Admin BSL creation request.
 2. Controller verifies the Non-Admin BSL configuration including existance of the secret in user's namespace.
 3. Controller generates Non-Admin BSL UUID and stores it in the NaBSL Status.
-4. Controller creates the `NonAdminBackupStorageLocationRequest` in the OADP namespace with the Status containing the requested by the user Velero BSL spec in the `approvalDecision` field set to `pending` or `approved` if the `requireAdminApprovalForBSL` feature flag is disabled in the `DataProtectionApplication` spec.
+4. Controller creates the `NonAdminBackupStorageLocationRequest` in the OADP namespace with the Status containing the requested by the user Velero BSL spec in the `approvalDecision` field set to `pending` or `approved` if the `requireApprovalForBSL` feature flag is disabled in the `DataProtectionApplication` spec.
 5. For the `approved` NonAdmin BSL the workflow is continued, otherwise the reconciliation is stopped and the `NonAdminBackupStorageLocationRequest` Status is updated with the `approvalDecision` field set to `rejected`.
 6. Controller creates or updates a Secret in the OADP namespace based on the Non-Admin BSL UUID.
 7. Controller creates a Velero BSL resource in the OADP namespace pointing to the Secret from the OADP namespace.
@@ -177,12 +177,12 @@ Update to the BSL is not allowed and will result in the Velero BSL resource and 
 5. Controller updates the NaBSL Status with the information that the updates are not allowed and the user needs to create new NaBSL with the updated Spec.
 
 ### Enabling BSL Approval Request Feature
-1. Cluster admin disables the Backup Storage Location Approval Request feature by updating the `DataProtectionApplication` spec `requireAdminApprovalForBSL` field to `false` or removing this field from the `nonAdmin` section of the `DataProtectionApplication` spec.
+1. Cluster admin disables the Backup Storage Location Approval Request feature by updating the `DataProtectionApplication` spec `requireApprovalForBSL` field to `false` or removing this field from the `nonAdmin` section of the `DataProtectionApplication` spec.
 
  ```yaml
    nonAdmin:
     enable: true
-    requireAdminApprovalForBSL: true
+    requireApprovalForBSL: true
 ```
 2. NaBSL Controller restarts the NonAdminBackupStorageLocation controller to pick up the new feature flag.
 3. NaBSL Contoller enters reconciliation loop for all existing NonAdminBackupStorageLocation resources.
@@ -190,12 +190,12 @@ Update to the BSL is not allowed and will result in the Velero BSL resource and 
 5. Previously approved NaBSLs must me rejected from the Request object to remove previously auto-approved NaBSLs.
 
 ### Disabling BSL Approval Request Feature
-1. Cluster admin disables the Backup Storage Location Approval Request feature by updating the `DataProtectionApplication` spec `requireAdminApprovalForBSL` field to `false` or removing this field from the `nonAdmin` section of the `DataProtectionApplication` spec.
+1. Cluster admin disables the Backup Storage Location Approval Request feature by updating the `DataProtectionApplication` spec `requireApprovalForBSL` field to `false` or removing this field from the `nonAdmin` section of the `DataProtectionApplication` spec.
 
  ```yaml
    nonAdmin:
     enable: true
-    requireAdminApprovalForBSL: false
+    requireApprovalForBSL: false
 ```
 2. Controller restarts the NonAdminBackupStorageLocation controller to pick up the new feature flag.
 3. Contoller enters reconciliation loop for all existing NonAdminBackupStorageLocation resources creates the corresponding Velero BSL resources and auto approve them.
