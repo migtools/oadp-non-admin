@@ -23,10 +23,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	// TODO when to update oadp-operator version in go.mod?
 	"github.com/openshift/oadp-operator/api/v1alpha1"
+	"github.com/sirupsen/logrus"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	"go.uber.org/zap/zapcore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -79,14 +82,35 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	logLevel := zapcore.InfoLevel
+	// read loglevel string coming from DPA which is a logrus level
+	logLevelEnvInvalid := false
+	found := false
+	var logLevelEnv string
+	if logLevelEnv, found = os.LookupEnv(constant.LogLevelEnvVar); found && len(logLevelEnv) > 0 {
+		uint64LogLevel, err := strconv.ParseUint(logLevelEnv, constant.Base10, constant.Bits32)
+		if err == nil {
+			// only change from default if level can be parsed
+			level := logrus.Level(uint64LogLevel)
+			logLevel, logLevelEnvInvalid = translateLogrusToZapLevel(level)
+		} else {
+			logLevelEnvInvalid = true
+		}
+	}
 	opts := zap.Options{
+		Level:       logLevel,
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-
+	ctrl.SetLogger(zap.New(
+		zap.UseFlagOptions(&opts),
+	))
+	if logLevelEnvInvalid {
+		setupLog.Info(fmt.Sprintf("LogLevelEnv: %v is invalid, using default level: %v", logLevelEnv, logLevel.String()))
+	}
+	setupLog.Info(fmt.Sprintf("LogLevel: %v ", logLevel.String()))
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
 	// prevent from being vulnerable to the HTTP/2 Stream Cancelation and
@@ -122,6 +146,7 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
+		Logger: zap.New(zap.UseFlagOptions(&opts)),
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress:   metricsAddr,
@@ -266,4 +291,26 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 	}
 
 	return dpaConfiguration, nil
+}
+
+func translateLogrusToZapLevel(level logrus.Level) (logLevel zapcore.Level, logLevelEnvInvalid bool) {
+	// only change from default if level can be parsed
+	switch level {
+	case logrus.DebugLevel, logrus.TraceLevel:
+		logLevel = zapcore.DebugLevel
+	case logrus.InfoLevel:
+		logLevel = zapcore.InfoLevel
+	case logrus.WarnLevel:
+		logLevel = zapcore.WarnLevel
+	case logrus.ErrorLevel:
+		logLevel = zapcore.ErrorLevel
+	case logrus.FatalLevel:
+		logLevel = zapcore.FatalLevel
+	case logrus.PanicLevel:
+		logLevel = zapcore.PanicLevel
+	default:
+		logLevelEnvInvalid = true
+		logLevel = zapcore.InfoLevel
+	}
+	return logLevel, logLevelEnvInvalid
 }
