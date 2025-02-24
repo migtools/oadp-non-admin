@@ -675,7 +675,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 				nacv1alpha1.NonAdminBackupStorageLocations)
 		}
 
-		veleroBackup := velerov1.Backup{
+		veleroBackup = &velerov1.Backup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroBackupNACUUID,
 				Namespace:   r.OADPNamespace,
@@ -690,7 +690,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		// situations where NAC object do not require NabOriginUUIDLabel
 		veleroBackup.Labels[constant.NabOriginNACUUIDLabel] = veleroBackupNACUUID
 
-		err = r.Create(ctx, &veleroBackup)
+		err = r.Create(ctx, veleroBackup)
 
 		if err != nil {
 			// We do not retry here as the veleroBackupNACUUID
@@ -728,7 +728,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	// Ensure that the NonAdminBackup's NonAdminBackupStatus is in sync
 	// with the VeleroBackup. Any required updates to the NonAdminBackup
 	// Status will be applied based on the current state of the VeleroBackup.
-	updated := updateNonAdminBackupVeleroBackupStatus(&nab.Status, veleroBackup)
+	updated := updateNonAdminBackupVeleroBackupSpecStatus(&nab.Status, veleroBackup)
 
 	if updated || updatedPhase || updatedCondition || updatedQueueInfo {
 		if err := r.Status().Update(ctx, nab); err != nil {
@@ -776,9 +776,9 @@ func updateNonAdminPhase(phase *nacv1alpha1.NonAdminPhase, newPhase nacv1alpha1.
 	return true
 }
 
-// updateNonAdminBackupVeleroBackupStatus sets the VeleroBackup status field in NonAdminBackup object status and returns true
+// updateNonAdminBackupVeleroBackupSpecStatus sets the VeleroBackup spec and status fields in NonAdminBackup object status and returns true
 // if the VeleroBackup fields are changed by this call.
-func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
+func updateNonAdminBackupVeleroBackupSpecStatus(status *nacv1alpha1.NonAdminBackupStatus, veleroBackup *velerov1.Backup) bool {
 	if status == nil || veleroBackup == nil {
 		return false
 	}
@@ -787,14 +787,19 @@ func updateNonAdminBackupVeleroBackupStatus(status *nacv1alpha1.NonAdminBackupSt
 		status.VeleroBackup = &nacv1alpha1.VeleroBackup{}
 	}
 
+	if status.VeleroBackup.Spec == nil {
+		status.VeleroBackup.Spec = &velerov1.BackupSpec{}
+	}
 	if status.VeleroBackup.Status == nil {
 		status.VeleroBackup.Status = &velerov1.BackupStatus{}
 	}
 
-	if reflect.DeepEqual(*status.VeleroBackup.Status, veleroBackup.Status) {
+	if reflect.DeepEqual(*status.VeleroBackup.Spec, veleroBackup.Spec) &&
+		reflect.DeepEqual(*status.VeleroBackup.Status, veleroBackup.Status) {
 		return false
 	}
 
+	status.VeleroBackup.Spec = veleroBackup.Spec.DeepCopy()
 	status.VeleroBackup.Status = veleroBackup.Status.DeepCopy()
 	return true
 }

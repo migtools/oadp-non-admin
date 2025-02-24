@@ -34,6 +34,10 @@ type NonAdminBackupSpec struct {
 
 // VeleroBackup contains information of the related Velero backup object.
 type VeleroBackup struct {
+	// spec captures the current spec of the Velero backup.
+	// +optional
+	Spec *velerov1.BackupSpec `json:"spec,omitempty"`
+
 	// status captures the current status of the Velero backup.
 	// +optional
 	Status *velerov1.BackupStatus `json:"status,omitempty"`

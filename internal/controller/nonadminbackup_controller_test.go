@@ -97,11 +97,23 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 			if nonAdminBackup.Status.VeleroBackup.Namespace != veleroBackupNamespace {
 				return fmt.Errorf("NonAdminBackup Status VeleroBackupNamespace %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Namespace, veleroBackupNamespace)
 			}
+			expectedVeleroBackupSpec := expectedStatus.VeleroBackup.Spec.DeepCopy()
+			if expectedVeleroBackupSpec == nil {
+				expectedVeleroBackupSpec = &velerov1.BackupSpec{}
+			}
+			expectedVeleroBackupSpec.IncludedNamespaces = []string{nonAdminBackup.Namespace}
+			if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackup.Spec, expectedVeleroBackupSpec) {
+				return fmt.Errorf("NonAdminBackup Status VeleroBackupSpec %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Spec, expectedVeleroBackupSpec)
+			}
 			if expectedStatus.VeleroBackup.Status != nil {
 				if !reflect.DeepEqual(nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status) {
 					return fmt.Errorf("NonAdminBackup Status VeleroBackupStatus %v is not equal to expected %v", nonAdminBackup.Status.VeleroBackup.Status, expectedStatus.VeleroBackup.Status)
 				}
 			}
+		}
+	} else {
+		if expectedStatus.VeleroBackup != nil && expectedStatus.VeleroBackup.Spec != nil {
+			return fmt.Errorf("NonAdminBackup Status VeleroBackup <nil> is not equal to expected VeleroBackupSpec %v", expectedStatus.VeleroBackup.Spec)
 		}
 	}
 
@@ -856,7 +868,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			uuidCreatedByReconcile: true,
 			result:                 reconcile.Result{Requeue: false},
 		}),
-		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NACUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit, 0 position in queue", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by Requeue(NonAdminBackup phase new; Conditions Accepted True; NonAdminBackup Status NACUUID set), should update NonAdminBackup phase to created and Condition to Queued True and Exit, 1 position in queue", nonAdminBackupSingleReconcileScenario{
 			addFinalizer: true,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
@@ -875,7 +887,7 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				QueueInfo: &nacv1alpha1.QueueInfo{
-					EstimatedQueuePosition: 0,
+					EstimatedQueuePosition: 1,
 				},
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				Conditions: []metav1.Condition{
@@ -1152,6 +1164,18 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
 					Namespace: oadpNamespace,
 					Status:    nil,
+					Spec: &velerov1.BackupSpec{
+						ExcludedResources: []string{
+							"nonadminbackups",
+							"nonadminrestores",
+							"nonadminbackupstoragelocations",
+						},
+						SnapshotVolumes: ptr.To(false),
+						TTL: metav1.Duration{
+							Duration: 36 * time.Hour,
+						},
+						DefaultVolumesToFsBackup: ptr.To(true),
+					},
 				},
 				Conditions: []metav1.Condition{
 					{
@@ -1221,6 +1245,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				},
 				Spec: *scenario.spec.BackupSpec,
 			}
+			veleroBackup.Spec.IncludedNamespaces = []string{nonAdminObjectNamespace}
 			gomega.Expect(k8sClient.Create(ctx, veleroBackup)).To(gomega.Succeed())
 
 			veleroBackup.Status = velerov1.BackupStatus{
@@ -1345,6 +1370,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				VeleroBackup: &nacv1alpha1.VeleroBackup{
 					Namespace: oadpNamespace,
+					Spec: &velerov1.BackupSpec{
+						TTL: metav1.Duration{
+							Duration: 20 * time.Hour,
+						},
+					},
 					Status: &velerov1.BackupStatus{
 						Phase:               velerov1.BackupPhaseCompleted,
 						CompletionTimestamp: &metav1.Time{Time: time.Date(2025, 2, 10, 12, 12, 12, 0, time.Local)},
