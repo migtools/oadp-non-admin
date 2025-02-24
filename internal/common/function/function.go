@@ -693,34 +693,3 @@ func ComputePrefixForObjectStorage(namespace, customPrefix string) string {
 	}
 	return namespace
 }
-
-// HasBSLChangesForApproval checks if there are any changes between the old and new BackupStorageLocationSpec
-// that would require admin approval. We do not want the admin to re-approve the BSL if it's just a matter of
-// the BSL creds being updated. In case of nil specs, we return true to trigger approval.
-func HasBSLChangesForApproval(oldSpec, newSpec *velerov1.BackupStorageLocationSpec) bool {
-	if oldSpec == nil && newSpec == nil {
-		return false
-	}
-
-	if oldSpec == nil || newSpec == nil {
-		return true
-	}
-
-	return !reflect.DeepEqual(oldSpec.Config, newSpec.Config) ||
-		!reflect.DeepEqual(oldSpec.ObjectStorage, newSpec.ObjectStorage) ||
-		!durationsEqual(oldSpec.BackupSyncPeriod, newSpec.BackupSyncPeriod) ||
-		!durationsEqual(oldSpec.ValidationFrequency, newSpec.ValidationFrequency) ||
-		oldSpec.Provider != newSpec.Provider ||
-		oldSpec.AccessMode != newSpec.AccessMode
-}
-
-// durationsEqual compares two durations, handling nil cases safely.
-func durationsEqual(a, b *metav1.Duration) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return a.Duration == b.Duration
-}
