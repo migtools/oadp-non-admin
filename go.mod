@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/oadp-operator v1.0.2-0.20250219094603-6fcdaa7dca15
+	github.com/openshift/oadp-operator v1.0.2-0.20250225171529-2e93d8609b8f
 	github.com/stretchr/testify v1.9.0
 	github.com/vmware-tanzu/velero v1.14.0
 	golang.org/x/sync v0.11.0
@@ -104,5 +104,3 @@ require (
 )
 
 replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20241211163542-fa8f2486175b
-
-replace github.com/openshift/oadp-operator => github.com/mpryc/oadp-operator v0.0.0-20250224220004-d1db31beed2a
