@@ -86,3 +86,6 @@ const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
 
 // NABRestrictedErr holds an error message template for a non-admin backup operation that is restricted.
 const NABRestrictedErr = "NonAdminBackup %s is restricted"
+
+// NARRestrictedErr holds an error message template for a non-admin restore operation that is restricted.
+const NARRestrictedErr = "NonAdminRestore %s is restricted"
