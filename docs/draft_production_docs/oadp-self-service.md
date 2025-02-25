@@ -48,6 +48,7 @@ Prior to OpenShift users taking advantage of OADP self-service feature the OpenS
   * account 
   * namespace
   * namespace privileges, e.g. namespace admin.
+  * optionally the cluster administrator can create a NABSL for the user.
 
 ### OpenShift self-service required permissions:
 
@@ -257,6 +258,58 @@ status:
 ```
 The complete nonAdminRestore resource definition can be found here: [NonAdminRestore CRD](https://github.com/openshift/oadp-operator/blob/master/bundle/manifests/oadp.openshift.io_nonadminrestores.yaml)
 
+### NonAdminBackupStorageLocation NABSL:
+Cluster administrators can gain efficiencies by delegating backup and restore operations to OpenShift users. It is recommended that cluster administrators carefully manage the NABSL to conform to any company policies, compliance requirements, etc.  
+
+Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.  A cluster administrator may also choose to create NABSL's for the non-admin users on the cluster.   
+
+If cluster administrators delegate NABSL creation it is recommended to use the NABSLApprovalRequest object to manage the NABSL's.  This will allow the cluster administrator to review and approve the NABSL's before they are used.
+
+```
+  nonAdmin:
+    enable: true
+    requireApprovalForBSL: true
+```
+Cluster administrators can view the NABSLApprovalRequest object in the openshift-adp namespace.
+
+```
+oc -n openshift-adp get NonAdminBackupStorageLocationRequests
+```
+Approval or rejection is accomplished by updating the NABSLApprovalRequest object.
+
+```
+spec:
+  approvalDecision: reject  [accept, reject]
+```
+
+If approved both the NABSL and the BSL are created.  The NABSL is created in the users namespace, while the BSL is created in the openshift-adp or default namespace.
+
+### User Creation of NABSL:
+
+A non-admin user can create a NABSL in their namespace.
+
+```
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminBackupStorageLocation
+metadata:
+  name: nacuser1-nabsl
+  namespace: nacuser1
+spec: 
+  backupStorageLocationSpec:
+    config:
+    checksumAlgorithm: ""
+    profile: default
+    region: us-west-2
+    credential:
+      key: cloud
+      name: cloud-credentials
+    objectStorage:
+      bucket: bucket1uswest2
+      prefix: velero
+    provider: aws  
+```
+
+If the cluster administrator has enabled the requireApprovalForBSL flag then the NABSL will be in the Pending state until the cluster administrator approves the NABSL.
 
 
 
@@ -273,51 +326,36 @@ The phase field is a simple one high-level summary of the lifecycle of the objec
 | Deletion | *NonAdminBackup/NonAdminRestore* resource has been marked for deletion. The NAB/NAR Controller will delete the corresponding Velero *Backup/Restore* if it exists. Once this deletion completes, the *NonAdminBackup/NonAdminRestore* object itself will also be removed |
 
 
+
+
+
 ## Advanced Cluster Administrator Features
 
-### Restricted NonAdminBackupStorageLocation 
-
-Cluster administrators can gain efficiencies by delegating backup and restore operations to OpenShift users. It is recommended that cluster administrators carefully manage the NABSL to conform to any company policies, compliance requirements, etc.  There are two ways cluster administrators can manage the NABSL's.
-
-Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.
-
-```
-  nonAdmin:
-    enable: true
-    requireAdminApprovalForBSL: true
-```
-
-```
-apiVersion: oadp.openshift.io/v1alpha1
-kind: NABSLApprovalRequest
-metadata:
-  name: nabsl-hash-name
-  namespace: openshift-adp<Operator NS, this is the key here>
-spec:
-  nabslName: nabsl-name
-  nabslNamespace: nac-user-ns
-  creationApproved: false  # Tracks approval for creation
-  updateApproved: false    # Tracks approval for updates
-  lastApprovedSpec: {}  # Stores last approved NABSL spec
-```
-  This ensures the cluster administrator has reviewed the NABSL to ensure the correct object storage location options are used.
-
 ### Cluster Administrator Enforceable Spec Fields
+There are several types of cluster scoped objects that non-admin users should not have access to backup or restore.  OADP self-service automatically excludes the following list of cluster scoped resources from being backed up or restored.
+
+* SCCs
+* ClusterRoles
+* ClusterRoleBindings
+* CRDs
+* PriorityClasses
+* virtualmachineclusterinstancetypes
+* virtualmachineclusterpreferences
 
 Cluster administrators may also enforce company or compliance policy by utilizing templated NABSL's, NAB's and NAR's that require fields values to be set and conform to the administrator defined policy.  Admin Enforceable fields are fields that the cluster administrator can enforce non cluster admin users to use. Restricted fields are automatically managed by OADP and cannot be modified by either administrators or users.
 
 #### NABSL
 The following NABSL fields are currently supported for template enforcement:
 
-| **NABSL Field**            | **Admin Enforceable** | **Restricted** |
-|----------------------------|-----------------|----------------|
-| `backupSyncPeriod`         | ⚠️ special case |                |
-| `provider`                 | ⚠️ special case |                |
-| `objectStorage`            | ✅ Yes          |                |
-| `credential`               | ✅ Yes          |                |
-| `config`                   | ✅ Yes          |                |
-| `accessMode`               | ✅ Yes          |                |
-| `validationFrequency`      | ✅ Yes          |                |
+| **NABSL Field**            | **Admin Enforceable** | **Restricted** | **special case** |
+|----------------------------|-----------------|----------------|-----------------|
+| `backupSyncPeriod`         |                 |                | ⚠️ special case |
+| `provider`                 |                 |                | ⚠️ special case |
+| `objectStorage`            | ✅ Yes          |                |                 |
+| `credential`               | ✅ Yes          |                |                 |
+| `config`                   | ✅ Yes          |                |                 |
+| `accessMode`               | ✅ Yes          |                |                 |
+| `validationFrequency`      | ✅ Yes          |                |                 |
 
 For example if the cluster administrator wanted to mandate that all NABSL's used a particular aws s3 bucket.
 
@@ -343,32 +381,32 @@ The DPA spec must be set in the following way:  TODO GET NABSL ENFORCEMENT EXAMP
 In the same sense as the NABSL, cluster administrators can also restrict the NonAdminBackup spec fields to ensure the backup request conforms to the administrator defined policy.  Most of the backup spec fields can be restricted by the cluster administrator, below is a table of reference for the current implementation.
 
 
-| **Backup Spec Field**                                  | **Admin Enforceable** | **Restricted** |
-|--------------------------------------------|--------------|--------------------------|
-| `csiSnapshotTimeout`                       | ✅ Yes       |                          |
-| `itemOperationTimeout`                     | ✅ Yes       |                          |
-| `resourcePolicy`                           | ✅ Yes       | ⚠️ special case           |
-| `includedNamespaces`                       | ❌ No        | ✅ Yes                   |
-| `excludedNamespaces`                       | ✅ Yes       |        ✅ Yes             |
-| `includedResources`                        | ✅ Yes       |                          |
-| `excludedResources`                        | ✅ Yes       |                          |
-| `orderedResources`                         | ✅ Yes       |                          |
-| `includeClusterResources`                  | ✅ Yes       |             ⚠️ special case               |
-| `excludedClusterScopedResources`           | ✅ Yes       |                          |
-| `includedClusterScopedResources`           | ✅ Yes       |        ⚠️ special case                    |
-| `excludedNamespaceScopedResources`         | ✅ Yes       |                          |
-| `includedNamespaceScopedResources`         | ✅ Yes       |                          |
-| `labelSelector`                            | ✅ Yes       |                          |
-| `orLabelSelectors`                         | ✅ Yes       |                          |
-| `snapshotVolumes`                          | ✅ Yes       |                          |
-| `storageLocation`                          | ⚠️ special case |                          |
-| `volumeSnapshotLocations`                  | ⚠️ special case |                          |
-| `ttl`                                      | ✅ Yes       |                          |
-| `defaultVolumesToFsBackup`                 | ✅ Yes       |                          |
-| `snapshotMoveData`                         | ✅ Yes       |                          |
-| `datamover`                                | ✅ Yes       |                          |
-| `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |
-| `hooks`                                    | ⚠️ special case |                          |
+| **Backup Spec Field**                                  | **Admin Enforceable** | **Restricted** | **special case** |
+|--------------------------------------------|--------------|--------------------------|-----------------|
+| `csiSnapshotTimeout`                       | ✅ Yes       |                          |                 |
+| `itemOperationTimeout`                     | ✅ Yes       |                          |                 |
+| `resourcePolicy`                           | ✅ Yes       |                          | ⚠️ special case |
+| `includedNamespaces`                       | ❌ No        | ✅ Yes                   |                 |
+| `excludedNamespaces`                       | ✅ Yes       | ✅ Yes                   |                 |
+| `includedResources`                        | ✅ Yes       |                          |                 |
+| `excludedResources`                        | ✅ Yes       |                          |                 |
+| `orderedResources`                         | ✅ Yes       |                          |                 |
+| `includeClusterResources`                  | ✅ Yes       |                          | ⚠️ special case |
+| `excludedClusterScopedResources`           | ✅ Yes       |                          |                 |
+| `includedClusterScopedResources`           | ✅ Yes       |                          | ⚠️ special case |
+| `excludedNamespaceScopedResources`         | ✅ Yes       |                          |                 |
+| `includedNamespaceScopedResources`         | ✅ Yes       |                          |                 |
+| `labelSelector`                            | ✅ Yes       |                          |                 |
+| `orLabelSelectors`                         | ✅ Yes       |                          |                 |
+| `snapshotVolumes`                          | ✅ Yes       |                          |                 |
+| `storageLocation`                          |              |                          | ⚠️ special case |
+| `volumeSnapshotLocations`                  |              |                          | ⚠️ special case |
+| `ttl`                                      | ✅ Yes       |                          |                 |
+| `defaultVolumesToFsBackup`                 | ✅ Yes       |                          |                 |
+| `snapshotMoveData`                         | ✅ Yes       |                          |                 |
+| `datamover`                                | ✅ Yes       |                          |                 |
+| `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |                 |
+| `hooks`                                    |              |                          | ⚠️ special case |
 
 An example enforcement set in the DPA spec to enforce the 
   * ttl to be set to "158h0m0s"
@@ -385,26 +423,25 @@ An example enforcement set in the DPA spec to enforce the
 
 NonAdminRestores spec fields can also be restricted by the cluster administrator.  The following NAR spec fields are currently supported for template enforcement:
 
-| **Field**                     | **Admin Enforceable** | **Restricted**    |
-|-------------------------------|--------------|--------------------|
-| `backupName`                  | ❌ No        |                    |
-| `scheduleName`                | ❌ No        | ✅ Yes         |
-| `itemOperationTimeout`        | ✅ Yes       |                |
-| `uploaderConfig`              | ✅ Yes       |                |
-| `includedNamespaces`          | ❌ No        | ✅ Yes         |
-| `excludedNamespaces`          | ❌ No        | ✅ Yes         |
-| `includedResources`           | ✅ Yes       |                |
-| `excludedResources`           | ✅ Yes       |                |
-| `restoreStatus`               | ✅ Yes       |                |
-| `includeClusterResources`     | ✅ Yes       |                |
-| `labelSelector`               | ✅ Yes       |                |
-| `orLabelSelectors`            | ✅ Yes       |                |
-| `namespaceMapping`            | ❌ No        | ✅ Yes         |
-| `restorePVs`                  | ✅ Yes       |                |
-| `preserveNodePorts`           | ✅ Yes       |                |
-| `existingResourcePolicy`      | ✅ Yes       |                |
-| `resourceModifier`            | ⚠️ special case |                |
-| `hooks`                       | ⚠️ special case |                |
+| **Field**                     | **Admin Enforceable** | **Restricted**    | **special case** |
+|-------------------------------|--------------|--------------------|-----------------|
+| `backupName`                  | ❌ No        |                    |                 |
+| `scheduleName`                | ❌ No        | ✅ Yes             |                 |
+| `itemOperationTimeout`        | ✅ Yes       |                    |                 |
+| `uploaderConfig`              | ✅ Yes       |                    |                 |
+| `includedNamespaces`          | ❌ No        | ✅ Yes             |                 |
+| `excludedNamespaces`          | ❌ No        | ✅ Yes         |                 |
+| `includedResources`           | ✅ Yes       |                |                 |
+| `excludedResources`           | ✅ Yes       |                |                 |
+| `restoreStatus`               | ✅ Yes       |                |                 |
+| `includeClusterResources`     | ✅ Yes       |                |                 |
+| `labelSelector`               | ✅ Yes       |                |                 |
+| `orLabelSelectors`            | ✅ Yes       |                |                 |
+| `namespaceMapping`            | ❌ No        | ✅ Yes         |                 |
+| `restorePVs`                  | ✅ Yes       |                |                 |
+| `preserveNodePorts`           | ✅ Yes       |                |                 |
+| `existingResourcePolicy`      |              |                | ⚠️ special case |
+| `hooks`                       |              |                | ⚠️ special case |
 
 
 
