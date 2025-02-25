@@ -31,15 +31,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 type garbageCollectorFullReconcileScenario struct {
-	backups        int
-	restores       int
-	orphanBackups  int
-	orphanRestores int
-	errorLogs      int
+	backups             int
+	restores            int
+	orphanBackups       int
+	orphanRestores      int
+	orphanNaBSLRequests int
+	errorLogs           int
 }
 
 const fakeUUID = "12345678-4321-1234-4321-123456789abc"
@@ -208,6 +210,75 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 
 			go func() {
 				defer ginkgo.GinkgoRecover()
+				for index := range 2 {
+					nabslRequest := &nacv1alpha1.NonAdminBackupStorageLocationRequest{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("test-garbage-collector-nabslrequest-%v", index),
+							Namespace: oadpNamespace,
+							Labels: map[string]string{
+								constant.OadpLabel:               constant.OadpLabelValue,
+								constant.ManagedByLabel:          constant.ManagedByLabelValue,
+								constant.NabslOriginNACUUIDLabel: fakeUUID,
+							},
+							Annotations: map[string]string{
+								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,
+								constant.NabslOriginNameAnnotation:      "non-existent",
+							},
+						},
+						Spec: nacv1alpha1.NonAdminBackupStorageLocationRequestSpec{
+							ApprovalDecision: nacv1alpha1.NonAdminBSLRequestApproved,
+						},
+						Status: nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
+							NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctx, nabslRequest)).To(gomega.Succeed())
+					time.Sleep(1 * time.Second)
+				}
+			}()
+
+			go func() {
+				defer ginkgo.GinkgoRecover()
+				for index := range 2 {
+					nabslRequest := &nacv1alpha1.NonAdminBackupStorageLocationRequest{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      fmt.Sprintf("test-garbage-collector-nabslrequest-with-status-%v", index),
+							Namespace: oadpNamespace,
+							Labels: map[string]string{
+								constant.OadpLabel:               constant.OadpLabelValue,
+								constant.ManagedByLabel:          constant.ManagedByLabelValue,
+								constant.NabslOriginNACUUIDLabel: fakeUUID,
+							},
+							Annotations: map[string]string{
+								constant.NabslOriginNamespaceAnnotation: nonAdminNamespace,
+								constant.NabslOriginNameAnnotation:      "non-existent",
+							},
+						},
+						Spec: nacv1alpha1.NonAdminBackupStorageLocationRequestSpec{
+							ApprovalDecision: nacv1alpha1.NonAdminBSLRequestApproved,
+						},
+						Status: nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
+							NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{
+								Namespace: oadpNamespace,
+								Name:      fmt.Sprintf("test-garbage-collector-nabsl-%v", index),
+								RequestedSpec: &velerov1.BackupStorageLocationSpec{
+									StorageType: velerov1.StorageType{
+										ObjectStorage: &velerov1.ObjectStorageLocation{
+											Bucket: "example-bucket",
+											Prefix: "test",
+										},
+									},
+								},
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctx, nabslRequest)).To(gomega.Succeed())
+					time.Sleep(1 * time.Second)
+				}
+			}()
+
+			go func() {
+				defer ginkgo.GinkgoRecover()
 				for index := range 3 {
 					secret := &corev1.Secret{
 						ObjectMeta: metav1.ObjectMeta{
@@ -232,6 +303,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			time.Sleep(8 * time.Second)
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Secret deleted")).Should(gomega.Equal(3))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan BackupStorageLocation deleted")).Should(gomega.Equal(5))
+			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan NonAdminBackupStorageLocationRequest deleted")).Should(gomega.Equal(scenario.orphanNaBSLRequests))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Backup deleted")).Should(gomega.Equal(scenario.orphanBackups))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "orphan Restore deleted")).Should(gomega.Equal(scenario.orphanRestores))
 			gomega.Expect(strings.Count(ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput, "Garbage Collector Reconcile start")).Should(gomega.Equal(5))
@@ -244,10 +316,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			gomega.Expect(restoresInOADPNamespace.Items).To(gomega.HaveLen(scenario.restores))
 		},
 		ginkgo.Entry("Should delete orphaned Velero resources and then watch them periodically", garbageCollectorFullReconcileScenario{
-			backups:        2,
-			restores:       3,
-			orphanBackups:  4,
-			orphanRestores: 1,
+			backups:             2,
+			restores:            3,
+			orphanBackups:       4,
+			orphanRestores:      1,
+			orphanNaBSLRequests: 4,
 		}),
 	)
 })

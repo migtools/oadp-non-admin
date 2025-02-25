@@ -35,6 +35,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -167,9 +168,10 @@ func main() {
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminBackupStorageLocationReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		OADPNamespace: oadpNamespace,
+		Client:                mgr.GetClient(),
+		Scheme:                mgr.GetScheme(),
+		OADPNamespace:         oadpNamespace,
+		RequireApprovalForBSL: *dpaConfiguration.RequireApprovalForBSL,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
@@ -188,10 +190,11 @@ func main() {
 	}
 	if dpaConfiguration.GarbageCollectionPeriod.Duration > 0 {
 		if err = (&controller.GarbageCollectorReconciler{
-			Client:        mgr.GetClient(),
-			Scheme:        mgr.GetScheme(),
-			OADPNamespace: oadpNamespace,
-			Frequency:     dpaConfiguration.GarbageCollectionPeriod.Duration,
+			Client:                mgr.GetClient(),
+			Scheme:                mgr.GetScheme(),
+			OADPNamespace:         oadpNamespace,
+			Frequency:             dpaConfiguration.GarbageCollectionPeriod.Duration,
+			RequireApprovalForBSL: *dpaConfiguration.RequireApprovalForBSL,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to setup GarbageCollector controller with manager")
 			os.Exit(1)
@@ -222,8 +225,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 		BackupSyncPeriod: &metav1.Duration{
 			Duration: v1alpha1.DefaultBackupSyncPeriod,
 		},
-		EnforceBackupSpec:  &velerov1.BackupSpec{},
-		EnforceRestoreSpec: &velerov1.RestoreSpec{},
+		EnforceBackupSpec:     &velerov1.BackupSpec{},
+		EnforceRestoreSpec:    &velerov1.RestoreSpec{},
+		RequireApprovalForBSL: ptr.To(false),
 	}
 
 	dpaClientScheme := runtime.NewScheme()
@@ -253,6 +257,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 			}
 			if nonAdmin.BackupSyncPeriod != nil {
 				dpaConfiguration.BackupSyncPeriod.Duration = nonAdmin.BackupSyncPeriod.Duration
+			}
+			if nonAdmin.RequireApprovalForBSL != nil {
+				dpaConfiguration.RequireApprovalForBSL = nonAdmin.RequireApprovalForBSL
 			}
 			break
 		}

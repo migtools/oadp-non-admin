@@ -28,9 +28,10 @@ import (
 
 // CompositeNaBSLPredicate is a combination of NonAdminBackupStorageLocation and Velero BackupStorageLocation event filters
 type CompositeNaBSLPredicate struct {
-	Context                                context.Context
-	NonAdminBackupStorageLocationPredicate NonAdminBackupStorageLocationPredicate
-	VeleroBackupStorageLocationPredicate   VeleroBackupStorageLocationPredicate
+	Context                                       context.Context
+	NonAdminBackupStorageLocationPredicate        NonAdminBackupStorageLocationPredicate
+	NonAdminBackupStorageLocationRequestPredicate NonAdminBackupStorageLocationRequestPredicate
+	VeleroBackupStorageLocationPredicate          VeleroBackupStorageLocationPredicate
 }
 
 // Create event filter only accepts NonAdminBackupStorageLocation create events
@@ -50,6 +51,8 @@ func (p CompositeNaBSLPredicate) Update(evt event.UpdateEvent) bool {
 		return p.NonAdminBackupStorageLocationPredicate.Update(p.Context, evt)
 	case *velerov1.BackupStorageLocation:
 		return p.VeleroBackupStorageLocationPredicate.Update(p.Context, evt)
+	case *nacv1alpha1.NonAdminBackupStorageLocationRequest:
+		return p.NonAdminBackupStorageLocationRequestPredicate.Update(p.Context, evt)
 	default:
 		return false
 	}
@@ -60,6 +63,8 @@ func (p CompositeNaBSLPredicate) Delete(evt event.DeleteEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackupStorageLocation:
 		return p.NonAdminBackupStorageLocationPredicate.Delete(p.Context, evt)
+	case *nacv1alpha1.NonAdminBackupStorageLocationRequest:
+		return p.NonAdminBackupStorageLocationRequestPredicate.Delete(p.Context, evt)
 	default:
 		return false
 	}

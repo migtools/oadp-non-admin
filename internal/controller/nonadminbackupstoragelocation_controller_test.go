@@ -46,6 +46,7 @@ type nonAdminBackupStorageLocationFullReconcileScenario struct {
 	nonAdminSecretName   string
 	enforcedBslSpec      *velerov1.BackupStorageLocationSpec
 	spec                 nacv1alpha1.NonAdminBackupStorageLocationSpec
+	approvalDecision     nacv1alpha1.NonAdminBSLRequest
 	expectedStatus       nacv1alpha1.NonAdminBackupStorageLocationStatus
 	createNonAdminSecret bool
 }
@@ -270,6 +271,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 			gomega.Expect(checkTestNonAdminBackupStorageLocationStatus(nonAdminBsl, scenario.expectedStatus)).To(gomega.Succeed())
 
 			veleroBsl := &velerov1.BackupStorageLocation{}
+			nabslRequest := &nacv1alpha1.NonAdminBackupStorageLocationRequest{}
 			if scenario.expectedStatus.VeleroBackupStorageLocation != nil && len(nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID) > 0 {
 				ginkgo.By("Checking if NonAdminBackupStorageLocation Spec was not changed")
 				gomega.Expect(reflect.DeepEqual(
@@ -319,6 +321,23 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 					}
 					return nonAdminBsl.Status.VeleroBackupStorageLocation.Status.Phase == velerov1.BackupStorageLocationPhaseAvailable, nil
 				}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
+				ginkgo.By("Validating NonAdminBackupStorageLocationRequest Status")
+				gomega.Expect(k8sClient.Get(
+					ctxTimeout,
+					types.NamespacedName{
+						Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID,
+						Namespace: oadpNamespace,
+					},
+					nabslRequest,
+				)).To(gomega.Succeed())
+
+				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo).To(gomega.Not(gomega.BeNil()))
+				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID).To(gomega.Equal(nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID))
+				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Name).To(gomega.Equal(nonAdminBsl.Name))
+				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Namespace).To(gomega.Equal(nonAdminBslNamespace))
+				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.RequestedSpec).To(gomega.Equal(nonAdminBsl.Spec.BackupStorageLocationSpec))
+				gomega.Expect(nabslRequest.Spec.ApprovalDecision).To(gomega.Equal(scenario.approvalDecision))
 			}
 
 			ginkgo.By("Waiting NonAdminBackupStorageLocation deletion")
@@ -352,9 +371,24 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 					}
 					return false, err
 				}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
+				gomega.Eventually(func() (bool, error) {
+					err := k8sClient.Get(
+						ctxTimeout,
+						types.NamespacedName{
+							Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID,
+							Namespace: oadpNamespace,
+						},
+						nabslRequest,
+					)
+					if apierrors.IsNotFound(err) {
+						return true, nil
+					}
+					return false, err
+				}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
 			}
 		}, ginkgo.Entry("Should fail with NonAdminBackupStorageLocation due to missing credential name", nonAdminBackupStorageLocationFullReconcileScenario{
 			createNonAdminSecret: false,
+			approvalDecision:     nacv1alpha1.NonAdminBSLRequestApproved,
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
 				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Credential: &corev1.SecretKeySelector{
@@ -384,6 +418,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 		}),
 		ginkgo.Entry("Should fail with NonAdminBackupStorageLocation due to missing secret object", nonAdminBackupStorageLocationFullReconcileScenario{
 			createNonAdminSecret: false,
+			approvalDecision:     nacv1alpha1.NonAdminBSLRequestApproved,
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
 				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Provider: "aws",
@@ -419,6 +454,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 		ginkgo.Entry("Pass with creation of BSL based on the NonAdminBackupStorageLocation spec", nonAdminBackupStorageLocationFullReconcileScenario{
 			createNonAdminSecret: true,
 			nonAdminSecretName:   "test-secret-name",
+			approvalDecision:     nacv1alpha1.NonAdminBSLRequestApproved,
 			spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
 				BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
 					Credential: &corev1.SecretKeySelector{
@@ -444,6 +480,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 						Status:             metav1.ConditionTrue,
 						Reason:             "BslSpecValidation",
 						Message:            "NonAdminBackupStorageLocation spec validation successful",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               "ClusterAdminApproved",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BslSpecApproved",
+						Message:            "NonAdminBackupStorageLocationRequest approval decision set to Approve",
 						LastTransitionTime: metav1.NewTime(time.Now()),
 					},
 					{

@@ -506,6 +506,27 @@ func GetVeleroRestoreByLabel(ctx context.Context, clientInstance client.Client, 
 	}
 }
 
+// GetNabslRequestByLabel retrieves a NonAdminBackupStorageLocationRequest object based on a specified label within a given namespace.
+// It returns the NonAdminBackupStorageLocationRequest only when exactly one object is found, throws an error if multiple NonAdminBackupStorageLocationRequests are found,
+// or returns nil if no matches are found.
+func GetNabslRequestByLabel(ctx context.Context, clientInstance client.Client, namespace string, labelValue string) (*nacv1alpha1.NonAdminBackupStorageLocationRequest, error) {
+	nabslRequestList := &nacv1alpha1.NonAdminBackupStorageLocationRequestList{}
+
+	// Call the generic ListLabeledObjectsInNamespace function
+	if err := ListObjectsByLabel(ctx, clientInstance, namespace, constant.NabslOriginNACUUIDLabel, labelValue, nabslRequestList); err != nil {
+		return nil, err
+	}
+
+	switch len(nabslRequestList.Items) {
+	case 0:
+		return nil, nil // No matching NonAdminBackupStorageLocationRequest found
+	case 1:
+		return &nabslRequestList.Items[0], nil // Found 1 matching NonAdminBackupStorageLocationRequest
+	default:
+		return nil, fmt.Errorf("multiple NonAdminBackupStorageLocationRequest objects found with label %s=%s in namespace '%s'", constant.NabslOriginNACUUIDLabel, labelValue, namespace)
+	}
+}
+
 // GetBslSecretByLabel retrieves a Secret object based on a specified label within a given namespace.
 // It returns the Secret only when exactly one object is found, throws an error if multiple secrets are found,
 // or returns nil if no matches are found.
