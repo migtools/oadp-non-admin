@@ -156,6 +156,10 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 
 // ValidateRestoreSpec return nil, if NonAdminRestore is valid; error otherwise
 func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonAdminRestore *nacv1alpha1.NonAdminRestore, enforcedRestoreSpec *velerov1.RestoreSpec) error {
+	if len(nonAdminRestore.Spec.RestoreSpec.ScheduleName) > 0 {
+		return fmt.Errorf(constant.NARRestrictedErr, "nonAdminRestore.spec.restoreSpec.scheduleName")
+	}
+
 	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
 	}
@@ -173,16 +177,20 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
 	}
 	// TODO validate that velero backup exists?
-
 	// TODO does velero validate if backup is ready to be restored?
+	// Issue link: https://github.com/migtools/oadp-non-admin/issues/225
 
-	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ScheduleName is not used? (we do not plan to have schedules now, right?)
+	if nonAdminRestore.Spec.RestoreSpec.IncludedNamespaces != nil {
+		return fmt.Errorf(constant.NARRestrictedErr, "nonAdminRestore.spec.restoreSpec.includedNamespaces")
+	}
 
-	// TODO validate that nonAdminRestore.Spec.RestoreSpec.IncludedNamespaces does not contain anything other than its own namespace?
+	if nonAdminRestore.Spec.RestoreSpec.ExcludedNamespaces != nil {
+		return fmt.Errorf(constant.NARRestrictedErr, "nonAdminRestore.spec.restoreSpec.excludedNamespaces")
+	}
 
-	// TODO validate that nonAdminRestore.Spec.RestoreSpec.ExcludedNamespaces is not set? (to avoid empty restores)
-
-	// TODO nonAdminRestore.Spec.RestoreSpec.NamespaceMapping ?
+	if nonAdminRestore.Spec.RestoreSpec.NamespaceMapping != nil {
+		return fmt.Errorf(constant.NARRestrictedErr, "nonAdminRestore.spec.restoreSpec.namespaceMapping")
+	}
 
 	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
 	for index := range enforcedSpec.NumField() {

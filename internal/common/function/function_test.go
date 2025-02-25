@@ -535,6 +535,111 @@ func TestValidateRestoreSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "[invalid] spec.restoreSpec.scheduleName is restricted",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultNS,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						ScheduleName: "foo-schedule",
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-schedule",
+						Namespace: defaultNS,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore nonAdminRestore.spec.restoreSpec.scheduleName is restricted",
+		},
+		{
+			name: "[invalid] spec.restoreSpec.includedNamespaces is restricted",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultNS,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName:         "foo-backup-incl",
+						IncludedNamespaces: []string{"foo-bar-ns"},
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-backup-incl",
+						Namespace: defaultNS,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore nonAdminRestore.spec.restoreSpec.includedNamespaces is restricted",
+		},
+		{
+			name: "[invalid] spec.restoreSpec.excludedNamespaces is restricted",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultNS,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName:         "foo-backup-ns-ex",
+						ExcludedNamespaces: []string{"foo-bar-ns"},
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-backup-ns-ex",
+						Namespace: defaultNS,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore nonAdminRestore.spec.restoreSpec.excludedNamespaces is restricted",
+		},
+		{
+			name: "[invalid] spec.restoreSpec.namespaceMapping is restricted",
+			nonAdminRestore: &nacv1alpha1.NonAdminRestore{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: defaultNS,
+				},
+				Spec: nacv1alpha1.NonAdminRestoreSpec{
+					RestoreSpec: &velerov1.RestoreSpec{
+						BackupName: "foo-backup-ns-map",
+						NamespaceMapping: map[string]string{
+							"foo-ns": "bar-ns",
+						},
+					},
+				},
+			},
+			objects: []client.Object{
+				&nacv1alpha1.NonAdminBackup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-backup-ns-map",
+						Namespace: defaultNS,
+					},
+					Status: nacv1alpha1.NonAdminBackupStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
+					},
+				},
+			},
+			errorMessage: "NonAdminRestore nonAdminRestore.spec.restoreSpec.namespaceMapping is restricted",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -559,19 +664,22 @@ func TestValidateRestoreSpec(t *testing.T) {
 
 func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 	tests := []struct {
-		enforcedValue any
-		overrideValue any
-		name          string
+		enforcedValue       any
+		overrideValue       any
+		name                string
+		expectErrorEnforced bool
 	}{
 		{
-			name:          "IncludedNamespaces",
-			enforcedValue: []string{"self-service-namespace"},
-			overrideValue: []string{"openshift-monitor"},
+			name:                "IncludedNamespaces",
+			enforcedValue:       []string{"self-service-namespace"},
+			overrideValue:       []string{"openshift-monitor"},
+			expectErrorEnforced: true,
 		},
 		{
-			name:          "ExcludedNamespaces",
-			enforcedValue: []string{"openshift-monitor"},
-			overrideValue: []string{"cherry"},
+			name:                "ExcludedNamespaces",
+			enforcedValue:       []string{"openshift-monitor"},
+			overrideValue:       []string{"cherry"},
+			expectErrorEnforced: true,
 		},
 		{
 			name:          "BackupName",
@@ -579,9 +687,10 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			overrideValue: "another",
 		},
 		{
-			name:          "ScheduleName",
-			enforcedValue: "allowed",
-			overrideValue: "not-alllowed",
+			name:                "ScheduleName",
+			enforcedValue:       "allowed",
+			overrideValue:       "not-alllowed",
+			expectErrorEnforced: true,
 		},
 		{
 			name:          "IncludedResources",
@@ -682,6 +791,7 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			overrideValue: map[string]string{
 				"movie": "star",
 			},
+			expectErrorEnforced: true,
 		},
 		{
 			name: "RestoreStatus",
@@ -742,10 +852,17 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			if err != nil {
 				t.Errorf("not setting restore spec field '%v' test failed: %v", test.name, err)
 			}
+
 			reflect.ValueOf(userNonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
 			err = ValidateRestoreSpec(context.Background(), fakeClient, userNonAdminRestore, enforcedSpec)
-			if err != nil {
-				t.Errorf("setting restore spec field '%v' with value respecting enforcement test failed: %v", test.name, err)
+			if test.expectErrorEnforced {
+				if err == nil {
+					t.Errorf("expected error when setting field '%v' to enforced value, but got none", test.name)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("setting backup spec field '%v' with enforced value test failed: %v", test.name, err)
+				}
 			}
 			reflect.ValueOf(userNonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
 			err = ValidateRestoreSpec(context.Background(), fakeClient, userNonAdminRestore, enforcedSpec)
