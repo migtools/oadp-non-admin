@@ -16,7 +16,7 @@ limitations under the License.
 
 package v1alpha1
 
-// NonAdminPhase is a simple one high-level summary of the lifecycle of a NonAdminBackup, NonAdminRestore or NonAdminBackupStorageLocation.
+// NonAdminPhase is a simple one high-level summary of the lifecycle of a NonAdminBackup, NonAdminRestore, NonAdminBackupStorageLocation, or NonAdminDownloadRequest
 // +kubebuilder:validation:Enum=New;BackingOff;Created;Deleting
 type NonAdminPhase string
 

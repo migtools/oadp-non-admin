@@ -39,6 +39,12 @@ type NonAdminDownloadRequestSpec struct {
 type NonAdminDownloadRequestStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	VeleroDownloadRequestStatus velerov1.DownloadRequestStatus `json:"veleroDownloadRequest,omitempty"`
+
+	// phase is a simple one high-level summary of the lifecycle of an NonAdminDownloadRequest
+	Phase NonAdminPhase `json:"phase,omitempty"`
+
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
