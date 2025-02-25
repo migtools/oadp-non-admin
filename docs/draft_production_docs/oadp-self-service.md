@@ -464,6 +464,7 @@ Click on instances and the create button.
 
 
 ## Unsupported features of OADP regarding self-service
+ * Cross Cluster or Migrations are NOT supported by self-service.  This type of OADP operation is only supported for the cluster administrator.
  * non-admin VSL's are not supported.  The VSL created by the cluster-admin in DPA would be the only VSL non-admin users can employ.
  * Resource policy and volume policy is not supported for non-admin user backup and restore operations.
  * Backup and restore logs via NonAdminDownloadRequest is not supported for default BSL's.  If the cluster administrator would like users to have access to logs, NonAdminBackupStorageLocation's must be created for the non-admin users.
@@ -471,7 +472,7 @@ Click on instances and the create button.
 
 ## Security Considerations for Cluster Administrators
 
-  * By enabling self-service, cluster administrators will expose the name of the namespace where OADP is running.  non-admin users are NOT granted any access to the OADP operator namespace.
+  * By enabling self-service, cluster administrators will expose the name of the namespace where OADP is running via the backup logs.  non-admin users are NOT granted any access to the OADP operator namespace.
   * The nonadmin controller will not allow users to set includeClusterResources in a backup or restore.  This is to prevent a scenario where a non-admin user would attempt to restore a cluster scoped resource to a namespace. OADP's backup policy is to automatically include cluster scoped resources like PV's that are associated with the namespace being backed up. Additionally cluster administrators can template an enforcement to `excludedClusterScopedResources` to prevent cluster scoped resources from being backed up.
 
 
