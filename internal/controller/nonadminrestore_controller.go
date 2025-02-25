@@ -355,6 +355,9 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 			}
 		}
 
+		restoreSpec.ExcludedResources = append(restoreSpec.ExcludedResources,
+			"volumesnapshotclasses")
+
 		veleroRestore := velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroRestoreNACUUID,
