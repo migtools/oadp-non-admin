@@ -435,6 +435,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 	var reason, message string
 
 	adminApprovedCondition := metav1.ConditionFalse
+	preserveVeleroBslSecret := false
 	expectedPhase := nacv1alpha1.NonAdminPhaseNew
 	updatedRejectedCondition := false
 	updatedApprovedCondition := false
@@ -447,7 +448,8 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 			Reason:  "BslSpecUpdateRejected",
 			Message: message,
 		})
-		adminApprovedCondition = metav1.ConditionTrue
+		preserveVeleroBslSecret = true
+		// Ensure the phase is not changed from the current nabsl phase
 		expectedPhase = nabsl.Status.Phase
 		terminalErr = reconcile.TerminalError(errors.New(message))
 	} else if nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID == constant.EmptyString || nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
@@ -487,7 +489,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 
 	updatePhase := updateNonAdminPhase(&nabsl.Status.Phase, expectedPhase)
 
-	if adminApprovedCondition == metav1.ConditionFalse {
+	if !preserveVeleroBslSecret && adminApprovedCondition == metav1.ConditionFalse {
 		var deleteErr error
 		updatedApprovedCondition = true
 		_, deleteErr = r.deleteVeleroBSLSecret(ctx, logger, nabsl)
