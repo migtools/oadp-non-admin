@@ -63,6 +63,23 @@ const (
 	findSingleVDBRError    = "Error encountered while retrieving DeleteBackupRequest for NAB during the Delete operation"
 )
 
+var (
+	alwaysExcludedNamespacedResources = []string{
+		nacv1alpha1.NonAdminBackups,
+		nacv1alpha1.NonAdminRestores,
+		nacv1alpha1.NonAdminBackupStorageLocations,
+	}
+	alwaysExcludedClusterResources = []string{
+		"securitycontextconstraints",
+		"clusterroles",
+		"clusterrolebindings",
+		"priorityclasses",
+		"customresourcedefinitions",
+		"virtualmachineclusterinstancetypes",
+		"virtualmachineclusterpreferences",
+	}
+)
+
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminbackups/finalizers,verbs=update
@@ -664,15 +681,15 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		if haveNewResourceFilterParameters {
 			// Use the new-style exclusion list
 			backupSpec.ExcludedNamespaceScopedResources = append(backupSpec.ExcludedNamespaceScopedResources,
-				nacv1alpha1.NonAdminBackups,
-				nacv1alpha1.NonAdminRestores,
-				nacv1alpha1.NonAdminBackupStorageLocations)
+				alwaysExcludedNamespacedResources...)
+			backupSpec.ExcludedClusterScopedResources = append(backupSpec.ExcludedClusterScopedResources,
+				alwaysExcludedClusterResources...)
 		} else {
 			// Fallback to the old-style exclusion list
 			backupSpec.ExcludedResources = append(backupSpec.ExcludedResources,
-				nacv1alpha1.NonAdminBackups,
-				nacv1alpha1.NonAdminRestores,
-				nacv1alpha1.NonAdminBackupStorageLocations)
+				alwaysExcludedNamespacedResources...)
+			backupSpec.ExcludedResources = append(backupSpec.ExcludedResources,
+				alwaysExcludedClusterResources...)
 		}
 
 		veleroBackup = &velerov1.Backup{
