@@ -425,13 +425,16 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 	if err != nil {
 		logger.Error(err, findSingleNABSLRequestError)
 		return false, err
+	} else if nabslRequest == nil {
+		err := errors.New("no NonAdminBackupStorageLocationRequest found")
+		logger.Error(err, findSingleNABSLRequestError)
+		return false, err
 	}
 
 	var terminalErr error
 	var reason, message string
 
-	statusCondition := metav1.ConditionFalse
-	shouldRequeue := false
+	adminApprovedCondition := metav1.ConditionFalse
 	expectedPhase := nacv1alpha1.NonAdminPhaseNew
 	updatedRejectedCondition := false
 	updatedApprovedCondition := false
@@ -444,7 +447,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 			Reason:  "BslSpecUpdateRejected",
 			Message: message,
 		})
-		statusCondition = metav1.ConditionTrue
+		adminApprovedCondition = metav1.ConditionTrue
 		expectedPhase = nabsl.Status.Phase
 		terminalErr = reconcile.TerminalError(errors.New(message))
 	} else if nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID == constant.EmptyString || nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
@@ -459,14 +462,11 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
 	} else {
 		switch {
-		case nabslRequest == nil:
-			shouldRequeue = true
-			reason, message = "BslSpecApprovalPending", "NonAdminBackupStorageLocationRequest not found, creating one"
 		case nabslRequest.Spec.ApprovalDecision == "pending" || nabslRequest.Spec.ApprovalDecision == constant.EmptyString:
 			reason, message = "BslSpecApprovalPending", "NonAdminBackupStorageLocationRequest approval pending"
 			terminalErr = reconcile.TerminalError(errors.New(message))
 		case nabslRequest.Spec.ApprovalDecision == "approve":
-			statusCondition = metav1.ConditionTrue
+			adminApprovedCondition = metav1.ConditionTrue
 			reason, message = "BslSpecApproved", "NonAdminBackupStorageLocationRequest approval decision set to Approve"
 		case nabslRequest.Spec.ApprovalDecision == "reject":
 			reason, message = "BslSpecRejected", "NonAdminBackupStorageLocationRequest approval decision set to Reject"
@@ -479,7 +479,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		}
 		updatedApprovedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminBSLConditionApproved),
-			Status:  statusCondition,
+			Status:  adminApprovedCondition,
 			Reason:  reason,
 			Message: message,
 		})
@@ -487,7 +487,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 
 	updatePhase := updateNonAdminPhase(&nabsl.Status.Phase, expectedPhase)
 
-	if statusCondition == metav1.ConditionFalse {
+	if adminApprovedCondition == metav1.ConditionFalse {
 		var deleteErr error
 		updatedApprovedCondition = true
 		_, deleteErr = r.deleteVeleroBSLSecret(ctx, logger, nabsl)
@@ -512,7 +512,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		logger.V(1).Info("NonAdminBackupStorageLocation condition updated", "Reason", reason)
 	}
 
-	return shouldRequeue, terminalErr
+	return false, terminalErr
 }
 
 // createNonAdminRequest should create NonAdminBackupStorageLocationRequest object
@@ -538,7 +538,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 		}
 
 		if !r.RequireApprovalForBSL && nabslRequest.Spec.ApprovalDecision != nacv1alpha1.NonAdminBSLRequestApproved {
-			logger.V(1).Info("NonAdminBackupStorageLocationRequest already exists and is not approved, updating to approved")
+			logger.V(1).Info("Unapproved NonAdminBackupStorageLocationRequest found; approving as requireApprovalForBSL on the DPA is not true.")
 			patch := client.MergeFrom(nabslRequest.DeepCopy())
 			nabslRequest.Spec.ApprovalDecision = nacv1alpha1.NonAdminBSLRequestApproved
 			if errPatch := r.Patch(ctx, nabslRequest, patch); errPatch != nil {
