@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,12 +25,14 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // NonAdminDownloadRequestSpec defines the desired state of NonAdminDownloadRequest.
+// Mirrors velero DownloadRequestSpec to allow non admins to download information for a non admin backup/restore
 type NonAdminDownloadRequestSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of NonAdminDownloadRequest. Edit nonadmindownloadrequest_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Target is what to download (e.g. logs for a backup).
+	Target velerov1.DownloadTarget `json:"target"`
+
 }
 
 // NonAdminDownloadRequestStatus defines the observed state of NonAdminDownloadRequest.
