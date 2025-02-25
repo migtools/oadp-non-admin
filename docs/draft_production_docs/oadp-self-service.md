@@ -261,10 +261,15 @@ The complete nonAdminRestore resource definition can be found here: [NonAdminRes
 ### NonAdminBackupStorageLocation NABSL:
 Cluster administrators can gain efficiencies by delegating backup and restore operations to OpenShift users. It is recommended that cluster administrators carefully manage the NABSL to conform to any company policies, compliance requirements, etc.  
 
-Cluster administrators can optionally set an approval policy for any NABSL.  This policy will require that any NABSL be approved by the cluster administrator before it can be used.  A cluster administrator may also choose to create NABSL's for the non-admin users on the cluster.   
+1. **Direct Creation**: Cluster administrators can create NABSLs directly for non-admin users.
+2. **Approval Workflow**: Cluster administrators can enable an approval process where:
+   - Users create NABSL's from the user namespace, this creates a NABSLApprovalRequest object in the openshift-adp namespace.
+   - Administrators review and approve/reject these requests in the openshift-adp namespace. Upon approval the NABSL is created in the users namespace.
+3. **Automatic Approval**: Users create NABSL from the user namespace, these are automatically approved.
 
-If cluster administrators delegate NABSL creation it is recommended to use the NABSLApprovalRequest object to manage the NABSL's.  This will allow the cluster administrator to review and approve the NABSL's before they are used.
+For security purposes it is recommended that cluster administrators use either the direct creation or the approval workflow.  The automatic approval option is less secure as it does not require administrator review.
 
+To enable the approval workflow the DPA spec must be set as follows:
 ```
   nonAdmin:
     enable: true
