@@ -23,11 +23,11 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 var _ = Describe("NonAdminDownloadRequest Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("NonAdminDownloadRequest Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		nonadmindownloadrequest := &oadpv1alpha1.NonAdminDownloadRequest{}
+		nonadmindownloadrequest := &nacv1alpha1.NonAdminDownloadRequest{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind NonAdminDownloadRequest")
 			err := k8sClient.Get(ctx, typeNamespacedName, nonadmindownloadrequest)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &oadpv1alpha1.NonAdminDownloadRequest{
+				resource := &nacv1alpha1.NonAdminDownloadRequest{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("NonAdminDownloadRequest Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &oadpv1alpha1.NonAdminDownloadRequest{}
+			resource := &nacv1alpha1.NonAdminDownloadRequest{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
@@ -72,10 +72,22 @@ var _ = Describe("NonAdminDownloadRequest Controller", func() {
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
+			// TODO: Create NABSL in user1-ns
+			// TODO: Create backup in user1-ns
+			_, err := controllerReconciler.Reconcile(ctx, &nacv1alpha1.NonAdminDownloadRequest{
+				// TODO: test various specs here
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "user1-nadr1",
+					Namespace: "user1-ns",
+				},
+				Spec: nacv1alpha1.NonAdminDownloadRequestSpec{
+					Target: velerov1.DownloadTarget{
+						Kind: velerov1.DownloadTargetKindBackupResults,
+						Name: "user1-nab-name",
+					},
+				},
 			})
+			// TODO: err might occur if backup is not yet completed but we can passthrough velero behavior
 			Expect(err).NotTo(HaveOccurred())
 			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
 			// Example: If you expect a certain status condition after reconciliation, verify it here.

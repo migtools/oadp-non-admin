@@ -23,8 +23,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	oadpv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 )
 
 // NonAdminDownloadRequestReconciler reconciles a NonAdminDownloadRequest object
@@ -46,18 +47,19 @@ type NonAdminDownloadRequestReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
-func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
-
-	// TODO(user): your logic here
-
+// 
+// This reconcile implements ObjectReconciler https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile#ObjectReconciler
+// Each reconciliation event gets the associated object from Kubernetes before passing it to Reconcile
+func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// // SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&oadpv1alpha1.NonAdminDownloadRequest{}).
+		For(&nacv1alpha1.NonAdminDownloadRequest{}).
 		Named("nonadmindownloadrequest").
-		Complete(r)
+		Complete(reconcile.AsReconciler(r.Client, r))
 }
