@@ -229,7 +229,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 							ApprovalDecision: nacv1alpha1.NonAdminBSLRequestApproved,
 						},
 						Status: nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
-							VeleroBackupStorageLocationRequest: &nacv1alpha1.VeleroBackupStorageLocationRequest{},
+							NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{},
 						},
 					}
 					gomega.Expect(k8sClient.Create(ctx, nabslRequest)).To(gomega.Succeed())
@@ -258,7 +258,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 							ApprovalDecision: nacv1alpha1.NonAdminBSLRequestApproved,
 						},
 						Status: nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
-							VeleroBackupStorageLocationRequest: &nacv1alpha1.VeleroBackupStorageLocationRequest{
+							NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{
 								Namespace: oadpNamespace,
 								Name:      fmt.Sprintf("test-garbage-collector-nabsl-%v", index),
 								RequestedSpec: &velerov1.BackupStorageLocationSpec{

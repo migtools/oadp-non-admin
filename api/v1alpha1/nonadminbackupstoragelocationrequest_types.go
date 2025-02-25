@@ -50,9 +50,9 @@ type NonAdminBackupStorageLocationRequestSpec struct {
 	ApprovalDecision NonAdminBSLRequest `json:"approvalDecision,omitempty"`
 }
 
-// VeleroBackupStorageLocationRequest contains information of the related Velero BackupStorageLocation object.
-type VeleroBackupStorageLocationRequest struct {
-	// requestedSpec contains the requested spec request for the NonAdminBackupStorageLocation
+// NonAdminBackupStorageLocationRequestStatusInfo contains information of the related NonAdminBackupStorageLocation object.
+type NonAdminBackupStorageLocationRequestStatusInfo struct {
+	// requestedSpec contains the requested Velero BackupStorageLocation spec from the NonAdminBackupStorageLocation
 	// +optionl
 	RequestedSpec *velerov1.BackupStorageLocationSpec `json:"requestedSpec"`
 
@@ -72,7 +72,7 @@ type VeleroBackupStorageLocationRequest struct {
 // NonAdminBackupStorageLocationRequestStatus defines the observed state of NonAdminBackupStorageLocationRequest
 type NonAdminBackupStorageLocationRequestStatus struct {
 	// +optional
-	VeleroBackupStorageLocationRequest *VeleroBackupStorageLocationRequest `json:"veleroBackupStorageLocationRequest,omitempty"`
+	NonAdminBackupStorageLocationRequestStatusInfo *NonAdminBackupStorageLocationRequestStatusInfo `json:"nonAdminBackupStorageLocation,omitempty"`
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminBackupStorageLocation.
 
 	// +optional

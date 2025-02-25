@@ -436,7 +436,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 	updatedRejectedCondition := false
 	updatedApprovedCondition := false
 
-	if !reflect.DeepEqual(nabslRequest.Status.VeleroBackupStorageLocationRequest.DeepCopy().RequestedSpec, nabsl.Spec.BackupStorageLocationSpec) {
+	if !reflect.DeepEqual(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.DeepCopy().RequestedSpec, nabsl.Spec.BackupStorageLocationSpec) {
 		message = "NaBSL Spec update not allowed. Changes will not be applied. Delete NaBSL and create new one with updated spec"
 		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminBSLConditionSpecUpdateApproved),
@@ -447,7 +447,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		statusCondition = metav1.ConditionTrue
 		expectedPhase = nabsl.Status.Phase
 		terminalErr = reconcile.TerminalError(errors.New(message))
-	} else if nabslRequest.Status.VeleroBackupStorageLocationRequest.NACUUID == constant.EmptyString || nabslRequest.Status.VeleroBackupStorageLocationRequest.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
+	} else if nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID == constant.EmptyString || nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
 		message = "NonAdminBackupStorageLocationRequest does not contain valid NAC UUID and can not be approved"
 		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminBSLConditionApproved),
@@ -900,7 +900,7 @@ func updateNaBSLVeleroBackupStorageLocationStatus(status *nacv1alpha1.NonAdminBa
 // in NonAdminBackupStorageLocationRequest object status and returns true if the fields are changed.
 func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocationRequestStatus, nabsl *nacv1alpha1.NonAdminBackupStorageLocation, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
 	updatedStatus := nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
-		VeleroBackupStorageLocationRequest: &nacv1alpha1.VeleroBackupStorageLocationRequest{
+		NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{
 			NACUUID:       nabsl.Status.VeleroBackupStorageLocation.NACUUID,
 			Name:          nabsl.Name,
 			Namespace:     nabsl.Namespace,

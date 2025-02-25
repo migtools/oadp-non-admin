@@ -143,7 +143,7 @@ The `NonAdminBackupStorageLocationRequest` is a custom resource that allows non-
     - `approvalDecision`: allow cluster admin to approve or deny the request. The possible values are `approve`, `reject`, and `pending` (waiting for approval).
   - `status`:
     - `phase`: the phase of the NonAdminBackupStorageLocationRequest. The possible values are `Pending`, `Approved`, and `Rejected`.
-    - `veleroBackupStorageLocationRequest`:
+    - `nonAdminBackupStorageLocation`:
       - `requestedSpec`: the requested by the user Velero BSL spec.
       - `nacuuid`: the UUID of the NonAdminBackupStorageLocation.
       - `name`: the name of the NonAdminBackupStorageLocation.
