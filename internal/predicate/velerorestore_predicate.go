@@ -37,12 +37,12 @@ func (p VeleroRestorePredicate) Update(ctx context.Context, evt event.UpdateEven
 	namespace := evt.ObjectNew.GetNamespace()
 	if namespace == p.OADPNamespace {
 		if function.CheckVeleroRestoreMetadata(evt.ObjectNew) {
-			logger.V(1).Info("Accepted Update event")
+			logger.V(1).Info("Accepted Restore Update event")
 			return true
 		}
 	}
 
-	logger.V(1).Info("Rejected Update event")
+	logger.V(1).Info("Rejected Restore Update event")
 	return false
 }
 
@@ -54,11 +54,11 @@ func (p VeleroRestorePredicate) Delete(ctx context.Context, evt event.DeleteEven
 	namespace := evt.Object.GetNamespace()
 	if namespace == p.OADPNamespace {
 		if function.CheckVeleroRestoreMetadata(evt.Object) {
-			logger.V(1).Info("Accepted Delete event")
+			logger.V(1).Info("Accepted Restore Delete event")
 			return true
 		}
 	}
 
-	logger.V(1).Info("Rejected Delete event")
+	logger.V(1).Info("Rejected Restore Delete event")
 	return false
 }

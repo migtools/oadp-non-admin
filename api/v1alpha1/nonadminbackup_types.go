@@ -26,8 +26,8 @@ type NonAdminBackupSpec struct {
 	// BackupSpec defines the specification for a Velero backup.
 	BackupSpec *velerov1.BackupSpec `json:"backupSpec"`
 
-	// DeleteBackup removes the NonAdminBackup and its associated VeleroBackup from the cluster,
-	// as well as the corresponding object storage
+	// DeleteBackup removes the NonAdminBackup and its associated NonAdminRestores and VeleroBackup from the cluster,
+	// as well as the corresponding data in object storage
 	// +optional
 	DeleteBackup bool `json:"deleteBackup,omitempty"`
 }
