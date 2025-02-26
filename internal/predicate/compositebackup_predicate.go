@@ -28,10 +28,11 @@ import (
 
 // CompositeBackupPredicate is a combination of NonAdminBackup and Velero Backup event filters
 type CompositeBackupPredicate struct {
-	Context                    context.Context
-	NonAdminBackupPredicate    NonAdminBackupPredicate
-	VeleroBackupPredicate      VeleroBackupPredicate
-	VeleroBackupQueuePredicate VeleroBackupQueuePredicate
+	Context                        context.Context
+	NonAdminBackupPredicate        NonAdminBackupPredicate
+	VeleroBackupPredicate          VeleroBackupPredicate
+	VeleroBackupQueuePredicate     VeleroBackupQueuePredicate
+	VeleroPodVolumeBackupPredicate VeleroPodVolumeBackupPredicate
 }
 
 // Create event filter only accepts NonAdminBackup create events
@@ -51,6 +52,8 @@ func (p CompositeBackupPredicate) Update(evt event.UpdateEvent) bool {
 		return p.NonAdminBackupPredicate.Update(p.Context, evt)
 	case *velerov1.Backup:
 		return p.VeleroBackupQueuePredicate.Update(p.Context, evt) || p.VeleroBackupPredicate.Update(p.Context, evt)
+	case *velerov1.PodVolumeBackup:
+		return p.VeleroPodVolumeBackupPredicate.Update(p.Context, evt)
 	default:
 		return false
 	}

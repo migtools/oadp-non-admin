@@ -601,6 +601,89 @@ spec:
                   - type
                   type: object
                 type: array
+              dataUploadStatus:
+                description: TODO
+                items:
+                  description: DataUploadStatus is the current status of a DataUpload.
+                  properties:
+                    acceptedByNode:
+                      description: Node is name of the node where the DataUpload is
+                        prepared.
+                      type: string
+                    acceptedTimestamp:
+                      description: |-
+                        AcceptedTimestamp records the time the DataUpload is to be prepared.
+                        The server's time is used for AcceptedTimestamp
+                      format: date-time
+                      nullable: true
+                      type: string
+                    completionTimestamp:
+                      description: |-
+                        CompletionTimestamp records the time a backup was completed.
+                        Completion time is recorded even on failed backups.
+                        Completion time is recorded before uploading the backup object.
+                        The server's time is used for CompletionTimestamps
+                      format: date-time
+                      nullable: true
+                      type: string
+                    dataMoverResult:
+                      additionalProperties:
+                        type: string
+                      description: DataMoverResult stores data-mover-specific information
+                        as a result of the DataUpload.
+                      nullable: true
+                      type: object
+                    message:
+                      description: Message is a message about the DataUpload's status.
+                      type: string
+                    node:
+                      description: Node is name of the node where the DataUpload is
+                        processed.
+                      type: string
+                    path:
+                      description: Path is the full path of the snapshot volume being
+                        backed up.
+                      type: string
+                    phase:
+                      description: Phase is the current state of the DataUpload.
+                      enum:
+                      - New
+                      - Accepted
+                      - Prepared
+                      - InProgress
+                      - Canceling
+                      - Canceled
+                      - Completed
+                      - Failed
+                      type: string
+                    progress:
+                      description: |-
+                        Progress holds the total number of bytes of the volume and the current
+                        number of backed up bytes. This can be used to display progress information
+                        about the backup operation.
+                      properties:
+                        bytesDone:
+                          format: int64
+                          type: integer
+                        totalBytes:
+                          format: int64
+                          type: integer
+                      type: object
+                    snapshotID:
+                      description: SnapshotID is the identifier for the snapshot in
+                        the backup repository.
+                      type: string
+                    startTimestamp:
+                      description: |-
+                        StartTimestamp records the time a backup was started.
+                        Separate from CreationTimestamp, since that value changes
+                        on restores.
+                        The server's time is used for StartTimestamps
+                      format: date-time
+                      nullable: true
+                      type: string
+                  type: object
+                type: array
               phase:
                 description: phase is a simple one high-level summary of the lifecycle
                   of an NonAdminBackup.
@@ -610,6 +693,73 @@ spec:
                 - Created
                 - Deleting
                 type: string
+              podVolumeBackupStatus:
+                description: TODO
+                items:
+                  description: TODO
+                  properties:
+                    name:
+                      description: name references the Velero PodVolumeBackup object
+                        by it's name.
+                      type: string
+                    status:
+                      description: status captures the current status of the Velero
+                        PodVolumeBackup.
+                      properties:
+                        completionTimestamp:
+                          description: |-
+                            CompletionTimestamp records the time a backup was completed.
+                            Completion time is recorded even on failed backups.
+                            Completion time is recorded before uploading the backup object.
+                            The server's time is used for CompletionTimestamps
+                          format: date-time
+                          nullable: true
+                          type: string
+                        message:
+                          description: Message is a message about the pod volume backup's
+                            status.
+                          type: string
+                        path:
+                          description: Path is the full path within the controller
+                            pod being backed up.
+                          type: string
+                        phase:
+                          description: Phase is the current state of the PodVolumeBackup.
+                          enum:
+                          - New
+                          - InProgress
+                          - Completed
+                          - Failed
+                          type: string
+                        progress:
+                          description: |-
+                            Progress holds the total number of bytes of the volume and the current
+                            number of backed up bytes. This can be used to display progress information
+                            about the backup operation.
+                          properties:
+                            bytesDone:
+                              format: int64
+                              type: integer
+                            totalBytes:
+                              format: int64
+                              type: integer
+                          type: object
+                        snapshotID:
+                          description: SnapshotID is the identifier for the snapshot
+                            of the pod volume.
+                          type: string
+                        startTimestamp:
+                          description: |-
+                            StartTimestamp records the time a backup was started.
+                            Separate from CreationTimestamp, since that value changes
+                            on restores.
+                            The server's time is used for StartTimestamps
+                          format: date-time
+                          nullable: true
+                          type: string
+                      type: object
+                  type: object
+                type: array
               queueInfo:
                 description: |-
                   queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.

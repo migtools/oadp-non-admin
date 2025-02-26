@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -74,6 +75,18 @@ type VeleroDeleteBackupRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// TODO
+type PodVolumeBackupStatus struct {
+	// name references the Velero PodVolumeBackup object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// status captures the current status of the Velero PodVolumeBackup.
+	// +optional
+	Status *velerov1.PodVolumeBackupStatus `json:"status,omitempty"`
+	// TODO too much information? possible information leak? just get progress?
+}
+
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
 	// +optional
@@ -81,6 +94,14 @@ type NonAdminBackupStatus struct {
 
 	// +optional
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
+
+	// TODO
+	// +optional
+	DataUploadStatus []velerov2alpha1.DataUploadStatus `json:"dataUploadStatus,omitempty"`
+
+	// TODO
+	// +optional
+	PodVolumeBackupStatus []PodVolumeBackupStatus `json:"podVolumeBackupStatus,omitempty"`
 
 	// queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

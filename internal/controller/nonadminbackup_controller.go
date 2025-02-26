@@ -30,6 +30,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -86,6 +87,7 @@ var (
 
 // +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=deletebackuprequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=velero.io,resources=podvolumebackups,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state,
@@ -771,7 +773,18 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	// Status will be applied based on the current state of the VeleroBackup.
 	updated := updateNonAdminBackupVeleroBackupSpecStatus(&nab.Status, veleroBackup)
 
-	if updated || updatedPhase || updatedCondition || updatedQueueInfo {
+	podVolumeBackups := &velerov1.PodVolumeBackupList{}
+	err = r.List(ctx, podVolumeBackups, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list PodVolumeBackups in OADP namespace")
+	}
+	updatedPodVolumeBackupStatus := updateNonAdminBackupPodVolumeBackupStatus(&nab.Status, podVolumeBackups)
+
+	if updated || updatedPhase || updatedCondition || updatedQueueInfo || updatedPodVolumeBackupStatus {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
@@ -796,10 +809,18 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
 				OADPNamespace: r.OADPNamespace,
 			},
+			VeleroPodVolumeBackupPredicate: predicate.VeleroPodVolumeBackupPredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
 		}).
 		// handler runs after predicate
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupQueueHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
+		Watches(&velerov1.PodVolumeBackup{}, &handler.VeleroPodVolumeBackupHandler{
 			Client:        r.Client,
 			OADPNamespace: r.OADPNamespace,
 		}).
@@ -866,4 +887,34 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 
 	status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
 	return true
+}
+
+func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, podVolumeBackupList *velerov1.PodVolumeBackupList) bool {
+	if status.PodVolumeBackupStatus == nil {
+		status.PodVolumeBackupStatus = []nacv1alpha1.PodVolumeBackupStatus{}
+	}
+
+	updated := false
+	for _, podVolumeBackup := range podVolumeBackupList.Items {
+		alreadyPresent := false
+		for _, status := range status.PodVolumeBackupStatus {
+			if status.Name == podVolumeBackup.Name {
+				if !reflect.DeepEqual(podVolumeBackup.Status, *status.Status) {
+					status.Status = &podVolumeBackup.Status
+					updated = true
+				}
+				alreadyPresent = true
+				break
+			}
+		}
+		if !alreadyPresent {
+			status.PodVolumeBackupStatus = append(status.PodVolumeBackupStatus, nacv1alpha1.PodVolumeBackupStatus{
+				Name:   podVolumeBackup.Name,
+				Status: &podVolumeBackup.Status,
+			})
+			updated = true
+		}
+	}
+
+	return updated
 }
