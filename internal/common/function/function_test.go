@@ -999,7 +999,7 @@ func TestValidateBslSpec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(test.objects...).Build()
 
-			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl)
+			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, 2*time.Minute, nil)
 			if err != nil {
 				if test.errorMessage != err.Error() {
 					t.Errorf("test '%s' failed: error messages differ. Expected '%v', got '%v'", test.name, test.errorMessage, err)

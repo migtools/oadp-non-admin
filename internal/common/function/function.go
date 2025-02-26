@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
@@ -216,7 +217,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 }
 
 // ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
-func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation) error {
+func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
 	// TODO Introduce validation for NaBSL as described in the
 	// https://github.com/migtools/oadp-non-admin/issues/146
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Default {
@@ -226,6 +227,32 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
 	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
 		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
+	}
+	bslSyncPeriodErrorMessage := "NABSL spec.backupStorageLocationSpec.backupSyncPeriod (%v) can not be greater or equal non admin backupSyncPeriod (%v)"
+	if nonAdminBsl.Spec.BackupStorageLocationSpec.BackupSyncPeriod != nil {
+		if appliedBackupSyncPeriod <= nonAdminBsl.Spec.BackupStorageLocationSpec.BackupSyncPeriod.Duration {
+			return fmt.Errorf(
+				bslSyncPeriodErrorMessage,
+				nonAdminBsl.Spec.BackupStorageLocationSpec.BackupSyncPeriod.Duration, appliedBackupSyncPeriod,
+			)
+		}
+	} else {
+		if defaultBackupSyncPeriod != nil {
+			if appliedBackupSyncPeriod <= *defaultBackupSyncPeriod {
+				return fmt.Errorf(
+					bslSyncPeriodErrorMessage,
+					defaultBackupSyncPeriod, appliedBackupSyncPeriod,
+				)
+			}
+		} else {
+			// https://github.com/vmware-tanzu/velero/blob/9295be4cc061038b91b7bfaf55d99e9bc9dcf0af/pkg/cmd/server/config/config.go#L24
+			if appliedBackupSyncPeriod <= time.Minute {
+				return fmt.Errorf(
+					bslSyncPeriodErrorMessage,
+					time.Minute, appliedBackupSyncPeriod,
+				)
+			}
+		}
 	}
 
 	// TODO: Enforcement of NaBSL spec fields
