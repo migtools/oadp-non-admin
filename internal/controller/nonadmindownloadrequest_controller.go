@@ -19,13 +19,20 @@ package controller
 import (
 	"context"
 
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
+	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
 // NonAdminDownloadRequestReconciler reconciles a NonAdminDownloadRequest object
@@ -47,19 +54,38 @@ type NonAdminDownloadRequestReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
-// 
+//
 // This reconcile implements ObjectReconciler https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile#ObjectReconciler
 // Each reconciliation event gets the associated object from Kubernetes before passing it to Reconcile
 func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest) (reconcile.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
+	// TODO: get nab/nar
+	_ = r // TODO: lint
 	return ctrl.Result{}, nil
 }
 
-// // SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// TODO: predicate
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminDownloadRequest{}).
 		Named("nonadmindownloadrequest").
+		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
+			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.RateLimitingInterface) {
+				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok && dr.Status.DownloadURL != "" {
+					log := function.GetLogger(ctx, dr, "VeleroDownloadRequestHandler")
+					log.V(1).Info("DownloadRequest populated with url")
+					// on update, we need to reconcile NonAdminDownloadRequests to update
+					rli.Add(reconcile.Request{
+						NamespacedName: types.NamespacedName{
+							Namespace: constant.NadrOriginNamespaceAnnotation,
+							Name:      constant.NadrOriginNameAnnotation,
+						},
+					})
+				}
+			},
+		},
+		).
 		Complete(reconcile.AsReconciler(r.Client, r))
 }

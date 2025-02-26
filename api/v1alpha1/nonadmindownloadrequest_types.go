@@ -32,7 +32,6 @@ type NonAdminDownloadRequestSpec struct {
 
 	// Target is what to download (e.g. logs for a backup).
 	Target velerov1.DownloadTarget `json:"target"`
-
 }
 
 // NonAdminDownloadRequestStatus defines the observed state of NonAdminDownloadRequest.

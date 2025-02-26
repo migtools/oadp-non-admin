@@ -21,13 +21,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
-	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 )
 
 var _ = Describe("NonAdminDownloadRequest Controller", func() {
@@ -77,7 +76,7 @@ var _ = Describe("NonAdminDownloadRequest Controller", func() {
 			_, err := controllerReconciler.Reconcile(ctx, &nacv1alpha1.NonAdminDownloadRequest{
 				// TODO: test various specs here
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "user1-nadr1",
+					Name:      "user1-nadr1",
 					Namespace: "user1-ns",
 				},
 				Spec: nacv1alpha1.NonAdminDownloadRequestSpec{
