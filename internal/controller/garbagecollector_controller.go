@@ -227,16 +227,16 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 			if !r.RequireApprovalForBSL {
 				// If RequireApprovalForBSL is false, delete all NaBSLRequests unconditionally
 				shouldDelete = true
-			} else if nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo == nil ||
-				nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Name == "" ||
-				nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Namespace == "" {
+			} else if nabslRequest.Status.SourceNonAdminBSL == nil ||
+				nabslRequest.Status.SourceNonAdminBSL.Name == "" ||
+				nabslRequest.Status.SourceNonAdminBSL.Namespace == "" {
 				// No NaBSLName or NaBSLNamespace in the NaBSLRequest (orphan case)
 				shouldDelete = true
 			} else {
 				nabsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
 				err := r.Get(ctx, types.NamespacedName{
-					Name:      nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Name,
-					Namespace: nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Namespace,
+					Name:      nabslRequest.Status.SourceNonAdminBSL.Name,
+					Namespace: nabslRequest.Status.SourceNonAdminBSL.Namespace,
 				}, nabsl)
 
 				// NaBSL exists (not orphan case)

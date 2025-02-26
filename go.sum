@@ -119,14 +119,14 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
+github.com/mpryc/oadp-operator v0.0.0-20250226150427-7091107bbbf5 h1:cxC5DyyDrNd3PsqrpO5hEbJHBCgQ3uOnzKYjjndsqzs=
+github.com/mpryc/oadp-operator v0.0.0-20250226150427-7091107bbbf5/go.mod h1:gNUsBZgNcoS90Z68mNSUgx7pwtOc3THddWJx6uGV14A=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/onsi/ginkgo/v2 v2.19.0 h1:9Cnnf7UHo57Hy3k6/m5k3dRfGTMXGvxhHFvkDTCTpvA=
 github.com/onsi/ginkgo/v2 v2.19.0/go.mod h1:rlwLi9PilAFJ8jCg9UE1QP6VBpd6/xj3SRC0d6TU0To=
 github.com/onsi/gomega v1.33.1 h1:dsYjIxxSR755MDmKVsaFQTE22ChNBcuuTWgkUDSubOk=
 github.com/onsi/gomega v1.33.1/go.mod h1:U4R44UsT+9eLIaYRB2a5qajjtQYn0hauxvRm16AVYg0=
-github.com/openshift/oadp-operator v1.0.2-0.20250225171529-2e93d8609b8f h1:omzShyEj2m+VjdNotKwJlh+9o66qrAdRFwk+sU7HUbg=
-github.com/openshift/oadp-operator v1.0.2-0.20250225171529-2e93d8609b8f/go.mod h1:gNUsBZgNcoS90Z68mNSUgx7pwtOc3THddWJx6uGV14A=
 github.com/openshift/velero v0.10.2-0.20241211163542-fa8f2486175b h1:ykGzFFul6lhtphKH4V6lWzdIW1oGEtiFfOdS1WyOuNw=
 github.com/openshift/velero v0.10.2-0.20241211163542-fa8f2486175b/go.mod h1:bbcPBz7mGYVY7ORWbQhD2Yx09e2ZKH2gqS+MQj+zJCU=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

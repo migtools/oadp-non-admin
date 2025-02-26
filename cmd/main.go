@@ -200,6 +200,7 @@ func main() {
 		RequireApprovalForBSL: *dpaConfiguration.RequireApprovalForBSL,
 		SyncPeriod:            dpaConfiguration.BackupSyncPeriod.Duration,
 		DefaultSyncPeriod:     defaultSyncPeriod,
+		EnforcedBslSpec:       dpaConfiguration.EnforceBSLSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
@@ -255,6 +256,7 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 		},
 		EnforceBackupSpec:     &velerov1.BackupSpec{},
 		EnforceRestoreSpec:    &velerov1.RestoreSpec{},
+		EnforceBSLSpec:        &v1alpha1.EnforceBackupStorageLocationSpec{},
 		RequireApprovalForBSL: ptr.To(false),
 	}
 	var defaultSyncPeriod *time.Duration
@@ -280,6 +282,9 @@ func getDPAConfiguration(restConfig *rest.Config, oadpNamespace string) (v1alpha
 			}
 			if nonAdmin.EnforceRestoreSpec != nil {
 				dpaConfiguration.EnforceRestoreSpec = nonAdmin.EnforceRestoreSpec
+			}
+			if nonAdmin.EnforceBSLSpec != nil {
+				dpaConfiguration.EnforceBSLSpec = nonAdmin.EnforceBSLSpec
 			}
 			if nonAdmin.GarbageCollectionPeriod != nil {
 				dpaConfiguration.GarbageCollectionPeriod.Duration = nonAdmin.GarbageCollectionPeriod.Duration

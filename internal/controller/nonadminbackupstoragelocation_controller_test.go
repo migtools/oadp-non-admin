@@ -25,6 +25,7 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,7 +45,7 @@ type nonAdminBackupStorageLocationClusterValidationScenario struct {
 
 type nonAdminBackupStorageLocationFullReconcileScenario struct {
 	nonAdminSecretName   string
-	enforcedBslSpec      *velerov1.BackupStorageLocationSpec
+	enforcedBslSpec      *oadpv1alpha1.EnforceBackupStorageLocationSpec
 	spec                 nacv1alpha1.NonAdminBackupStorageLocationSpec
 	approvalDecision     nacv1alpha1.NonAdminBSLRequest
 	expectedStatus       nacv1alpha1.NonAdminBackupStorageLocationStatus
@@ -214,7 +215,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-			enforcedBslSpec := &velerov1.BackupStorageLocationSpec{}
+			enforcedBslSpec := &oadpv1alpha1.EnforceBackupStorageLocationSpec{}
 
 			if scenario.enforcedBslSpec != nil {
 				enforcedBslSpec = scenario.enforcedBslSpec
@@ -333,11 +334,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 					nabslRequest,
 				)).To(gomega.Succeed())
 
-				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo).To(gomega.Not(gomega.BeNil()))
-				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID).To(gomega.Equal(nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID))
-				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Name).To(gomega.Equal(nonAdminBsl.Name))
-				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.Namespace).To(gomega.Equal(nonAdminBslNamespace))
-				gomega.Expect(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.RequestedSpec).To(gomega.Equal(nonAdminBsl.Spec.BackupStorageLocationSpec))
+				gomega.Expect(nabslRequest.Status.SourceNonAdminBSL).To(gomega.Not(gomega.BeNil()))
+				gomega.Expect(nabslRequest.Status.SourceNonAdminBSL.NACUUID).To(gomega.Equal(nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID))
+				gomega.Expect(nabslRequest.Status.SourceNonAdminBSL.Name).To(gomega.Equal(nonAdminBsl.Name))
+				gomega.Expect(nabslRequest.Status.SourceNonAdminBSL.Namespace).To(gomega.Equal(nonAdminBslNamespace))
+				gomega.Expect(nabslRequest.Status.SourceNonAdminBSL.RequestedSpec).To(gomega.Equal(nonAdminBsl.Spec.BackupStorageLocationSpec))
 				gomega.Expect(nabslRequest.Spec.ApprovalDecision).To(gomega.Equal(scenario.approvalDecision))
 			}
 

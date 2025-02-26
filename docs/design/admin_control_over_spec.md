@@ -2,37 +2,47 @@
 
 ## Abstract
 
-Non Admin Controller (NAC) restricts the usage of OADP operator with NonAdminBackups and NonAdminRestores.
-Admin users may want to further restrict this by restricting NonAdminBackup/NonAdminRestore spec fields values.
+Non Admin Controller (NAC) restricts the usage of OADP operator with NonAdminBackups, NonAdminRestores and NonAdminBackupStorageLocations.
+Admin users may want to further restrict this by restricting NonAdminBackup/NonAdminRestore/NonAdminBackupStorageLocation spec fields values.
 
 ## Background
 
-Non Admin Controller (NAC) adds the ability to admin users restrict the use of OADP operator for non admin users, by only allowing them to create backup/restores from their namespaces with NonAdminBackups/NonAdminRestores.
+Non Admin Controller (NAC) adds the ability to admin users restrict the use of OADP operator for non admin users, by only allowing them to
+create backup/restore/backupstoragelocation objects from their namespaces with NonAdminBackups/NonAdminRestores/NonAdminBackupStorageLocations.
 Admin users may want to further restrict non admin users operations, like forcing a specific time to live (TTL) for NonAdminBackups associated Velero Backups.
-This design enables admin users to set custom default values for NonAdminBackup/NonAdminRestore spec fields, which can not be overridden by non-admin users.
+This design enables admin users to set custom default values for NonAdminBackup/NonAdminRestore/NonAdminBackupStorageLocation spec fields,
+which can not be overridden by non-admin users.
 
 ## Goals
 
 Enable admin users to
 - set custom default values for NonAdminBackup spec.backupSpec fields, which can not be overridden
 - set custom default values for NonAdminRestore spec.restoreSpec fields, which can not be overridden
+- set custom default values for NonAdminBackupStorageLocation spec.backupStorageLocationSpec fields, which can not be overridden
 
 Also
 - Show custom default values validation errors in NAC object statuses and in NAC logs
 
 ## Non Goals
 
-- Show NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields custom default values to non admin users
-- Prevent non admin users to create NonAdminBackup/NonAdminRestore with overridden defaults
+- Show the custom default values to non admin users in NonAdminBackup/NonAdminRestore/NonAdminBackupStorageLocation spec fields
+- Prevent non admin users to create NonAdminBackup/NonAdminRestore/NonAdminBackupStorageLocation with overridden defaults
 - Allow admin users to set second level defaults (for example, NonAdminBackup `spec.backupSpec.labelSelector` can have a custom default value, but not just `spec.backupSpec.labelSelector.matchLabels`)
 - Check if there are on-going NAC operations prior to recreating NAC Pod
-- Allow admin users to enforce falsy values (like empty maps or empty lists) for NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields
+- Allow admin users to enforce falsy values (like empty maps or empty lists) for NonAdminBackup spec.backupSpec fields/NonAdminRestore spec.restoreSpec fields/NonAdminBackupStorageLocation spec.backupStorageLocationSpec fields
 
 ## High-Level Design
 
-A field will be added to OADP DPA object. With it, admin users will be able to select which NonAdminBackup `spec.backupSpec` fields have custom default (and enforced) values. NAC will respect the set values. If a NonAdminBackup is created with fields overriding any enforced values, it will fail validation prior to creating an associated Velero Backup.
+New fields will be added to the OADP DPA object, allowing admin users to define custom default and enforced values for specific fields in NonAdminBackup, NonAdminRestore, and NonAdminBackupStorageLocation specifications. The NAC will enforce these values accordingly.
 
-Another field will be added to OADP DPA object. With it, admin users will be able to select which NonAdminRestore `spec.restoreSpec` fields have custom default (and enforced) values. NAC will respect the set values. If a NonAdminRestore is created with fields overriding any enforced values, it will fail validation prior to creating an associated Velero Restore.
+- **NonAdminBackup:**
+  Admin users can specify which `spec.backupSpec` fields have custom default and enforced values. If a NonAdminBackup is created with values that override enforced settings, it will fail validation before creating an associated Velero Backup.
+
+- **NonAdminRestore:**
+  Admin users can define enforced and default values for `spec.restoreSpec` fields. Any NonAdminRestore that attempts to override enforced values will fail validation before creating an associated Velero Restore.
+
+- **NonAdminBackupStorageLocation:**
+  Admin users can set enforced and default values for `spec.backupStorageLocationSpec` fields. If a NonAdminBackupStorageLocation attempts to override enforced values, it will fail validation before creating an associated Velero BackupStorageLocation.
 
 If admin user changes any enforced field value, NAC Pod is recreated to always be up to date with admin user enforcements.
 
@@ -65,8 +75,6 @@ spec:
     enable: true
     enforceBackupSpecs:
       snapshotVolumes: false
-  unsupportedOverrides:
-    tech-preview-ack: 'true'
 ```
 
 That means, that the 2 following NonAdminBackup will be accepted by NAC validation
@@ -123,48 +131,17 @@ Add `EnforceRestoreSpec` struct to OADP DPA `NonAdmin` struct
 type NonAdmin struct {
 	// which restore spec field values to enforce
 	// +optional
-	EnforceBackupSpec *velero.BackupSpec `json:"enforceBackupSpec,omitempty"`
+	EnforceRestoreSpec *velero.RestoreSpec `json:"enforceRestoreSpec,omitempty"`
 }
 ```
 
-Store previous `EnforceBackupSpec` and `EnforceRestoreSpec` value, so when admin user changes it, Deployment is also changed to trigger a Pod recreation
+Add `EnforceBSLSpec` struct to OADP DPA `NonAdmin` struct
 ```go
-const (
-	enforcedBackupSpecKey = "enforced-backup-spec"
-    enforcedRestoreSpecKey = "enforced-restore-spec"
-)
-
-var (
-	previousEnforcedBackupSpec    *velero.BackupSpec  = nil
-	dpaBackupSpecResourceVersion                      = ""
-	previousEnforcedRestoreSpec   *velero.RestoreSpec = nil
-	dpaRestoreSpecResourceVersion                     = ""
-)
-
-func ensureRequiredSpecs(deploymentObject *appsv1.Deployment, dpa *oadpv1alpha1.DataProtectionApplication, image string, imagePullPolicy corev1.PullPolicy) error {
-	if len(dpaBackupSpecResourceVersion) == 0 || !reflect.DeepEqual(dpa.Spec.NonAdmin.EnforceBackupSpec, previousEnforcedBackupSpec) {
-		dpaBackupSpecResourceVersion = dpa.GetResourceVersion()
-	}
-	previousEnforcedBackupSpec = dpa.Spec.NonAdmin.EnforceBackupSpec
-	if len(dpaRestoreSpecResourceVersion) == 0 || !reflect.DeepEqual(dpa.Spec.NonAdmin.EnforceRestoreSpec, previousEnforcedRestoreSpec) {
-		dpaRestoreSpecResourceVersion = dpa.GetResourceVersion()
-	}
-	previousEnforcedRestoreSpec = dpa.Spec.NonAdmin.EnforceRestoreSpec
-	enforcedSpecAnnotation := map[string]string{
-		enforcedBackupSpecKey: dpaBackupSpecResourceVersion,
-        enforcedRestoreSpecKey: dpaRestoreSpecResourceVersion,
-	}
-
-	templateObjectAnnotations := deploymentObject.Spec.Template.GetAnnotations()
-	if templateObjectAnnotations == nil {
-		deploymentObject.Spec.Template.SetAnnotations(enforcedSpecAnnotation)
-	} else {
-		templateObjectAnnotations[enforcedBackupSpecKey] = enforcedSpecAnnotation[enforcedBackupSpecKey]
-		templateObjectAnnotations[enforcedRestoreSpecKey] = enforcedSpecAnnotation[enforcedRestoreSpecKey]
-		deploymentObject.Spec.Template.SetAnnotations(templateObjectAnnotations)
-	}
+type NonAdmin struct {
+	// which backupstoragelocation spec field values to enforce
+	// +optional
+	EnforceBSLSpec *velero.BackupStorageLocationSpec `json:"enforceBSLSpec,omitempty"`
 }
-```
 
 During NAC startup, read OADP DPA, to be able to apply admin user enforcement
 ```go
@@ -220,7 +197,7 @@ Before creating NonAdminBackup's related Velero Backup, apply any missing fields
 		}
 ```
 
-Modify ValidateRestoreSpec function to use `EnforceRestoreSpec` and apply that to non admin users' NonAdminBackup request
+Modify ValidateRestoreSpec function to use `EnforceRestoreSpec` and apply that to non admin users' NonAdminRestore request
 ```go
 	enforcedSpec := reflect.ValueOf(enforcedRestoreSpec).Elem()
 	for index := range enforcedSpec.NumField() {
@@ -245,6 +222,37 @@ Before creating NonAdminRestore's related Velero Restore, apply any missing fiel
 			enforcedField := enforcedSpec.Field(index)
 			enforcedFieldName := enforcedSpec.Type().Field(index).Name
 			currentField := reflect.ValueOf(restoreSpec).Elem().FieldByName(enforcedFieldName)
+			if !enforcedField.IsZero() && currentField.IsZero() {
+				currentField.Set(enforcedField)
+			}
+		}
+```
+
+Modify ValidateBSLSpec function to use `EnforceBSLSpec` and apply that to non admin users' NonAdminBackupStorageLocation request
+```go
+	enforcedSpec := reflect.ValueOf(enforcedBSLSpec).Elem()
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := reflect.ValueOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
+		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+			field, _ := reflect.TypeOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
+			tagName, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			return fmt.Errorf(
+				"NonAdminBackupStorageLocation spec.backupStorageLocationSpec.%v field value is enforced by admin user, can not override it",
+				tagName,
+			)
+		}
+	}
+```
+
+Before creating NonAdminBackupStorageLocation's related Velero BackupStorageLocation, apply any missing fields to it that admin user has enforced
+```go
+		enforcedSpec := reflect.ValueOf(r.EnforcedBSLSpec).Elem()
+		for index := range enforcedSpec.NumField() {
+			enforcedField := enforcedSpec.Field(index)
+			enforcedFieldName := enforcedSpec.Type().Field(index).Name
+			currentField := reflect.ValueOf(bslSpec).Elem().FieldByName(enforcedFieldName)
 			if !enforcedField.IsZero() && currentField.IsZero() {
 				currentField.Set(enforcedField)
 			}

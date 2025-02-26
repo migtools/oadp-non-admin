@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -999,7 +1000,7 @@ func TestValidateBslSpec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(test.objects...).Build()
 
-			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, 2*time.Minute, nil)
+			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, &oadpv1alpha1.EnforceBackupStorageLocationSpec{}, 2*time.Minute, nil)
 			if err != nil {
 				if test.errorMessage != err.Error() {
 					t.Errorf("test '%s' failed: error messages differ. Expected '%v', got '%v'", test.name, test.errorMessage, err)

@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,7 +218,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 }
 
 // ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
-func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
+func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBSLSpec *oadpv1alpha1.EnforceBackupStorageLocationSpec, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
 	// TODO Introduce validation for NaBSL as described in the
 	// https://github.com/migtools/oadp-non-admin/issues/146
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Default {
@@ -255,7 +256,21 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		}
 	}
 
-	// TODO: Enforcement of NaBSL spec fields
+	enforcedSpec := reflect.ValueOf(enforcedBSLSpec).Elem()
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := reflect.ValueOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
+		if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+			field, _ := reflect.TypeOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
+			tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
+			return fmt.Errorf(
+				"the administrator has restricted spec.backupStorageLocationSpec.%v field value to %v",
+				tagName,
+				reflect.Indirect(enforcedField),
+			)
+		}
+	}
 
 	// Check if the secret exists in the same namespace
 	secret := &corev1.Secret{}
