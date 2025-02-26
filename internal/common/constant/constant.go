@@ -51,6 +51,15 @@ const (
 // Common environment variables for the Non Admin Controller
 const (
 	NamespaceEnvVar = "WATCH_NAMESPACE"
+	// Numeric Log Level corresponding to logrus levels (matching velero).
+	// 0 = panic
+	// 1 = Fatal
+	// 2 = Error
+	// 3 = Warn
+	// 4 = Info
+	// 5 = Debug
+	// 6 = Trace
+	LogLevelEnvVar = "LOG_LEVEL"
 )
 
 // EmptyString defines a constant for the empty string
@@ -89,3 +98,9 @@ const NABRestrictedErr = "NonAdminBackup %s is restricted"
 
 // NARRestrictedErr holds an error message template for a non-admin restore operation that is restricted.
 const NARRestrictedErr = "NonAdminRestore %s is restricted"
+
+// Magic numbers
+const (
+	Base10 = 10
+	Bits32 = 32
+)
