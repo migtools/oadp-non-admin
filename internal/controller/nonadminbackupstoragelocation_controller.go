@@ -581,7 +581,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 		return false, err
 	}
 
-	if updated := updateNonAdminRequestStatus(&nonAdminBslRequest.Status, nabsl, r.EnforcedBslSpec, approvalDecision); updated {
+	if updated := updateNonAdminRequestStatus(&nonAdminBslRequest.Status, nabsl, approvalDecision); updated {
 		if updateErr := r.Status().Update(ctx, &nonAdminBslRequest); updateErr != nil {
 			logger.Error(updateErr, failedUpdateStatusError)
 			return false, updateErr
@@ -907,13 +907,13 @@ func updateNaBSLVeleroBackupStorageLocationStatus(status *nacv1alpha1.NonAdminBa
 
 // updateNonAdminRequestStatus updates the NonAdminBackupStorageLocationRequest status field
 // in NonAdminBackupStorageLocationRequest object status and returns true if the fields are changed.
-func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocationRequestStatus, nabsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBSLSpec *oadpv1alpha1.EnforceBackupStorageLocationSpec, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
+func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocationRequestStatus, nabsl *nacv1alpha1.NonAdminBackupStorageLocation, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
 	updatedStatus := nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
 		SourceNonAdminBSL: &nacv1alpha1.SourceNonAdminBSL{
 			NACUUID:       nabsl.Status.VeleroBackupStorageLocation.NACUUID,
 			Name:          nabsl.Name,
 			Namespace:     nabsl.Namespace,
-			RequestedSpec: getEnforcedBSLSpec(nabsl, enforcedBSLSpec),
+			RequestedSpec: nabsl.Spec.BackupStorageLocationSpec.DeepCopy(),
 		},
 	}
 
