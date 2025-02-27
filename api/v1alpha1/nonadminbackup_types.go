@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -76,15 +75,65 @@ type VeleroDeleteBackupRequest struct {
 }
 
 // TODO
-type PodVolumeBackupStatus struct {
-	// name references the Velero PodVolumeBackup object by it's name.
+type DataMoverVolumeBackups struct {
+	// number of DataUploads related to this NonAdminBackup's Backup
 	// +optional
-	Name string `json:"name,omitempty"`
+	Total int `json:"total,omitempty"`
 
-	// status captures the current status of the Velero PodVolumeBackup.
+	// number of DataUploads related to this NonAdminBackup's Backup in phase New
 	// +optional
-	Status *velerov1.PodVolumeBackupStatus `json:"status,omitempty"`
-	// TODO too much information? possible information leak? just get progress?
+	New int `json:"new,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Accepted
+	// +optional
+	Accepted int `json:"accepted,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Prepared
+	// +optional
+	Prepared int `json:"prepared,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Canceling
+	// +optional
+	Canceling int `json:"canceling,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Canceled
+	// +optional
+	Canceled int `json:"canceled,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
+}
+
+// TODO
+type FileSystemVolumeBackups struct {
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup
+	// +optional
+	Total int `json:"total,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase New
+	// +optional
+	New int `json:"new,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
 }
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
@@ -95,13 +144,11 @@ type NonAdminBackupStatus struct {
 	// +optional
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
 
-	// TODO
 	// +optional
-	DataUploadStatus []velerov2alpha1.DataUploadStatus `json:"dataUploadStatus,omitempty"`
+	DataMoverVolumeBackups *DataMoverVolumeBackups `json:"dataMoverVolumeBackups,omitempty"`
 
-	// TODO
 	// +optional
-	PodVolumeBackupStatus []PodVolumeBackupStatus `json:"podVolumeBackupStatus,omitempty"`
+	FileSystemVolumeBackups *FileSystemVolumeBackups `json:"fileSystemVolumeBackups,omitempty"`
 
 	// queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

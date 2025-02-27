@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/label"
@@ -88,6 +89,7 @@ var (
 // +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=deletebackuprequests,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=podvolumebackups,verbs=get;list;watch
+// +kubebuilder:rbac:groups=velero.io,resources=datauploads,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state,
@@ -784,7 +786,18 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	}
 	updatedPodVolumeBackupStatus := updateNonAdminBackupPodVolumeBackupStatus(&nab.Status, podVolumeBackups)
 
-	if updated || updatedPhase || updatedCondition || updatedQueueInfo || updatedPodVolumeBackupStatus {
+	dataUploads := &velerov2alpha1.DataUploadList{}
+	err = r.List(ctx, dataUploads, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list DataUploads in OADP namespace")
+	}
+	updatedDataUploadStatus := updateNonAdminBackupDataUploadStatus(&nab.Status, dataUploads)
+
+	if updated || updatedPhase || updatedCondition || updatedQueueInfo || updatedPodVolumeBackupStatus || updatedDataUploadStatus {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
@@ -813,6 +826,10 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				Client:        r.Client,
 				OADPNamespace: r.OADPNamespace,
 			},
+			VeleroDataUploadPredicate: predicate.VeleroDataUploadPredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
 		}).
 		// handler runs after predicate
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
@@ -821,6 +838,10 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			OADPNamespace: r.OADPNamespace,
 		}).
 		Watches(&velerov1.PodVolumeBackup{}, &handler.VeleroPodVolumeBackupHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
+		Watches(&velerov2alpha1.DataUpload{}, &handler.VeleroDataUploadHandler{
 			Client:        r.Client,
 			OADPNamespace: r.OADPNamespace,
 		}).
@@ -890,30 +911,124 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 }
 
 func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, podVolumeBackupList *velerov1.PodVolumeBackupList) bool {
-	if status.PodVolumeBackupStatus == nil {
-		status.PodVolumeBackupStatus = []nacv1alpha1.PodVolumeBackupStatus{}
+	if status.FileSystemVolumeBackups == nil {
+		status.FileSystemVolumeBackups = &nacv1alpha1.FileSystemVolumeBackups{}
 	}
 
 	updated := false
+	if len(podVolumeBackupList.Items) != status.FileSystemVolumeBackups.Total {
+		status.FileSystemVolumeBackups.Total = len(podVolumeBackupList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfInProgress := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
 	for _, podVolumeBackup := range podVolumeBackupList.Items {
-		alreadyPresent := false
-		for _, status := range status.PodVolumeBackupStatus {
-			if status.Name == podVolumeBackup.Name {
-				if !reflect.DeepEqual(podVolumeBackup.Status, *status.Status) {
-					status.Status = &podVolumeBackup.Status
-					updated = true
-				}
-				alreadyPresent = true
-				break
-			}
+		switch podVolumeBackup.Status.Phase {
+		case velerov1.PodVolumeBackupPhaseNew:
+			numberOfNew++
+		case velerov1.PodVolumeBackupPhaseInProgress:
+			numberOfInProgress++
+		case velerov1.PodVolumeBackupPhaseFailed:
+			numberOfFailed++
+		case velerov1.PodVolumeBackupPhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
 		}
-		if !alreadyPresent {
-			status.PodVolumeBackupStatus = append(status.PodVolumeBackupStatus, nacv1alpha1.PodVolumeBackupStatus{
-				Name:   podVolumeBackup.Name,
-				Status: &podVolumeBackup.Status,
-			})
-			updated = true
+	}
+	if status.FileSystemVolumeBackups.New != numberOfNew {
+		status.FileSystemVolumeBackups.New = numberOfNew
+		updated = true
+	}
+	if status.FileSystemVolumeBackups.InProgress != numberOfInProgress {
+		status.FileSystemVolumeBackups.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.FileSystemVolumeBackups.Failed != numberOfFailed {
+		status.FileSystemVolumeBackups.Failed = numberOfFailed
+		updated = true
+	}
+	if status.FileSystemVolumeBackups.Completed != numberOfCompleted {
+		status.FileSystemVolumeBackups.Completed = numberOfCompleted
+		updated = true
+	}
+
+	return updated
+}
+
+func updateNonAdminBackupDataUploadStatus(status *nacv1alpha1.NonAdminBackupStatus, dataUploadList *velerov2alpha1.DataUploadList) bool {
+	if status.DataMoverVolumeBackups == nil {
+		status.DataMoverVolumeBackups = &nacv1alpha1.DataMoverVolumeBackups{}
+	}
+
+	updated := false
+	if len(dataUploadList.Items) != status.DataMoverVolumeBackups.Total {
+		status.DataMoverVolumeBackups.Total = len(dataUploadList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfAccepted := 0
+	numberOfPrepared := 0
+	numberOfInProgress := 0
+	numberOfCanceling := 0
+	numberOfCanceled := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
+	for _, dataUpload := range dataUploadList.Items {
+		switch dataUpload.Status.Phase {
+		case velerov2alpha1.DataUploadPhaseNew:
+			numberOfNew++
+		case velerov2alpha1.DataUploadPhaseAccepted:
+			numberOfAccepted++
+		case velerov2alpha1.DataUploadPhasePrepared:
+			numberOfPrepared++
+		case velerov2alpha1.DataUploadPhaseInProgress:
+			numberOfInProgress++
+		case velerov2alpha1.DataUploadPhaseCanceling:
+			numberOfCanceling++
+		case velerov2alpha1.DataUploadPhaseCanceled:
+			numberOfCanceled++
+		case velerov2alpha1.DataUploadPhaseFailed:
+			numberOfFailed++
+		case velerov2alpha1.DataUploadPhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
 		}
+	}
+	if status.DataMoverVolumeBackups.New != numberOfNew {
+		status.DataMoverVolumeBackups.New = numberOfNew
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Accepted != numberOfAccepted {
+		status.DataMoverVolumeBackups.Accepted = numberOfAccepted
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Prepared != numberOfPrepared {
+		status.DataMoverVolumeBackups.Prepared = numberOfPrepared
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.InProgress != numberOfInProgress {
+		status.DataMoverVolumeBackups.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Canceling != numberOfCanceling {
+		status.DataMoverVolumeBackups.Canceling = numberOfCanceling
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Canceled != numberOfCanceled {
+		status.DataMoverVolumeBackups.Canceled = numberOfCanceled
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Failed != numberOfFailed {
+		status.DataMoverVolumeBackups.Failed = numberOfFailed
+		updated = true
+	}
+	if status.DataMoverVolumeBackups.Completed != numberOfCompleted {
+		status.DataMoverVolumeBackups.Completed = numberOfCompleted
+		updated = true
 	}
 
 	return updated

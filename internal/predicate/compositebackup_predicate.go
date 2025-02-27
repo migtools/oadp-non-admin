@@ -21,6 +21,7 @@ import (
 	"context"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -33,6 +34,7 @@ type CompositeBackupPredicate struct {
 	VeleroBackupPredicate          VeleroBackupPredicate
 	VeleroBackupQueuePredicate     VeleroBackupQueuePredicate
 	VeleroPodVolumeBackupPredicate VeleroPodVolumeBackupPredicate
+	VeleroDataUploadPredicate      VeleroDataUploadPredicate
 }
 
 // Create event filter only accepts NonAdminBackup create events
@@ -54,6 +56,8 @@ func (p CompositeBackupPredicate) Update(evt event.UpdateEvent) bool {
 		return p.VeleroBackupQueuePredicate.Update(p.Context, evt) || p.VeleroBackupPredicate.Update(p.Context, evt)
 	case *velerov1.PodVolumeBackup:
 		return p.VeleroPodVolumeBackupPredicate.Update(p.Context, evt)
+	case *velerov2alpha1.DataUpload:
+		return p.VeleroDataUploadPredicate.Update(p.Context, evt)
 	default:
 		return false
 	}
