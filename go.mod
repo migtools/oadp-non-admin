@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/oadp-operator v1.0.2-0.20250225171529-2e93d8609b8f
+	github.com/openshift/oadp-operator v1.0.2-0.20250227152435-9267da21ab64
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/vmware-tanzu/velero v1.14.0

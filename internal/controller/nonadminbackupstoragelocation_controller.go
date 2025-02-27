@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	oadpcommon "github.com/openshift/oadp-operator/pkg/common"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
@@ -58,7 +59,7 @@ const (
 type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
 	Scheme                *runtime.Scheme
-	EnforcedBslSpec       *velerov1.BackupStorageLocationSpec
+	EnforcedBslSpec       *oadpv1alpha1.EnforceBackupStorageLocationSpec
 	DefaultSyncPeriod     *time.Duration
 	OADPNamespace         string
 	RequireApprovalForBSL bool
@@ -332,7 +333,7 @@ func (r *NonAdminBackupStorageLocationReconciler) initNaBSLCreate(ctx context.Co
 
 // validateNaBSLSpec validates the NonAdminBackupStorageLocation spec
 func (r *NonAdminBackupStorageLocationReconciler) validateNaBSLSpec(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error) {
-	err := function.ValidateBslSpec(ctx, r.Client, nabsl, r.SyncPeriod, r.DefaultSyncPeriod)
+	err := function.ValidateBslSpec(ctx, r.Client, nabsl, r.EnforcedBslSpec, r.SyncPeriod, r.DefaultSyncPeriod)
 	if err != nil {
 		updatedPhase := updateNonAdminPhase(&nabsl.Status.Phase, nacv1alpha1.NonAdminPhaseBackingOff)
 		updatedCondition := meta.SetStatusCondition(&nabsl.Status.Conditions,
@@ -443,7 +444,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 	updatedRejectedCondition := false
 	updatedApprovedCondition := false
 
-	if !reflect.DeepEqual(nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.DeepCopy().RequestedSpec, nabsl.Spec.BackupStorageLocationSpec) {
+	if !reflect.DeepEqual(nabslRequest.Status.SourceNonAdminBSL.DeepCopy().RequestedSpec, nabsl.Spec.BackupStorageLocationSpec) {
 		message = "NaBSL Spec update not allowed. Changes will not be applied. Delete NaBSL and create new one with updated spec"
 		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminBSLConditionSpecUpdateApproved),
@@ -455,7 +456,7 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		// Ensure the phase is not changed from the current nabsl phase
 		expectedPhase = nabsl.Status.Phase
 		terminalErr = reconcile.TerminalError(errors.New(message))
-	} else if nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID == constant.EmptyString || nabslRequest.Status.NonAdminBackupStorageLocationRequestStatusInfo.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
+	} else if nabslRequest.Status.SourceNonAdminBSL.NACUUID == constant.EmptyString || nabslRequest.Status.SourceNonAdminBSL.NACUUID != nabsl.Status.VeleroBackupStorageLocation.NACUUID {
 		message = "NonAdminBackupStorageLocationRequest does not contain valid NAC UUID and can not be approved"
 		updatedRejectedCondition = meta.SetStatusCondition(&nabsl.Status.Conditions, metav1.Condition{
 			Type:    string(nacv1alpha1.NonAdminBSLConditionApproved),
@@ -750,7 +751,10 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 			).Result()
 	}
 
-	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *nabsl.Spec.BackupStorageLocationSpec)
+	enforcedBSLSpec := getEnforcedBSLSpec(nabsl, r.EnforcedBslSpec)
+
+	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *enforcedBSLSpec)
+
 	if err != nil {
 		logger.Error(err, "Failed to update VeleroBackupStorageLocation spec")
 		return false, err
@@ -758,12 +762,13 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 
 	// NaBSL/BSL must have a unique prefix for proper function of the non-admin backup sync controller
 	// 1. Check if user has specified the prefix as "foo" in NaBSL creation, then prefix used would be <non-admin-ns>/foo
-	// 2. TODO use the value from enforced spec if specified by the admin, if specified as "bar" then prefix used would be <non-admin-ns>/bar
-	// 3. If none of the above, then we will use the non-admin user's namespace name as prefix
-	prefix := function.ComputePrefixForObjectStorage(nabsl.Namespace, nabsl.Spec.BackupStorageLocationSpec.ObjectStorage.Prefix)
+	//    If an enforced spec prefix is set, the user must specify a prefix that matches the enforced spec. In such
+	//    case, the <non-admin-ns>/<enforced-spec-prefix> will be used
+	// 2. If none of the above, then we will use the non-admin user's namespace name as prefix
+	prefix := function.ComputePrefixForObjectStorage(nabsl.Namespace, enforcedBSLSpec.ObjectStorage.Prefix)
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, veleroBsl, func() error {
-		veleroBsl.Spec = *nabsl.Spec.BackupStorageLocationSpec.DeepCopy()
+		veleroBsl.Spec = *enforcedBSLSpec
 
 		// Set Credential separately
 		veleroBsl.Spec.Credential = &corev1.SecretKeySelector{
@@ -905,7 +910,7 @@ func updateNaBSLVeleroBackupStorageLocationStatus(status *nacv1alpha1.NonAdminBa
 // in NonAdminBackupStorageLocationRequest object status and returns true if the fields are changed.
 func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocationRequestStatus, nabsl *nacv1alpha1.NonAdminBackupStorageLocation, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
 	updatedStatus := nacv1alpha1.NonAdminBackupStorageLocationRequestStatus{
-		NonAdminBackupStorageLocationRequestStatusInfo: &nacv1alpha1.NonAdminBackupStorageLocationRequestStatusInfo{
+		SourceNonAdminBSL: &nacv1alpha1.SourceNonAdminBSL{
 			NACUUID:       nabsl.Status.VeleroBackupStorageLocation.NACUUID,
 			Name:          nabsl.Name,
 			Namespace:     nabsl.Namespace,
@@ -922,6 +927,23 @@ func updateNonAdminRequestStatus(status *nacv1alpha1.NonAdminBackupStorageLocati
 	}
 
 	return false
+}
+
+// getEnforcedBSLSpec returns a deep copy of the NonAdminBackupStorageLocation's spec with the enforced fields from the enforcedBSLSpec
+func getEnforcedBSLSpec(nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBSLSpec *oadpv1alpha1.EnforceBackupStorageLocationSpec) *velerov1.BackupStorageLocationSpec {
+	resultingBslSpec := nonAdminBsl.Spec.BackupStorageLocationSpec.DeepCopy()
+	enforcedSpec := reflect.ValueOf(enforcedBSLSpec).Elem()
+
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := reflect.ValueOf(resultingBslSpec).Elem().FieldByName(enforcedFieldName)
+		if !enforcedField.IsZero() && currentField.IsZero() {
+			currentField.Set(enforcedField)
+		}
+	}
+
+	return resultingBslSpec
 }
 
 // updatePhaseIfNeeded sets the phase based on the approval decision and returns true if the phase changes.

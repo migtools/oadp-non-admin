@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -72,6 +73,8 @@ const (
 	expectedIntFive               = 5
 	expectedIntTen                = 10
 	expectedIntSixHundred         = 600
+	time30                        = 30 * time.Minute
+	time60                        = 60 * time.Minute
 )
 
 func TestGetNonAdminLabels(t *testing.T) {
@@ -868,7 +871,7 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 				}
 			} else {
 				if err != nil {
-					t.Errorf("setting backup spec field '%v' with enforced value test failed: %v", test.name, err)
+					t.Errorf("setting restore spec field '%v' with enforced value test failed: %v", test.name, err)
 				}
 			}
 			reflect.ValueOf(userNonAdminRestore.Spec.RestoreSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
@@ -890,6 +893,155 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			}
 		}
 		if restoreSpec.NumField() != len(tests) {
+			t.Errorf("list of tests have different number of elements")
+		}
+	})
+}
+
+func TestValidateBslSpecEnforcedFields(t *testing.T) {
+	tests := []struct {
+		enforcedValue any
+		overrideValue any
+		name          string
+	}{
+		{
+			name:          "Provider",
+			enforcedValue: "aws",
+			overrideValue: "azure",
+		},
+		{
+			name:          "Config",
+			enforcedValue: map[string]string{"key": "value"},
+			overrideValue: map[string]string{"key": "differentValue"},
+		},
+		{
+			name:          "AccessMode",
+			enforcedValue: velerov1.BackupStorageLocationAccessModeReadOnly,
+			overrideValue: velerov1.BackupStorageLocationAccessModeReadWrite,
+		},
+		{
+			name:          "BackupSyncPeriod",
+			enforcedValue: &metav1.Duration{Duration: time60},
+			overrideValue: &metav1.Duration{Duration: time30},
+		},
+		{
+			name:          "ValidationFrequency",
+			enforcedValue: &metav1.Duration{Duration: time60},
+			overrideValue: &metav1.Duration{Duration: time30},
+		},
+		{
+			name: "StorageType",
+			enforcedValue: oadpv1alpha1.StorageType{
+				ObjectStorage: &oadpv1alpha1.ObjectStorageLocation{
+					Bucket: "test-bucket",
+				},
+			},
+			overrideValue: oadpv1alpha1.StorageType{
+				ObjectStorage: &oadpv1alpha1.ObjectStorageLocation{
+					Bucket: "override-bucket",
+				},
+			},
+		},
+		{
+			name: "Credential",
+			enforcedValue: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "test-secret",
+				},
+				Key: "creds",
+			},
+			overrideValue: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "override-secret",
+				},
+				Key: "override-creds",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			enforcedSpec := &oadpv1alpha1.EnforceBackupStorageLocationSpec{}
+			reflect.ValueOf(enforcedSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
+			userNonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "self-service-namespace",
+				},
+				Spec: nacv1alpha1.NonAdminBackupStorageLocationSpec{
+					BackupStorageLocationSpec: &velerov1.BackupStorageLocationSpec{
+						Credential: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-secret",
+							},
+							Key: "creds",
+						},
+						StorageType: velerov1.StorageType{
+							ObjectStorage: &velerov1.ObjectStorageLocation{
+								Bucket: "test-bucket",
+							},
+						},
+					},
+				},
+			}
+			fakeScheme := runtime.NewScheme()
+			if err := nacv1alpha1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register NAC type: %v", err)
+			}
+			if err := corev1.AddToScheme(fakeScheme); err != nil {
+				t.Fatalf("Failed to register corev1 type: %v", err)
+			}
+
+			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects([]client.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-secret",
+						Namespace: "self-service-namespace",
+					},
+				},
+			}...).Build()
+
+			err := ValidateBslSpec(context.Background(), fakeClient, userNonAdminBsl, enforcedSpec, 2*time.Minute, nil)
+			if err != nil {
+				t.Errorf("not setting bsl spec field '%v' test failed: %v", test.name, err)
+			}
+
+			// Handle StorageType separately to avoid reflect panic
+			if test.name == "StorageType" {
+				//nolint:errcheck //we know it's correct return type
+				if test.enforcedValue.(oadpv1alpha1.StorageType).ObjectStorage != nil {
+					if test.enforcedValue.(oadpv1alpha1.StorageType).ObjectStorage.Bucket != constant.EmptyString {
+						userNonAdminBsl.Spec.BackupStorageLocationSpec.StorageType.ObjectStorage.Bucket = test.overrideValue.(oadpv1alpha1.StorageType).ObjectStorage.Bucket
+					}
+					if test.enforcedValue.(oadpv1alpha1.StorageType).ObjectStorage.Prefix != constant.EmptyString {
+						userNonAdminBsl.Spec.BackupStorageLocationSpec.StorageType.ObjectStorage.Prefix = test.overrideValue.(oadpv1alpha1.StorageType).ObjectStorage.Prefix
+					}
+					if test.enforcedValue.(oadpv1alpha1.StorageType).ObjectStorage.CACert != nil {
+						userNonAdminBsl.Spec.BackupStorageLocationSpec.StorageType.ObjectStorage.CACert = test.overrideValue.(oadpv1alpha1.StorageType).ObjectStorage.CACert
+					}
+				}
+			} else {
+				reflect.ValueOf(userNonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.enforcedValue))
+			}
+			if test.name != "StorageType" {
+				reflect.ValueOf(userNonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(test.name).Set(reflect.ValueOf(test.overrideValue))
+			}
+			err = ValidateBslSpec(context.Background(), fakeClient, userNonAdminBsl, enforcedSpec, 2*time.Minute, nil)
+			if err == nil {
+				t.Errorf("setting bsl spec field '%v' with value overriding enforcement test failed: %v", test.name, err)
+			}
+		})
+	}
+	t.Run("Ensure all enforceable bsl spec fields were tested", func(t *testing.T) {
+		bslSpecFields := []string{}
+		for _, test := range tests {
+			bslSpecFields = append(bslSpecFields, test.name)
+		}
+		bslSpec := reflect.ValueOf(&oadpv1alpha1.EnforceBackupStorageLocationSpec{}).Elem()
+		for index := range bslSpec.NumField() {
+			if !slices.Contains(bslSpecFields, bslSpec.Type().Field(index).Name) {
+				t.Errorf("bsl spec field '%v' is not tested", bslSpec.Type().Field(index).Name)
+			}
+		}
+		if bslSpec.NumField() != len(tests) {
 			t.Errorf("list of tests have different number of elements")
 		}
 	})
@@ -999,7 +1151,7 @@ func TestValidateBslSpec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(fakeScheme).WithObjects(test.objects...).Build()
 
-			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, 2*time.Minute, nil)
+			err := ValidateBslSpec(context.Background(), fakeClient, test.nonAdminBsl, &oadpv1alpha1.EnforceBackupStorageLocationSpec{}, 2*time.Minute, nil)
 			if err != nil {
 				if test.errorMessage != err.Error() {
 					t.Errorf("test '%s' failed: error messages differ. Expected '%v', got '%v'", test.name, test.errorMessage, err)

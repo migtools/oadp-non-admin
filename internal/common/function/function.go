@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -217,9 +218,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 }
 
 // ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
-func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
-	// TODO Introduce validation for NaBSL as described in the
-	// https://github.com/migtools/oadp-non-admin/issues/146
+func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBSLSpec *oadpv1alpha1.EnforceBackupStorageLocationSpec, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Default {
 		return fmt.Errorf("NonAdminBackupStorageLocation cannot be used as a default BSL")
 	}
@@ -255,7 +254,40 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		}
 	}
 
-	// TODO: Enforcement of NaBSL spec fields
+	nonAdminBslSpec := reflect.ValueOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem()
+	enforcedSpec := reflect.ValueOf(enforcedBSLSpec).Elem()
+	for index := range enforcedSpec.NumField() {
+		enforcedField := enforcedSpec.Field(index)
+		enforcedFieldName := enforcedSpec.Type().Field(index).Name
+		currentField := nonAdminBslSpec.FieldByName(enforcedFieldName)
+		switch enforcedFieldName {
+		case "StorageType":
+			enforcedStorageType := compareStorageTypes(enforcedField, currentField)
+			if enforcedStorageType != constant.EmptyString {
+				return fmt.Errorf("the administrator has restricted spec.backupStorageLocationSpec.%v field value to %v", enforcedFieldName, enforcedStorageType)
+			}
+		default:
+			if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
+				field, _ := reflect.TypeOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
+				tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
+				msgString := ""
+				if enforcedFieldName == "Credential" {
+					if credential, ok := enforcedField.Interface().(*corev1.SecretKeySelector); ok {
+						msgString = formatCredentialToString(credential)
+					} else {
+						msgString = constant.EmptyString
+					}
+				} else {
+					msgString = formatMapToString(reflect.Indirect(enforcedField).Interface())
+				}
+				return fmt.Errorf(
+					"the administrator has restricted spec.backupStorageLocationSpec.%v field to: %v",
+					tagName,
+					msgString,
+				)
+			}
+		}
+	}
 
 	// Check if the secret exists in the same namespace
 	secret := &corev1.Secret{}
@@ -269,6 +301,50 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		return fmt.Errorf("failed to get BSL credentials secret: %v", err)
 	}
 	return nil
+}
+
+func formatCredentialToString(credential *corev1.SecretKeySelector) string {
+	if credential == nil {
+		return constant.EmptyString
+	}
+	return fmt.Sprintf("name: %s, key: %s", credential.Name, credential.Key)
+}
+
+func formatMapToString(value any) string {
+	if str, ok := value.(string); ok {
+		return str
+	}
+
+	if m, ok := value.(map[string]string); ok {
+		var parts []string
+		for k, v := range m {
+			parts = append(parts, fmt.Sprintf("%s: %s", k, v))
+		}
+		return strings.Join(parts, ", ")
+	}
+
+	return fmt.Sprintf("%v", value)
+}
+
+func compareStorageTypes(enforcedStorageType, currentStorageType reflect.Value) string {
+	if enforcedStorageType.Kind() == reflect.Struct && currentStorageType.Kind() == reflect.Struct {
+		enforcedStorage, ok1 := enforcedStorageType.Interface().(oadpv1alpha1.StorageType)
+		currentStorage, ok2 := currentStorageType.Interface().(velerov1.StorageType)
+
+		if ok1 && ok2 {
+			if enforcedStorage.ObjectStorage != nil && currentStorage.ObjectStorage != nil {
+				if enforcedStorage.ObjectStorage.Bucket != currentStorage.ObjectStorage.Bucket ||
+					enforcedStorage.ObjectStorage.Prefix != currentStorage.ObjectStorage.Prefix ||
+					string(enforcedStorage.ObjectStorage.CACert) != string(currentStorage.ObjectStorage.CACert) {
+					return fmt.Sprintf("objectStorage: bucket: %s, prefix: %s, caCert: %s",
+						enforcedStorage.ObjectStorage.Bucket,
+						enforcedStorage.ObjectStorage.Prefix,
+						string(enforcedStorage.ObjectStorage.CACert))
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // GenerateNacObjectUUID generates a unique name based on the provided namespace and object origin name.
