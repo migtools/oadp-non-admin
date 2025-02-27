@@ -21,6 +21,7 @@ import (
 	"context"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
@@ -30,6 +31,7 @@ import (
 // CompositeNaBSLPredicate is a combination of NonAdminBackupStorageLocation and Velero BackupStorageLocation event filters
 type CompositeNaBSLPredicate struct {
 	Context                                       context.Context
+	NonAdminBslSecretPredicate                    NonAdminBslSecretPredicate
 	NonAdminBackupStorageLocationPredicate        NonAdminBackupStorageLocationPredicate
 	NonAdminBackupStorageLocationRequestPredicate NonAdminBackupStorageLocationRequestPredicate
 	VeleroBackupStorageLocationPredicate          VeleroBackupStorageLocationPredicate
@@ -40,6 +42,8 @@ func (p CompositeNaBSLPredicate) Create(evt event.CreateEvent) bool {
 	switch evt.Object.(type) {
 	case *nacv1alpha1.NonAdminBackupStorageLocation:
 		return p.NonAdminBackupStorageLocationPredicate.Create(p.Context, evt)
+	case *corev1.Secret:
+		return p.NonAdminBslSecretPredicate.Create(p.Context, evt)
 	default:
 		return false
 	}
