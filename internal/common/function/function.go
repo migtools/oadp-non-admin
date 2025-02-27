@@ -270,10 +270,20 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 			if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
 				field, _ := reflect.TypeOf(nonAdminBsl.Spec.BackupStorageLocationSpec).Elem().FieldByName(enforcedFieldName)
 				tagName, _, _ := strings.Cut(field.Tag.Get(constant.JSONTagString), constant.CommaString)
+				msgString := ""
+				if enforcedFieldName == "Credential" {
+					if credential, ok := enforcedField.Interface().(*corev1.SecretKeySelector); ok {
+						msgString = formatCredentialToString(credential)
+					} else {
+						msgString = constant.EmptyString
+					}
+				} else {
+					msgString = formatMapToString(reflect.Indirect(enforcedField).Interface())
+				}
 				return fmt.Errorf(
 					"the administrator has restricted spec.backupStorageLocationSpec.%v field to: %v",
 					tagName,
-					formatMapToString(reflect.Indirect(enforcedField).Interface()),
+					msgString,
 				)
 			}
 		}
@@ -291,6 +301,13 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		return fmt.Errorf("failed to get BSL credentials secret: %v", err)
 	}
 	return nil
+}
+
+func formatCredentialToString(credential *corev1.SecretKeySelector) string {
+	if credential == nil {
+		return constant.EmptyString
+	}
+	return fmt.Sprintf("name: %s, key: %s", credential.Name, credential.Key)
 }
 
 func formatMapToString(value any) string {

@@ -942,6 +942,21 @@ func TestValidateBslSpecEnforcedFields(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Credential",
+			enforcedValue: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "test-secret",
+				},
+				Key: "creds",
+			},
+			overrideValue: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "override-secret",
+				},
+				Key: "override-creds",
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
