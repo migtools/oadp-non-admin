@@ -295,7 +295,4 @@ endif
 
 .PHONY: docker-buildx-nac
 docker-buildx-nac: ## Build and push docker image for the manager for cross-platform support
-	- $(CONTAINER_TOOL) buildx create --name project-v3-builder
-	$(CONTAINER_TOOL) buildx use project-v3-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} -f Dockerfile .
-	- $(CONTAINER_TOOL) buildx rm project-v3-builder
