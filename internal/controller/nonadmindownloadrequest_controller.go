@@ -75,7 +75,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	// }
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
-	if req.Status.VeleroDownloadRequestStatus.Expiration.After(time.Now()) {
+	if req.Status.VeleroDownloadRequestStatus.Expiration.Before(&metav1.Time{Time: time.Now()}) {
 		// request is expired, so delete NADR after deleting velero DR
 		// find associated downloadrequest and delete that first
 		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
@@ -86,7 +86,9 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			return reconcile.Result{Requeue: true}, nil
 		}
 	}
-	var veleroObj, naObj client.Object
+	// veleroObj is backup or restore
+	// naObj is nonAdminDownloadRequests
+	var veleroBR, veleroDR, naObj client.Object
 	switch req.Spec.Target.Kind {
 	case velerov1.DownloadTargetKindBackupLog,
 		velerov1.DownloadTargetKindBackupContents,
@@ -99,7 +101,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		velerov1.DownloadTargetKindBackupVolumeInfos:
 		// get velero backup name from nab
 		var nab nacv1alpha1.NonAdminBackup
-		if err := r.Get(ctx, types.NamespacedName{Namespace: r.OADPNamespace, Name: req.Spec.Target.Name}, &nab); err != nil {
+		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nab); err != nil {
 			// TODO:
 			_ = ""
 		}
@@ -113,31 +115,18 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 				Namespace: r.OADPNamespace,
 			},
 		}
-		veleroObj = &vb
+		veleroBR = &vb
 	case velerov1.DownloadTargetKindRestoreLog,
 		velerov1.DownloadTargetKindRestoreResults,
 		velerov1.DownloadTargetKindRestoreResourceList,
 		velerov1.DownloadTargetKindRestoreItemOperations,
 		velerov1.DownloadTargetKindRestoreVolumeInfo:
-		veleroObj = &velerov1.Restore{}
+		veleroBR = &velerov1.Restore{}
 	}
-	// TODO:
 	_ = naObj
-	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroObj.GetNamespace(), Name: veleroObj.GetName()}, veleroObj); err != nil {
-		if apierrors.IsNotFound(err) {
-			// create
-			if createErr := r.Create(ctx, veleroObj); createErr != nil {
-				if apierrors.IsAlreadyExists(err) {
-					// should probably requeue until Get find this item.
-					logger.Error(createErr, "Failed to create velero object already existing, requeueing", veleroObj.GetObjectKind(), veleroObj.GetName())
-					return ctrl.Result{RequeueAfter: time.Second}, nil
-				}
-				logger.Error(err, "Failed to create velero object", veleroObj.GetObjectKind(), veleroObj.GetName(), "err", createErr)
-				return ctrl.Result{RequeueAfter: time.Second}, nil
-			}
-		} else {
-			logger.Error(err, "Failed to get velero object", veleroObj.GetObjectKind(), veleroObj.GetName())
-		}
+	_ = veleroDR
+	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroBR.GetNamespace(), Name: veleroBR.GetName()}, veleroBR); err != nil {
+		logger.Error(err, "Failed to get velero object associated with downloadRequest", veleroBR.GetObjectKind(), veleroBR.GetName())
 	}
 
 	return ctrl.Result{}, nil

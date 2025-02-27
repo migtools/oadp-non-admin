@@ -196,5 +196,5 @@ func (nab *NonAdminBackup) VeleroBackupName() string {
 	if nab.Status.VeleroBackup == nil {
 		return constant.EmptyString
 	}
-	return nab.Status.VeleroBackup.NACUUID
+	return nab.Status.VeleroBackup.Name
 }
