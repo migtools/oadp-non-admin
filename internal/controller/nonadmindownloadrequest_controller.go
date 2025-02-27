@@ -19,9 +19,9 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,29 +75,39 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	// }
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
-	if req.Status.VeleroDownloadRequestStatus.Expiration.Before(&metav1.Time{Time: time.Now()}) {
-		// request is expired, so delete NADR after deleting velero DR
-		// find associated downloadrequest and delete that first
-		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
-		if err := r.Delete(ctx, req); err != nil {
-			if apierrors.IsNotFound(err) {
-				return reconcile.Result{Requeue: false}, nil
-			}
-			return reconcile.Result{Requeue: true}, nil
-		}
-	}
-	// veleroBR is backup or restore
-	// veleroDR is downloadRequest
-	// naObj is nonAdmin backup or restore
-	var veleroBR, naBR client.Object
+	// defines associated downloadrequest for getting, or deleting
 	veleroDR := velerov1.DownloadRequest{
-		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("nadr-%s",string(req.GetUID()))},
+		ObjectMeta: metav1.ObjectMeta{Name: req.VeleroDownloadRequestName()},
 		Spec: velerov1.DownloadRequestSpec{
 			Target: velerov1.DownloadTarget{
 				Kind: req.Spec.Target.Kind,
 			},
 		},
 	}
+	if req.Status.VeleroDownloadRequestStatus.Expiration.Before(&metav1.Time{Time: time.Now()}) {
+		// request is expired, so delete NADR after deleting velero DR
+		// find associated downloadrequest and delete that first
+		logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
+		if err := r.Delete(ctx, &veleroDR); err != nil {
+			if !apierrors.IsNotFound(err) {
+				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), err)
+				// other errors, requeue to retry delete
+				return reconcile.Result{Requeue: true}, nil
+			}
+		}
+		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
+		if err := r.Delete(ctx, req); err != nil {
+			if !apierrors.IsNotFound(err) {
+				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest", req.Name, err)
+				// other errors, requeue to retry delete
+				return reconcile.Result{Requeue: true}, nil
+			}
+			return reconcile.Result{Requeue: false}, nil
+		}
+	}
+	// veleroBR is backup or restore
+	// naBR is nonAdmin backup or restore
+	var veleroBR, naBR client.Object
 	switch req.Spec.Target.Kind {
 	case velerov1.DownloadTargetKindBackupLog,
 		velerov1.DownloadTargetKindBackupContents,
@@ -111,11 +121,15 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		// get velero backup name from nab
 		var nab nacv1alpha1.NonAdminBackup
 		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nab); err != nil {
-			// TODO:
-			_ = ""
+			if apierrors.IsNotFound(err) {
+				patchErr := r.patchAddStatusConditionTypeFalse(ctx, logger, req, "NonAdminBackupAvailable")
+				return ctrl.Result{RequeueAfter: time.Second}, patchErr
+			}
+			// TODO: when NAB cannot get
 		}
 		naBR = &nab
 		// empty name covered by get error
+		// TODO: check for NaBSL storageLocation
 		vb := velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Name: nab.VeleroBackupName(), Namespace: r.OADPNamespace}}
 		veleroBR = &vb
 		veleroDR.Spec.Target.Name = nab.VeleroBackupName()
@@ -126,8 +140,11 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		velerov1.DownloadTargetKindRestoreVolumeInfo:
 		var nar nacv1alpha1.NonAdminRestore
 		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nar); err != nil {
-			// TODO:
-			_ = ""
+			if apierrors.IsNotFound(err) {
+				patchErr := r.patchAddStatusConditionTypeFalse(ctx, logger, req, "NonAdminRestoreAvailable")
+				return ctrl.Result{RequeueAfter: time.Second}, patchErr
+			}
+			// TODO: when NAR cannot get
 		}
 		naBR = &nar
 		// empty name covered by get error
@@ -199,7 +216,7 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		}, builder.WithPredicates(
 			ctrlpredicate.NewPredicateFuncs(func(object client.Object) bool {
 				// only watch download requests with our label
-				if _, hasUID := object.GetLabels()[constant.NadrOriginNACUUIDLabel]; hasUID {
+				if _, hasUID := object.GetLabels()[constant.NadrOriginNACUUIDLabel]; hasUID && object.GetNamespace() == r.OADPNamespace {
 					return true
 				}
 				return false
@@ -207,4 +224,18 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		),
 		).
 		Complete(reconcile.AsReconciler(r.Client, r))
+}
+
+func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeFalse(ctx context.Context, logger logr.Logger, req *nacv1alpha1.NonAdminDownloadRequest, typeStr string) error {
+	prePatch := req.DeepCopy()
+	req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
+	req.Status.Conditions = append(req.Status.Conditions, metav1.Condition{
+		Type:   typeStr,
+		Status: metav1.ConditionFalse,
+	})
+	if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
+		logger.Error(patchErr, "unable to patch status condition", req.Kind, req.Name)
+		return patchErr
+	}
+	return nil
 }

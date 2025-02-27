@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,4 +81,9 @@ func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
 	return nadr.Spec.Target.Kind != constant.EmptyString &&
 		nadr.Spec.Target.Name != constant.EmptyString &&
 		nadr.Status.Phase != NonAdminPhaseCompleted
+}
+
+// VeleroDownloadRequestName defines velero download request name for this NonAdminDownloadRequest
+func (nadr *NonAdminDownloadRequest) VeleroDownloadRequestName() string {
+	return fmt.Sprintf("nadr-%s", string(nadr.GetUID()))
 }
