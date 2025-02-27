@@ -159,10 +159,17 @@ func init() {
 	SchemeBuilder.Register(&NonAdminRestore{}, &NonAdminRestoreList{})
 }
 
+// Helper Functions to avoid digging into NAR controller to understand how to get desired values
+
 // VeleroRestoreName returns the name of the VeleroRestore object.
 func (nar *NonAdminRestore) VeleroRestoreName() string {
 	if nar.Status.VeleroRestore == nil {
 		return constant.EmptyString
 	}
 	return nar.Status.VeleroRestore.Name
+}
+
+// NonAdminBackupName returns NonAdminBackup name of this NAR
+func (nar *NonAdminRestore) NonAdminBackupName() string {
+	return nar.Spec.RestoreSpec.BackupName
 }
