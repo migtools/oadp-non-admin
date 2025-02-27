@@ -18,16 +18,19 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrlPredicate "sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -58,18 +61,34 @@ type NonAdminDownloadRequestReconciler struct {
 // This reconcile implements ObjectReconciler https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile#ObjectReconciler
 // Each reconciliation event gets the associated object from Kubernetes before passing it to Reconcile
 func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest) (reconcile.Result, error) {
+	if req == nil {
+		return ctrl.Result{Requeue: false}, nil
+	}
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
+	if req.Status.VeleroDownloadRequestStatus.Expiration.After(time.Now()) {
+		// request is expired, so delete velero download request
+		// also delete this
+	}
 	// TODO: get nab/nar
 	_ = r // TODO: lint
 	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
+// We are using predicates within For, and Watches itself, instead of defining complicated CompositePredicate that applies to all watches/fors.
+// This approach is more readable and less lines of code, and is self contained within each controller.
+// Other controllers had to build CompositePredicate because they used EventFilter which applied to all watches.
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// TODO: predicate
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nacv1alpha1.NonAdminDownloadRequest{}).
+		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlPredicate.Funcs{
+			// TODO: DeleteFunc: , delete velero download requests?
+			// Process creates
+			CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return true },
+			// TODO: UpdateFunc: , potentially don't process updates?
+			// TODO: GenericFunc: , what to do with generic events?
+
+		})).
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
 			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.RateLimitingInterface) {
@@ -85,6 +104,7 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 					})
 				}
 			},
+			// DeleteFunc: , TODO: if velero DownloadRequests gets cleaned up, delete this?
 		},
 		).
 		Complete(reconcile.AsReconciler(r.Client, r))
