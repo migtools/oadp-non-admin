@@ -42,7 +42,7 @@ New fields will be added to the OADP DPA object, allowing admin users to define 
   Admin users can define enforced and default values for `spec.restoreSpec` fields. Any NonAdminRestore that attempts to override enforced values will fail validation before creating an associated Velero Restore.
 
 - **NonAdminBackupStorageLocation:**
-  Admin users can set enforced and default values for `spec.backupStorageLocationSpec` fields. If a NonAdminBackupStorageLocation attempts to override enforced values, it will fail validation before creating an associated Velero BackupStorageLocation.
+  Admin users can set enforced and default values for `spec.backupStorageLocationSpec` fields, except for spec.backupStorageLocationSpec.default, which is not included in the enforcement BSL Spec. If a NonAdminBackupStorageLocation attempts to override enforced values, it will fail validation before creating an associated Velero BackupStorageLocation.
 
 If admin user changes any enforced field value, NAC Pod is recreated to always be up to date with admin user enforcements.
 
@@ -52,7 +52,16 @@ If admin user changes any enforced field value, NAC Pod is recreated to always b
 
 Field `spec.nonAdmin.enforceBackupSpec`, of the same type as the Velero Backup Spec, will be added to OADP DPA object.
 
-With it, admin users will be able to select which NonAdminBackup `spec.backupSpec` fields have custom default (and enforced) values.
+Field `spec.nonAdmin.enforceRestoreSpec`, of the same type as the Velero Restore Spec, will be added to OADP DPA object.
+
+Field `spec.nonAdmin.enforceBSLSpec`, which mirrors the Velero BackupStorageLocation Spec, will be introduced in the
+OADP DPA object with the following exceptions:
+
+ - Fields marked as `required` in the Velero BSL Spec are treated as `optional` in the enforcement BSL Spec.
+   This allows admin users to enforce specific fields without requiring others.
+ - The `default` field is excluded from the enforcement BSL Spec, because it can not be enforced.
+
+With the above fields, admin users will be able to select for example which NonAdminBackup `spec.backupSpec` fields have custom default (and enforced) values.
 
 To avoid mistakes, not all fields will be able to be enforced, like `IncludedNamespaces`, that could break NAC usage.
 
