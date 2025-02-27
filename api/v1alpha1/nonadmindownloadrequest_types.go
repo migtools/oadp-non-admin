@@ -37,12 +37,24 @@ type NonAdminDownloadRequestSpec struct {
 	Target velerov1.DownloadTarget `json:"target"`
 }
 
+// VeleroDownloadRequest represents VeleroDownloadRequest
+type VeleroDownloadRequest struct {
+	// VeleroDownloadRequestStatus represents VeleroDownloadRequestStatus
+	// +optional
+	Status *velerov1.DownloadRequestStatus `json:"status,omitempty"`
+	// name references the Velero delete backup request object by it's name.
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// namespace references the Namespace in which Velero delete backup request exists.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // NonAdminDownloadRequestStatus defines the observed state of NonAdminDownloadRequest.
 type NonAdminDownloadRequestStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	VeleroDownloadRequestStatus velerov1.DownloadRequestStatus `json:"veleroDownloadRequest,omitempty"`
-
+	// +optional
+	VeleroDownloadRequest VeleroDownloadRequest `json:"velero,omitempty"`
 	// phase is a simple one high-level summary of the lifecycle of an NonAdminDownloadRequest
 	Phase NonAdminPhase `json:"phase,omitempty"`
 

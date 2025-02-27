@@ -78,7 +78,12 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
 	// defines associated downloadrequest for getting, or deleting
 	veleroDR := velerov1.DownloadRequest{
-		ObjectMeta: metav1.ObjectMeta{Name: req.VeleroDownloadRequestName()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      req.VeleroDownloadRequestName(),
+			Namespace: r.OADPNamespace,
+			Labels:    function.GetNonAdminLabels(),
+			// Annotations: ,
+		},
 		Spec: velerov1.DownloadRequestSpec{
 			Target: velerov1.DownloadTarget{
 				Kind: req.Spec.Target.Kind,
@@ -86,7 +91,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		},
 	}
 	// request is expired, so delete NADR after deleting velero DR
-	if req.Status.VeleroDownloadRequestStatus.Expiration.Before(&metav1.Time{Time: time.Now()}) {
+	if req.Status.VeleroDownloadRequest.Status != nil  && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
 		// find associated velero downloadrequest and delete that first
 		logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
 		if err := r.Delete(ctx, &veleroDR); err != nil {
@@ -159,12 +164,18 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		}
 		return ctrl.Result{}, nil
 	}
-	veleroDR.Spec.Target.Name = nab.VeleroBackupName()
-	// TODO: create VeleroDownloadReequest.
+	// req.Status.VeleroDownloadRequestStatus
+	// if VDR has target name, it is populated by restore case
+	// if VDR do not have target name, this is a backup case
+	// so set veleroDR.Spec.Target.Name to nab.VeleroBackupName()
+	if veleroDR.Spec.Target.Name != constant.EmptyString {
+		veleroDR.Spec.Target.Name = nab.VeleroBackupName()
+	}
+
 	// wait for next reconcile?
 	prePatch := req.DeepCopy()
 	// copy status to NADR from VDR
-	req.Status.VeleroDownloadRequestStatus = veleroDR.Status
+	req.Status.VeleroDownloadRequest.Status = &veleroDR.Status
 	// if url is available and not expired, then set status to completed
 	if veleroDR.Status.DownloadURL != constant.EmptyString && !veleroDR.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
 		req.Status.Phase = nacv1alpha1.NonAdminPhaseCompleted
@@ -220,8 +231,12 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 			// DeleteFunc: , TODO: if velero DownloadRequests gets cleaned up, delete this?
 		}, builder.WithPredicates(
 			ctrlpredicate.NewPredicateFuncs(func(object client.Object) bool {
+				// only watch OADP NS
+				if object.GetNamespace() != r.OADPNamespace {
+					return false
+				}
 				// only watch download requests with our label
-				if _, hasUID := object.GetLabels()[constant.NadrOriginNACUUIDLabel]; hasUID && object.GetNamespace() == r.OADPNamespace {
+				if _, hasUID := object.GetLabels()[constant.NadrOriginNACUUIDLabel]; hasUID {
 					return true
 				}
 				return false
