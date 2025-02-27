@@ -19,7 +19,7 @@ package controller
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"time"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -86,9 +86,18 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			return reconcile.Result{Requeue: true}, nil
 		}
 	}
-	// veleroObj is backup or restore
-	// naObj is nonAdminDownloadRequests
-	var veleroBR, veleroDR, naObj client.Object
+	// veleroBR is backup or restore
+	// veleroDR is downloadRequest
+	// naObj is nonAdmin backup or restore
+	var veleroBR, naBR client.Object
+	veleroDR := velerov1.DownloadRequest{
+		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("nadr-%s",string(req.GetUID()))},
+		Spec: velerov1.DownloadRequestSpec{
+			Target: velerov1.DownloadTarget{
+				Kind: req.Spec.Target.Kind,
+			},
+		},
+	}
 	switch req.Spec.Target.Kind {
 	case velerov1.DownloadTargetKindBackupLog,
 		velerov1.DownloadTargetKindBackupContents,
@@ -105,29 +114,45 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			// TODO:
 			_ = ""
 		}
-		naObj = &nab
-		if nab.VeleroBackupName() == constant.EmptyString {
-			return reconcile.Result{}, errors.New("unable to get Velero Backup UUID from NonAdminBackup Status")
-		}
-		var vb = velerov1.Backup{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      nab.VeleroBackupName(),
-				Namespace: r.OADPNamespace,
-			},
-		}
+		naBR = &nab
+		// empty name covered by get error
+		vb := velerov1.Backup{ObjectMeta: metav1.ObjectMeta{Name: nab.VeleroBackupName(), Namespace: r.OADPNamespace}}
 		veleroBR = &vb
+		veleroDR.Spec.Target.Name = nab.VeleroBackupName()
 	case velerov1.DownloadTargetKindRestoreLog,
 		velerov1.DownloadTargetKindRestoreResults,
 		velerov1.DownloadTargetKindRestoreResourceList,
 		velerov1.DownloadTargetKindRestoreItemOperations,
 		velerov1.DownloadTargetKindRestoreVolumeInfo:
-		veleroBR = &velerov1.Restore{}
+		var nar nacv1alpha1.NonAdminRestore
+		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nar); err != nil {
+			// TODO:
+			_ = ""
+		}
+		naBR = &nar
+		// empty name covered by get error
+		vr := velerov1.Restore{ObjectMeta: metav1.ObjectMeta{Name: nar.VeleroRestoreName(), Namespace: r.OADPNamespace}}
+		veleroBR = &vr
+		veleroDR.Spec.Target.Name = nar.VeleroRestoreName()
 	}
-	_ = naObj
+	// TODO: lint
+	_ = naBR
+	_ = veleroBR
 	_ = veleroDR
-	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroBR.GetNamespace(), Name: veleroBR.GetName()}, veleroBR); err != nil {
-		logger.Error(err, "Failed to get velero object associated with downloadRequest", veleroBR.GetObjectKind(), veleroBR.GetName())
-	}
+	// let this part be velero's job?
+	// if err := r.Get(ctx, types.NamespacedName{Namespace: veleroBR.GetNamespace(), Name: veleroBR.GetName()}, veleroBR); err != nil {
+	// 	logger.Error(err, "Failed to get velero object associated with downloadRequest", veleroBR.GetObjectKind(), veleroBR.GetName())
+	// 	prePatch := req.DeepCopy()
+	// 	req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
+	// 	req.Status.Conditions = append(req.Status.Conditions, metav1.Condition{
+	// 		Type:   "VeleroBRAvailable",
+	// 		Status: metav1.ConditionFalse,
+	// 	})
+	// 	if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
+	// 		logger.Error(patchErr, "unable to patch status condition", req.Kind, req.Name)
+	// 		return ctrl.Result{RequeueAfter: time.Second}, patchErr
+	// 	}
+	// }
 
 	return ctrl.Result{}, nil
 }
@@ -139,12 +164,20 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlpredicate.Funcs{
-			// TODO: DeleteFunc: , delete velero download requests? maybe if we just set ownerReferences
-			// Process creates
-			CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return true },
-			// TODO: UpdateFunc: , potentially don't process updates?
-			// TODO: GenericFunc: , what to do with generic events?
-
+			CreateFunc: func(tce event.TypedCreateEvent[client.Object]) bool {
+				if nadr, ok := tce.Object.(*nacv1alpha1.NonAdminDownloadRequest); ok {
+					return nadr.ReadyForProcessing()
+				}
+				return false
+			},
+			UpdateFunc: func(tue event.TypedUpdateEvent[client.Object]) bool {
+				if nadr, ok := tue.ObjectNew.(*nacv1alpha1.NonAdminDownloadRequest); ok {
+					return nadr.ReadyForProcessing()
+				}
+				return false
+			},
+			DeleteFunc:  func(_ event.TypedDeleteEvent[client.Object]) bool { return true }, // we process delete events by deleting corresponding velero download requests if found
+			GenericFunc: func(_ event.TypedGenericEvent[client.Object]) bool { return false },
 		})).
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{

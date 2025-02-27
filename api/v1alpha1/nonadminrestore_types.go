@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -156,4 +157,12 @@ type NonAdminRestoreList struct {
 
 func init() {
 	SchemeBuilder.Register(&NonAdminRestore{}, &NonAdminRestoreList{})
+}
+
+// VeleroRestoreName returns the name of the VeleroRestore object.
+func (nar *NonAdminRestore) VeleroRestoreName() string {
+	if nar.Status.VeleroRestore == nil {
+		return constant.EmptyString
+	}
+	return nar.Status.VeleroRestore.Name
 }

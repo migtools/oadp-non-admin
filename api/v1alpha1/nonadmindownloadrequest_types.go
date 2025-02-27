@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -69,4 +70,13 @@ type NonAdminDownloadRequestList struct {
 
 func init() {
 	SchemeBuilder.Register(&NonAdminDownloadRequest{}, &NonAdminDownloadRequestList{})
+}
+
+// ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
+// only process NADR with target kind and name populated and phase is not yet completed
+// returns true if ready for processing, false if required fields are not populated
+func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
+	return nadr.Spec.Target.Kind != constant.EmptyString &&
+		nadr.Spec.Target.Name != constant.EmptyString &&
+		nadr.Status.Phase != NonAdminPhaseCompleted
 }
