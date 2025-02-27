@@ -19,6 +19,8 @@ package v1alpha1
 import (
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 // NonAdminBackupSpec defines the desired state of NonAdminBackup
@@ -187,4 +189,12 @@ type NonAdminBackupList struct {
 
 func init() {
 	SchemeBuilder.Register(&NonAdminBackup{}, &NonAdminBackupList{})
+}
+
+// VeleroBackupName returns the name of the VeleroBackup object.
+func (nab *NonAdminBackup) VeleroBackupName() string {
+	if nab.Status.VeleroBackup == nil {
+		return constant.EmptyString
+	}
+	return nab.Status.VeleroBackup.NACUUID
 }

@@ -14,13 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package controller contains all controllers of the project
 package controller
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
@@ -30,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	ctrlPredicate "sigs.k8s.io/controller-runtime/pkg/predicate"
+	ctrlpredicate "sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -41,7 +45,8 @@ import (
 // NonAdminDownloadRequestReconciler reconciles a NonAdminDownloadRequest object
 type NonAdminDownloadRequestReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	OADPNamespace string
 }
 
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests,verbs=get;list;watch;create;update;patch;delete
@@ -61,17 +66,80 @@ type NonAdminDownloadRequestReconciler struct {
 // This reconcile implements ObjectReconciler https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile#ObjectReconciler
 // Each reconciliation event gets the associated object from Kubernetes before passing it to Reconcile
 func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest) (reconcile.Result, error) {
-	if req == nil {
+	if req == nil || req.Spec.Target.Kind == constant.EmptyString {
 		return ctrl.Result{Requeue: false}, nil
 	}
+	// TODO: delete if UID is always available here.
+	// if req.ObjectMeta.UID  == "" {
+	// requeue later until uid is populated
+	// }
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
 	if req.Status.VeleroDownloadRequestStatus.Expiration.After(time.Now()) {
-		// request is expired, so delete velero download request
-		// also delete this
+		// request is expired, so delete NADR after deleting velero DR
+		// find associated downloadrequest and delete that first
+		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
+		if err := r.Delete(ctx, req); err != nil {
+			if apierrors.IsNotFound(err) {
+				return reconcile.Result{Requeue: false}, nil
+			}
+			return reconcile.Result{Requeue: true}, nil
+		}
 	}
-	// TODO: get nab/nar
-	_ = r // TODO: lint
+	var veleroObj, naObj client.Object
+	switch req.Spec.Target.Kind {
+	case velerov1.DownloadTargetKindBackupLog,
+		velerov1.DownloadTargetKindBackupContents,
+		velerov1.DownloadTargetKindBackupVolumeSnapshots,
+		velerov1.DownloadTargetKindBackupItemOperations,
+		velerov1.DownloadTargetKindBackupResourceList,
+		velerov1.DownloadTargetKindBackupResults,
+		velerov1.DownloadTargetKindCSIBackupVolumeSnapshots,
+		velerov1.DownloadTargetKindCSIBackupVolumeSnapshotContents,
+		velerov1.DownloadTargetKindBackupVolumeInfos:
+		// get velero backup name from nab
+		var nab nacv1alpha1.NonAdminBackup
+		if err := r.Get(ctx, types.NamespacedName{Namespace: r.OADPNamespace, Name: req.Spec.Target.Name}, &nab); err != nil {
+			// TODO:
+			_ = ""
+		}
+		naObj = &nab
+		if nab.VeleroBackupName() == constant.EmptyString {
+			return reconcile.Result{}, errors.New("unable to get Velero Backup UUID from NonAdminBackup Status")
+		}
+		var vb = velerov1.Backup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      nab.VeleroBackupName(),
+				Namespace: r.OADPNamespace,
+			},
+		}
+		veleroObj = &vb
+	case velerov1.DownloadTargetKindRestoreLog,
+		velerov1.DownloadTargetKindRestoreResults,
+		velerov1.DownloadTargetKindRestoreResourceList,
+		velerov1.DownloadTargetKindRestoreItemOperations,
+		velerov1.DownloadTargetKindRestoreVolumeInfo:
+		veleroObj = &velerov1.Restore{}
+	}
+	// TODO:
+	_ = naObj
+	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroObj.GetNamespace(), Name: veleroObj.GetName()}, veleroObj); err != nil {
+		if apierrors.IsNotFound(err) {
+			// create
+			if createErr := r.Create(ctx, veleroObj); createErr != nil {
+				if apierrors.IsAlreadyExists(err) {
+					// should probably requeue until Get find this item.
+					logger.Error(createErr, "Failed to create velero object already existing, requeueing", veleroObj.GetObjectKind(), veleroObj.GetName())
+					return ctrl.Result{RequeueAfter: time.Second}, nil
+				}
+				logger.Error(err, "Failed to create velero object", veleroObj.GetObjectKind(), veleroObj.GetName(), "err", createErr)
+				return ctrl.Result{RequeueAfter: time.Second}, nil
+			}
+		} else {
+			logger.Error(err, "Failed to get velero object", veleroObj.GetObjectKind(), veleroObj.GetName())
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -81,8 +149,8 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 // Other controllers had to build CompositePredicate because they used EventFilter which applied to all watches.
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlPredicate.Funcs{
-			// TODO: DeleteFunc: , delete velero download requests?
+		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlpredicate.Funcs{
+			// TODO: DeleteFunc: , delete velero download requests? maybe if we just set ownerReferences
 			// Process creates
 			CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool { return true },
 			// TODO: UpdateFunc: , potentially don't process updates?
@@ -92,7 +160,8 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
 			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.RateLimitingInterface) {
-				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok && dr.Status.DownloadURL != "" {
+				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok &&
+					dr.Status.Phase == velerov1.DownloadRequestPhaseProcessed { // only reconcile on updates when downloadrequests is processed
 					log := function.GetLogger(ctx, dr, "VeleroDownloadRequestHandler")
 					log.V(1).Info("DownloadRequest populated with url")
 					// on update, we need to reconcile NonAdminDownloadRequests to update
@@ -105,7 +174,15 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 				}
 			},
 			// DeleteFunc: , TODO: if velero DownloadRequests gets cleaned up, delete this?
-		},
+		}, builder.WithPredicates(
+			ctrlpredicate.NewPredicateFuncs(func(object client.Object) bool {
+				// only watch download requests with our label
+				if _, hasUID := object.GetLabels()[constant.NadrOriginNACUUIDLabel]; hasUID {
+					return true
+				}
+				return false
+			}),
+		),
 		).
 		Complete(reconcile.AsReconciler(r.Client, r))
 }

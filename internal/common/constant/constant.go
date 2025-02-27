@@ -34,6 +34,7 @@ const (
 	NabOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nab-origin-nacuuid"
 	NarOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
 	NabslOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nabsl-origin-nacuuid"
+	NadrOriginNACUUIDLabel  = v1alpha1.OadpOperatorLabel + "-nadr-origin-nacuuid"
 	NabSyncLabel            = v1alpha1.OadpOperatorLabel + "-nab-synced-from-nacuuid"
 
 	NabOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
