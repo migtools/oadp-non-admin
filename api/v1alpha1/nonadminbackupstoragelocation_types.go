@@ -71,6 +71,10 @@ type NonAdminBackupStorageLocationStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=nonadminbackupstoragelocations,shortName=nabsl
+// +kubebuilder:printcolumn:name="Approved",type="string",JSONPath=".status.conditions[?(@.type=='ClusterAdminApproved')].status"
+// +kubebuilder:printcolumn:name="BSL-Status",type="string",JSONPath=".status.veleroBackupStorageLocation.status.phase"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // NonAdminBackupStorageLocation is the Schema for the nonadminbackupstoragelocations API
 type NonAdminBackupStorageLocation struct {
