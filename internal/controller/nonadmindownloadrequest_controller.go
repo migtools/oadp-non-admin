@@ -94,6 +94,35 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			},
 		},
 	}
+	// if request has status, it may already be processed or expired
+	if req.Status.VeleroDownloadRequest.Status != nil {
+		// if request is expired, delete NADR after deleting velero DR
+		if req.Status.VeleroDownloadRequest.Status.Expiration != nil && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
+			// find associated velero downloadrequest and delete that first
+			logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
+			if err := r.Delete(ctx, &veleroDR); err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), err)
+					// other errors, requeue to retry delete
+					return reconcile.Result{}, err
+				}
+			}
+			logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
+			if err := r.Delete(ctx, req); err != nil {
+				if !apierrors.IsNotFound(err) {
+					logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest", req.Name, err)
+					// other errors, requeue to retry delete
+					return reconcile.Result{}, err
+				}
+				// not found, stop requeue
+				return reconcile.Result{Requeue: false}, nil
+			}
+		}
+		// if request is not expired, and has downloadUrl, requeue when expired to cleanup.
+		if req.Status.VeleroDownloadRequest.Status.DownloadURL != constant.EmptyString {
+			return reconcile.Result{RequeueAfter: time.Until(req.Status.VeleroDownloadRequest.Status.Expiration.Time)}, nil
+		}
+	}
 	// try get veleroDR if exists, then update status
 	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroDR.Namespace, Name: veleroDR.Name}, &veleroDR); err == nil {
 		// wait for next reconcile?
@@ -105,6 +134,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			prePatch := req.DeepCopy()
 			// copy status to NADR from VDR
 			req.Status.VeleroDownloadRequest.Status = &veleroDR.Status
+			req.Status.Phase = nacv1alpha1.NonAdminPhaseCreated
 			// veleroDR is processed, update NADR status
 			// clear conditions
 			req.Status.Conditions = []metav1.Condition{}
@@ -116,28 +146,6 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	} else if !apierrors.IsNotFound(err) {
 		// some other errors, requeue to retry get
 		return reconcile.Result{}, err
-	}
-	// if request is expired, delete NADR after deleting velero DR
-	if req.Status.VeleroDownloadRequest.Status != nil && req.Status.VeleroDownloadRequest.Status.Expiration != nil && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
-		// find associated velero downloadrequest and delete that first
-		logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
-		if err := r.Delete(ctx, &veleroDR); err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), err)
-				// other errors, requeue to retry delete
-				return reconcile.Result{}, err
-			}
-		}
-		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
-		if err := r.Delete(ctx, req); err != nil {
-			if !apierrors.IsNotFound(err) {
-				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest", req.Name, err)
-				// other errors, requeue to retry delete
-				return reconcile.Result{}, err
-			}
-			// not found, stop requeue
-			return reconcile.Result{Requeue: false}, nil
-		}
 	}
 	var nab nacv1alpha1.NonAdminBackup // holds nonadminbackup
 	var nabName string                 // holds nonadminbackup name
@@ -195,13 +203,15 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	// if VDR has target name, it is populated by restore case
 	// if VDR do not have target name, this is a backup case
 	// so set veleroDR.Spec.Target.Name to nab.VeleroBackupName()
-	if veleroDR.Spec.Target.Name != constant.EmptyString {
+	if veleroDR.Spec.Target.Name == constant.EmptyString {
 		veleroDR.Spec.Target.Name = nab.VeleroBackupName()
 	}
 	// veleroDR is now ready to be created
-	if err := r.Create(ctx, &veleroDR); err != nil {
-		// requeue so Get can update nadr status (if exists) or recreate
-		return ctrl.Result{}, err
+	if veleroDR.ResourceVersion == constant.EmptyString {
+		if err := r.Create(ctx, &veleroDR); err != nil {
+			// requeue so Get can update nadr status (if exists) or recreate
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{}, nil
 }
@@ -242,8 +252,8 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 					// on update, we need to reconcile NonAdminDownloadRequests to update
 					rli.Add(reconcile.Request{
 						NamespacedName: types.NamespacedName{
-							Namespace: constant.NadrOriginNamespaceAnnotation,
-							Name:      constant.NadrOriginNameAnnotation,
+							Namespace: dr.Annotations[constant.NadrOriginNamespaceAnnotation],
+							Name:      dr.Annotations[constant.NadrOriginNameAnnotation],
 						},
 					})
 				}
