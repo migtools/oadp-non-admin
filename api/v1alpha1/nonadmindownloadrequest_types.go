@@ -25,15 +25,9 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // NonAdminDownloadRequestSpec defines the desired state of NonAdminDownloadRequest.
 // Mirrors velero DownloadRequestSpec to allow non admins to download information for a non admin backup/restore
 type NonAdminDownloadRequestSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Target is what to download (e.g. logs for a backup).
 	Target velerov1.DownloadTarget `json:"target"`
 }
