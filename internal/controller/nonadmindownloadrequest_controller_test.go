@@ -44,7 +44,7 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 		nadr                 *nacv1alpha1.NonAdminDownloadRequest
 		nabsl                *nacv1alpha1.NonAdminBackupStorageLocation
 		nab                  *nacv1alpha1.NonAdminBackup
-		nabDefaultBsl                  *nacv1alpha1.NonAdminBackup
+		nabDefaultBsl        *nacv1alpha1.NonAdminBackup
 		request              reconcile.Request
 		fakeClient           client.Client
 		expectedDownloadName string
@@ -204,7 +204,6 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 		})
 
 		ginkgo.It("Should delete the NonAdminDownloadRequest and DownloadRequest when expired", func() {
-
 			// Create the associated DownloadRequest
 			downloadRequest := &velerov1.DownloadRequest{
 				ObjectMeta: metav1.ObjectMeta{
