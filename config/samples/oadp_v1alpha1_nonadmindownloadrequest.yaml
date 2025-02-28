@@ -6,4 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: nonadmindownloadrequest-sample
 spec:
-  # TODO(user): Add fields here
+  target:
+    kind: BackupLog
+    name: non-admin-backup-name
+
