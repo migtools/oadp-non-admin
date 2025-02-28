@@ -82,16 +82,18 @@ func init() {
 	SchemeBuilder.Register(&NonAdminDownloadRequest{}, &NonAdminDownloadRequestList{})
 }
 
-// NonAdminDownloadRequestCondition prevents untyped strings for NADR conditions functions
-type NonAdminDownloadRequestCondition string
+// NonAdminDownloadRequestConditionType prevents untyped strings for NADR conditions functions
+type NonAdminDownloadRequestConditionType string
 
 const (
 	// ConditionNonAdminBackupStorageLocationNotUsed block download requests processing if NaBSL is not used
-	ConditionNonAdminBackupStorageLocationNotUsed NonAdminDownloadRequestCondition = "NonAdminBackupStorageLocationNotUsed"
+	ConditionNonAdminBackupStorageLocationNotUsed NonAdminDownloadRequestConditionType = "NonAdminBackupStorageLocationNotUsed"
 	// ConditionNonAdminBackupNotAvailable indicates backup is not available, and will backoff download request
-	ConditionNonAdminBackupNotAvailable NonAdminDownloadRequestCondition = "NonAdminBackupNotAvailable"
+	ConditionNonAdminBackupNotAvailable NonAdminDownloadRequestConditionType = "NonAdminBackupNotAvailable"
 	// ConditionNonAdminRestoreNotAvailable indicates restore is not available, and will backoff download request
-	ConditionNonAdminRestoreNotAvailable NonAdminDownloadRequestCondition = "NonAdminRestoreNotAvailable"
+	ConditionNonAdminRestoreNotAvailable NonAdminDownloadRequestConditionType = "NonAdminRestoreNotAvailable"
+	// ConditionNonAdminProcessed indicates that the NADR is in a terminal state
+	ConditionNonAdminProcessed NonAdminDownloadRequestConditionType = "Processed"
 )
 
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing

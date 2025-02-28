@@ -145,11 +145,12 @@ func (r *NonAdminDownloadRequestReconciler) updateNADRWithURL(ctx context.Contex
 		prePatch := req.DeepCopy()
 		// copy status to NADR from VDR
 		req.Status.VeleroDownloadRequest.Status = &veleroDR.Status
-		req.Status.Phase = nacv1alpha1.NonAdminPhaseCreated
 		// veleroDR is processed, update NADR status
-		// clear conditions
-		req.Status.Conditions = []metav1.Condition{}
 		if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
+			logger.Error(patchErr, "unable to patch status", req.Kind, req.Name)
+			return patchErr
+		}
+		if patchErr := r.patchAddStatusTrueConditionPhase(ctx, req, nacv1alpha1.NonAdminPhaseCreated, nacv1alpha1.ConditionNonAdminProcessed, constant.EmptyString, "Success"); patchErr != nil {
 			logger.Error(patchErr, "unable to patch status", req.Kind, req.Name)
 			return patchErr
 		}
@@ -180,7 +181,7 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 		velerov1.DownloadTargetKindRestoreVolumeInfo:
 		var nar nacv1alpha1.NonAdminRestore
 		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nar); err != nil {
-			patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminRestoreNotAvailable, "cannot get nonadminrestore")
+			patchErr := r.patchAddErrorStatusTrueConditionBackoff(ctx, req, nacv1alpha1.ConditionNonAdminRestoreNotAvailable, "cannot get nonadminrestore")
 			logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 			logger.Error(err, "unable to get nar", nar.Name, nar.Namespace)
 			return err
@@ -190,14 +191,14 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 		veleroDR.Spec.Target.Name = nar.VeleroRestoreName()
 	}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: nabName}, &nab); err != nil {
-		patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupNotAvailable, "cannot get nonadminbackup")
+		patchErr := r.patchAddErrorStatusTrueConditionBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupNotAvailable, "cannot get nonadminbackup")
 		logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 		logger.Error(err, "unable to get nab", nab.Name, nab.Namespace)
 		return err
 	}
 	// error if nab does not use nabsl
 	if !nab.UsesNaBSL() {
-		patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed, "backup does not use nonadminbackupstoragelocation")
+		patchErr := r.patchAddErrorStatusTrueConditionBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed, "backup does not use nonadminbackupstoragelocation")
 		logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 		// patch status to completed to stop processing this NADR
 		// because it is not using NonAdminBackupStorageLocation, user is expected to recreate NADR
@@ -286,15 +287,19 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		Complete(reconcile.AsReconciler(r.Client, r))
 }
 
-// patchAddStatusConditionTypeTrueBackoff adds backoff phase and sets condition on NADR to notify users of potential issues
-func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeTrueBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, condition nacv1alpha1.NonAdminDownloadRequestCondition, message string) error {
+// patchAddErrorStatusTrueConditionBackoff adds backoff phase and sets condition on NADR to notify users of potential issues
+func (r *NonAdminDownloadRequestReconciler) patchAddErrorStatusTrueConditionBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, conditionType nacv1alpha1.NonAdminDownloadRequestConditionType, message string) error {
+	return r.patchAddStatusTrueConditionPhase(ctx, req, nacv1alpha1.NonAdminPhaseBackingOff, conditionType, message, "Error")
+}
+
+func (r *NonAdminDownloadRequestReconciler) patchAddStatusTrueConditionPhase(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, phase nacv1alpha1.NonAdminPhase, conditionType nacv1alpha1.NonAdminDownloadRequestConditionType, message, reason string) error {
 	prePatch := req.DeepCopy()
-	req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
+	req.Status.Phase = phase
 	req.Status.Conditions = []metav1.Condition{
 		{
-			Type:               string(condition),
+			Type:               string(conditionType),
 			Status:             metav1.ConditionTrue,
-			Reason:             "Error",
+			Reason:             reason,
 			Message:            message,
 			LastTransitionTime: metav1.Time{Time: time.Now()},
 		},

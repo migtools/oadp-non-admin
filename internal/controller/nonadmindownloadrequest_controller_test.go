@@ -199,6 +199,7 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 			err = fakeClient.Get(ctx, types.NamespacedName{Name: nadr.Name, Namespace: nadr.Namespace}, updatedNadr)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(updatedNadr.Status.Phase).To(gomega.Equal(nacv1alpha1.NonAdminPhaseCreated))
+			gomega.Expect(updatedNadr.Status.Conditions[0].Type).To(gomega.Equal(string(nacv1alpha1.ConditionNonAdminProcessed)))
 			gomega.Expect(updatedNadr.Status.VeleroDownloadRequest.Status.DownloadURL).To(gomega.Equal("http://example.com/download"))
 		})
 
