@@ -104,6 +104,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		// some other errors, requeue to retry get
 		return reconcile.Result{}, err
 	}
+	// veleroDR is not found, so we create one
 	return reconcile.Result{}, r.processDownloadRequest(ctx, &veleroDR, req)
 }
 
