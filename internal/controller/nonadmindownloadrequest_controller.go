@@ -153,6 +153,7 @@ func (r *NonAdminDownloadRequestReconciler) updateNADRWithURL(ctx context.Contex
 	return nil
 }
 
+// processDownloadRequest creates download requests after performing NaBSL checks on NAB/NAR from the downloadRequest
 func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.Context, veleroDR *velerov1.DownloadRequest, req *nacv1alpha1.NonAdminDownloadRequest) error {
 	logger := log.FromContext(ctx)
 	var nab nacv1alpha1.NonAdminBackup // holds nonadminbackup
