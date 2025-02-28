@@ -27,8 +27,6 @@ const (
 	NonAdminPhaseBackingOff NonAdminPhase = "BackingOff"
 	// NonAdminPhaseCreated - Velero object was created. The Phase will not have additional information about it.
 	NonAdminPhaseCreated NonAdminPhase = "Created"
-	// NonAdminPhaseCompleted - NonAdmin object has finished processing and this object won't be further processed
-	NonAdminPhaseCompleted NonAdminPhase = "Completed"
 	// NonAdminPhaseDeleting - Velero object is pending deletion. The Phase will not have additional information about it.
 	NonAdminPhaseDeleting NonAdminPhase = "Deleting"
 )

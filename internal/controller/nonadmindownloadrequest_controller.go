@@ -81,8 +81,12 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      req.VeleroDownloadRequestName(),
 			Namespace: r.OADPNamespace,
-			Labels:    function.GetNonAdminLabels(),
-			// Annotations: ,
+			Labels: func() map[string]string {
+				nal := function.GetNonAdminLabels()
+				nal[constant.NadrOriginNACUUIDLabel] = string(req.GetUID())
+				return nal
+			}(),
+			Annotations: function.GetNonAdminDownloadRequestAnnotations(req),
 		},
 		Spec: velerov1.DownloadRequestSpec{
 			Target: velerov1.DownloadTarget{
@@ -90,15 +94,38 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			},
 		},
 	}
-	// request is expired, so delete NADR after deleting velero DR
-	if req.Status.VeleroDownloadRequest.Status != nil  && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
+	// try get veleroDR if exists, then update status
+	if err := r.Get(ctx, types.NamespacedName{Namespace: veleroDR.Namespace, Name: veleroDR.Name}, &veleroDR); err == nil {
+		// wait for next reconcile?
+		// if url is available and not expired, then set status to completed
+		if veleroDR.Status.DownloadURL != constant.EmptyString &&
+			veleroDR.Status.Phase == velerov1.DownloadRequestPhaseProcessed &&
+			!veleroDR.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
+			// copy req, prepare to patch
+			prePatch := req.DeepCopy()
+			// copy status to NADR from VDR
+			req.Status.VeleroDownloadRequest.Status = &veleroDR.Status
+			// veleroDR is processed, update NADR status
+			// clear conditions
+			req.Status.Conditions = []metav1.Condition{}
+			if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
+				logger.Error(patchErr, "unable to patch status", req.Kind, req.Name)
+				return ctrl.Result{}, patchErr
+			}
+		}
+	} else if !apierrors.IsNotFound(err) {
+		// some other errors, requeue to retry get
+		return reconcile.Result{}, err
+	}
+	// if request is expired, delete NADR after deleting velero DR
+	if req.Status.VeleroDownloadRequest.Status != nil && req.Status.VeleroDownloadRequest.Status.Expiration != nil && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
 		// find associated velero downloadrequest and delete that first
 		logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
 		if err := r.Delete(ctx, &veleroDR); err != nil {
 			if !apierrors.IsNotFound(err) {
 				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), err)
 				// other errors, requeue to retry delete
-				return reconcile.Result{Requeue: true}, nil
+				return reconcile.Result{}, err
 			}
 		}
 		logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
@@ -106,13 +133,14 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 			if !apierrors.IsNotFound(err) {
 				logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest", req.Name, err)
 				// other errors, requeue to retry delete
-				return reconcile.Result{Requeue: true}, nil
+				return reconcile.Result{}, err
 			}
+			// not found, stop requeue
 			return reconcile.Result{Requeue: false}, nil
 		}
 	}
-	var nab nacv1alpha1.NonAdminBackup
-	var nabName string
+	var nab nacv1alpha1.NonAdminBackup // holds nonadminbackup
+	var nabName string                 // holds nonadminbackup name
 	switch req.Spec.Target.Kind {
 	case velerov1.DownloadTargetKindBackupLog,
 		velerov1.DownloadTargetKindBackupContents,
@@ -123,7 +151,6 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		velerov1.DownloadTargetKindCSIBackupVolumeSnapshots,
 		velerov1.DownloadTargetKindCSIBackupVolumeSnapshotContents,
 		velerov1.DownloadTargetKindBackupVolumeInfos:
-		// get velero backup name from nab
 		nabName = req.Spec.Target.Name
 	case velerov1.DownloadTargetKindRestoreLog,
 		velerov1.DownloadTargetKindRestoreResults,
@@ -132,7 +159,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		velerov1.DownloadTargetKindRestoreVolumeInfo:
 		var nar nacv1alpha1.NonAdminRestore
 		if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Spec.Target.Name}, &nar); err != nil {
-			patchErr := r.patchAddStatusConditionTypeFalseBackoff(ctx, req, "NonAdminRestoreAvailable")
+			patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminRestoreNotAvailable, "cannot get nonadminrestore")
 			logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 			logger.Error(err, "unable to get nar", nar.Name, nar.Namespace)
 			return ctrl.Result{}, err
@@ -144,20 +171,20 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		veleroDR.Spec.Target.Name = nar.VeleroRestoreName()
 	}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: nabName}, &nab); err != nil {
-		patchErr := r.patchAddStatusConditionTypeFalseBackoff(ctx, req, "NonAdminBackupAvailable")
+		patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupNotAvailable, "cannot get nonadminbackup")
 		logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 		logger.Error(err, "unable to get nab", nab.Name, nab.Namespace)
 		return ctrl.Result{}, err
 	}
-	// check nab for nabsl
+	// error if nab does not use nabsl
 	if !nab.UsesNaBSL() {
-		patchErr := r.patchAddStatusConditionTypeFalseBackoff(ctx, req, "NonAdminBackupStorageLocationUsed")
+		patchErr := r.patchAddStatusConditionTypeTrueBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed, "backup does not use nonadminbackupstoragelocation")
 		logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 		// patch status to completed to stop processing this NADR
 		// because it is not using NonAdminBackupStorageLocation, user is expected to recreate NADR
 		// after they have a NAB using NABSL
 		prePatch := req.DeepCopy()
-		req.Status.Phase = nacv1alpha1.NonAdminPhaseCompleted
+		req.Status.Phase = nacv1alpha1.NonAdminPhaseCreated // not using nabsl is terminal
 		if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
 			logger.Error(patchErr, statusPatchErr, req.Kind, req.Name)
 			return ctrl.Result{}, patchErr
@@ -171,22 +198,11 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	if veleroDR.Spec.Target.Name != constant.EmptyString {
 		veleroDR.Spec.Target.Name = nab.VeleroBackupName()
 	}
-
-	// wait for next reconcile?
-	prePatch := req.DeepCopy()
-	// copy status to NADR from VDR
-	req.Status.VeleroDownloadRequest.Status = &veleroDR.Status
-	// if url is available and not expired, then set status to completed
-	if veleroDR.Status.DownloadURL != constant.EmptyString && !veleroDR.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
-		req.Status.Phase = nacv1alpha1.NonAdminPhaseCompleted
-		// clear conditions
-		req.Status.Conditions = []metav1.Condition{}
-		if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
-			logger.Error(patchErr, "unable to patch status", req.Kind, req.Name)
-			return ctrl.Result{}, patchErr
-		}
+	// veleroDR is now ready to be created
+	if err := r.Create(ctx, &veleroDR); err != nil {
+		// requeue so Get can update nadr status (if exists) or recreate
+		return ctrl.Result{}, err
 	}
-
 	return ctrl.Result{}, nil
 }
 
@@ -209,8 +225,12 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 				}
 				return false
 			},
-			DeleteFunc:  func(_ event.TypedDeleteEvent[client.Object]) bool { return true }, // we process delete events by deleting corresponding velero download requests if found
-			GenericFunc: func(_ event.TypedGenericEvent[client.Object]) bool { return false },
+			DeleteFunc: func(_ event.TypedDeleteEvent[client.Object]) bool {
+				return true
+			}, // we process delete events by deleting corresponding velero download requests if found
+			GenericFunc: func(_ event.TypedGenericEvent[client.Object]) bool {
+				return false
+			},
 		})).
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
@@ -246,12 +266,17 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		Complete(reconcile.AsReconciler(r.Client, r))
 }
 
-func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeFalseBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, typeStr string) error {
+func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeTrueBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, typeStr, message string) error {
 	prePatch := req.DeepCopy()
 	req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
-	req.Status.Conditions = append(req.Status.Conditions, metav1.Condition{
-		Type:   typeStr,
-		Status: metav1.ConditionFalse,
-	})
+	req.Status.Conditions = []metav1.Condition{
+		{
+			Type:               typeStr,
+			Status:             metav1.ConditionTrue,
+			Reason:             "Error",
+			Message:            message,
+			LastTransitionTime: metav1.Time{Time: time.Now()},
+		},
+	}
 	return r.Status().Patch(ctx, req, client.MergeFrom(prePatch))
 }

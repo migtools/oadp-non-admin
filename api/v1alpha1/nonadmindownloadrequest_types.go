@@ -42,13 +42,6 @@ type VeleroDownloadRequest struct {
 	// VeleroDownloadRequestStatus represents VeleroDownloadRequestStatus
 	// +optional
 	Status *velerov1.DownloadRequestStatus `json:"status,omitempty"`
-	// name references the Velero delete backup request object by it's name.
-	// +optional
-	Name string `json:"name,omitempty"`
-
-	// namespace references the Namespace in which Velero delete backup request exists.
-	// +optional
-	Namespace string `json:"namespace,omitempty"`
 }
 
 // NonAdminDownloadRequestStatus defines the observed state of NonAdminDownloadRequest.
@@ -86,13 +79,27 @@ func init() {
 	SchemeBuilder.Register(&NonAdminDownloadRequest{}, &NonAdminDownloadRequestList{})
 }
 
+const (
+	ConditionNonAdminBackupStorageLocationNotUsed = "NonAdminBackupStorageLocationNotUsed"
+	ConditionNonAdminBackupNotAvailable           = "NonAdminBackupNotAvailable"
+	ConditionNonAdminRestoreNotAvailable          = "NonAdminRestoreNotAvailable"
+)
+
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
 // only process NADR with target kind and name populated and phase is not yet completed
 // returns true if ready for processing, false if required fields are not populated
 func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
+	// if nadr has ConditionNonAdminBackupStorageLocationUsed return false
+	if nadr.Status.Conditions != nil {
+		for _, condition := range nadr.Status.Conditions {
+			if condition.Type == ConditionNonAdminBackupStorageLocationNotUsed &&
+				condition.Status == metav1.ConditionTrue {
+				return false
+			}
+		}
+	}
 	return nadr.Spec.Target.Kind != constant.EmptyString &&
-		nadr.Spec.Target.Name != constant.EmptyString &&
-		nadr.Status.Phase != NonAdminPhaseCompleted
+		nadr.Spec.Target.Name != constant.EmptyString
 }
 
 // VeleroDownloadRequestName defines velero download request name for this NonAdminDownloadRequest
