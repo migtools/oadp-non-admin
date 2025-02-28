@@ -264,12 +264,13 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		Complete(reconcile.AsReconciler(r.Client, r))
 }
 
-func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeTrueBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, typeStr, message string) error {
+// patchAddStatusConditionTypeTrueBackoff adds backoff phase and sets condition on NADR to notify users of potential issues
+func (r *NonAdminDownloadRequestReconciler) patchAddStatusConditionTypeTrueBackoff(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest, condition nacv1alpha1.NonAdminDownloadRequestCondition, message string) error {
 	prePatch := req.DeepCopy()
 	req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
 	req.Status.Conditions = []metav1.Condition{
 		{
-			Type:               typeStr,
+			Type:               string(condition),
 			Status:             metav1.ConditionTrue,
 			Reason:             "Error",
 			Message:            message,

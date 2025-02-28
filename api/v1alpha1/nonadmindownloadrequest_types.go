@@ -82,13 +82,16 @@ func init() {
 	SchemeBuilder.Register(&NonAdminDownloadRequest{}, &NonAdminDownloadRequestList{})
 }
 
+// NonAdminDownloadRequestCondition prevents untyped strings for NADR conditions
+type NonAdminDownloadRequestCondition string
+
 const (
 	// ConditionNonAdminBackupStorageLocationNotUsed block download requests processing if NaBSL is not used
-	ConditionNonAdminBackupStorageLocationNotUsed = "NonAdminBackupStorageLocationNotUsed"
+	ConditionNonAdminBackupStorageLocationNotUsed NonAdminDownloadRequestCondition = "NonAdminBackupStorageLocationNotUsed"
 	// ConditionNonAdminBackupNotAvailable indicates backup is not available, and will backoff download request
-	ConditionNonAdminBackupNotAvailable = "NonAdminBackupNotAvailable"
+	ConditionNonAdminBackupNotAvailable NonAdminDownloadRequestCondition = "NonAdminBackupNotAvailable"
 	// ConditionNonAdminRestoreNotAvailable indicates restore is not available, and will backoff download request
-	ConditionNonAdminRestoreNotAvailable = "NonAdminRestoreNotAvailable"
+	ConditionNonAdminRestoreNotAvailable NonAdminDownloadRequestCondition = "NonAdminRestoreNotAvailable"
 )
 
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
@@ -98,7 +101,7 @@ func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
 	// if nadr has ConditionNonAdminBackupStorageLocationUsed return false
 	if nadr.Status.Conditions != nil {
 		for _, condition := range nadr.Status.Conditions {
-			if condition.Type == ConditionNonAdminBackupStorageLocationNotUsed &&
+			if condition.Type == string(ConditionNonAdminBackupStorageLocationNotUsed) &&
 				condition.Status == metav1.ConditionTrue {
 				return false
 			}
