@@ -17,9 +17,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 // NonAdminRestoreSpec defines the desired state of NonAdminRestore

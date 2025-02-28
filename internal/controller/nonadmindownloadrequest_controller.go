@@ -54,26 +54,17 @@ const statusPatchErr = "unable to patch status condition"
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the NonAdminDownloadRequest object against the actual cluster state, and then
+// Reconcile the NonAdminDownloadRequest object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
-//
 // This reconcile implements ObjectReconciler https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile#ObjectReconciler
 // Each reconciliation event gets the associated object from Kubernetes before passing it to Reconcile
+// Notes for test, this function expect req to come in with k8s UID already populated like real cluster
 func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *nacv1alpha1.NonAdminDownloadRequest) (reconcile.Result, error) {
 	if req == nil || req.Spec.Target.Kind == constant.EmptyString {
-		return ctrl.Result{Requeue: false}, nil
+		return ctrl.Result{}, nil
 	}
-	// TODO: delete if UID is always available here.
-	// if req.ObjectMeta.UID  == "" {
-	// requeue later until uid is populated
-	// }
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling NonAdminDownloadRequest", "name", req.Name, "namespace", req.Namespace)
 	// defines associated downloadrequest for getting, or deleting
@@ -115,7 +106,7 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 					return reconcile.Result{}, err
 				}
 				// not found, stop requeue
-				return reconcile.Result{Requeue: false}, nil
+				return reconcile.Result{}, nil
 			}
 		}
 		// if request is not expired, and has downloadUrl, requeue when expired to cleanup.
@@ -174,8 +165,6 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		}
 		// check nar for nabsl
 		nabName = nar.NonAdminBackupName()
-		// vr := velerov1.Restore{ObjectMeta: metav1.ObjectMeta{Name: nar.VeleroRestoreName(), Namespace: r.OADPNamespace}}
-		// veleroBR = &vr
 		veleroDR.Spec.Target.Name = nar.VeleroRestoreName()
 	}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: nabName}, &nab); err != nil {
@@ -199,7 +188,6 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 		}
 		return ctrl.Result{}, nil
 	}
-	// req.Status.VeleroDownloadRequestStatus
 	// if VDR has target name, it is populated by restore case
 	// if VDR do not have target name, this is a backup case
 	// so set veleroDR.Spec.Target.Name to nab.VeleroBackupName()

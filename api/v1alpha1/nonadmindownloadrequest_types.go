@@ -19,9 +19,10 @@ package v1alpha1
 import (
 	"fmt"
 
-	"github.com/migtools/oadp-non-admin/internal/common/constant"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -56,6 +57,8 @@ type NonAdminDownloadRequestStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:path=nonadmindownloadrequests,shortName=nadr
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 
 // NonAdminDownloadRequest is the Schema for the nonadmindownloadrequests API.
 type NonAdminDownloadRequest struct {
@@ -80,9 +83,12 @@ func init() {
 }
 
 const (
+	// ConditionNonAdminBackupStorageLocationNotUsed block download requests processing if NaBSL is not used
 	ConditionNonAdminBackupStorageLocationNotUsed = "NonAdminBackupStorageLocationNotUsed"
-	ConditionNonAdminBackupNotAvailable           = "NonAdminBackupNotAvailable"
-	ConditionNonAdminRestoreNotAvailable          = "NonAdminRestoreNotAvailable"
+	// ConditionNonAdminBackupNotAvailable indicates backup is not available, and will backoff download request
+	ConditionNonAdminBackupNotAvailable = "NonAdminBackupNotAvailable"
+	// ConditionNonAdminRestoreNotAvailable indicates restore is not available, and will backoff download request
+	ConditionNonAdminRestoreNotAvailable = "NonAdminRestoreNotAvailable"
 )
 
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
