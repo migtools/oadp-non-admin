@@ -26,6 +26,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1119,6 +1121,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			)).To(gomega.Succeed())
 
 			veleroBackup := &velerov1.Backup{}
+			veleroPodVolumeBackup := &velerov1.PodVolumeBackup{}
+			veleroDataUpload := &velerov2alpha1.DataUpload{}
 			if scenario.status.VeleroBackup != nil {
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
@@ -1158,6 +1162,44 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						},
 						nonAdminBackup,
 					)).To(gomega.Succeed())
+				} else {
+					veleroPodVolumeBackup = &velerov1.PodVolumeBackup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: oadpNamespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind:       "Backup",
+									APIVersion: velerov1.SchemeGroupVersion.String(),
+									Name:       veleroBackup.Name,
+									UID:        veleroBackup.UID,
+								},
+							},
+							Labels: map[string]string{
+								velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name),
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctxTimeout, veleroPodVolumeBackup)).To(gomega.Succeed())
+
+					veleroDataUpload = &velerov2alpha1.DataUpload{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: oadpNamespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind:       "Backup",
+									APIVersion: velerov1.SchemeGroupVersion.String(),
+									Name:       veleroBackup.Name,
+									UID:        veleroBackup.UID,
+								},
+							},
+							Labels: map[string]string{
+								velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name),
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctxTimeout, veleroDataUpload)).To(gomega.Succeed())
 				}
 			}
 
@@ -1198,9 +1240,17 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						Phase:               velerov1.BackupPhaseCompleted,
 						CompletionTimestamp: &metav1.Time{Time: time.Now()},
 					}
+					veleroPodVolumeBackup.Status = velerov1.PodVolumeBackupStatus{
+						Phase: velerov1.PodVolumeBackupPhaseCompleted,
+					}
+					veleroDataUpload.Status = velerov2alpha1.DataUploadStatus{
+						Phase: velerov2alpha1.DataUploadPhaseCompleted,
+					}
 
 					// can not call .Status().Update() for veleroBackup object https://github.com/vmware-tanzu/velero/issues/8285
 					gomega.Expect(k8sClient.Update(ctxTimeout, veleroBackup)).To(gomega.Succeed())
+					gomega.Expect(k8sClient.Update(ctxTimeout, veleroPodVolumeBackup)).To(gomega.Succeed())
+					gomega.Expect(k8sClient.Update(ctxTimeout, veleroDataUpload)).To(gomega.Succeed())
 
 					ginkgo.By("VeleroBackup updated")
 
@@ -1218,10 +1268,16 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						if err != nil {
 							return false, err
 						}
-						if nonAdminBackup == nil || nonAdminBackup.Status.VeleroBackup == nil || nonAdminBackup.Status.VeleroBackup.Status == nil {
+						if nonAdminBackup == nil ||
+							nonAdminBackup.Status.VeleroBackup == nil ||
+							nonAdminBackup.Status.VeleroBackup.Status == nil ||
+							nonAdminBackup.Status.FileSystemVolumeBackups == nil ||
+							nonAdminBackup.Status.DataMoverVolumeBackups == nil {
 							return false, nil
 						}
-						return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted, nil
+						return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted &&
+							nonAdminBackup.Status.FileSystemVolumeBackups.Completed == 1 &&
+							nonAdminBackup.Status.DataMoverVolumeBackups.Completed == 1, nil
 					}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 				}
 			}

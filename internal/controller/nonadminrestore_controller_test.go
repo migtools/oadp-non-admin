@@ -26,6 +26,8 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -262,6 +264,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			)).To(gomega.Succeed())
 
 			veleroRestore := &velerov1.Restore{}
+			veleroPodVolumeRestore := &velerov1.PodVolumeRestore{}
+			veleroDataDownload := &velerov2alpha1.DataDownload{}
 			if scenario.status.VeleroRestore != nil {
 				gomega.Expect(k8sClient.Get(
 					ctxTimeout,
@@ -301,6 +305,44 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						},
 						nonAdminRestore,
 					)).To(gomega.Succeed())
+				} else {
+					veleroPodVolumeRestore = &velerov1.PodVolumeRestore{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: oadpNamespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind:       "Restore",
+									APIVersion: velerov1.SchemeGroupVersion.String(),
+									Name:       veleroRestore.Name,
+									UID:        veleroRestore.UID,
+								},
+							},
+							Labels: map[string]string{
+								velerov1.RestoreNameLabel: label.GetValidName(veleroRestore.Name),
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctxTimeout, veleroPodVolumeRestore)).To(gomega.Succeed())
+
+					veleroDataDownload = &velerov2alpha1.DataDownload{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: oadpNamespace,
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									Kind:       "Restore",
+									APIVersion: velerov1.SchemeGroupVersion.String(),
+									Name:       veleroRestore.Name,
+									UID:        veleroRestore.UID,
+								},
+							},
+							Labels: map[string]string{
+								velerov1.RestoreNameLabel: label.GetValidName(veleroRestore.Name),
+							},
+						},
+					}
+					gomega.Expect(k8sClient.Create(ctxTimeout, veleroDataDownload)).To(gomega.Succeed())
 				}
 			}
 
@@ -329,8 +371,16 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					veleroRestore.Status = velerov1.RestoreStatus{
 						Phase: velerov1.RestorePhaseCompleted,
 					}
+					veleroPodVolumeRestore.Status = velerov1.PodVolumeRestoreStatus{
+						Phase: velerov1.PodVolumeRestorePhaseCompleted,
+					}
+					veleroDataDownload.Status = velerov2alpha1.DataDownloadStatus{
+						Phase: velerov2alpha1.DataDownloadPhaseCompleted,
+					}
 					// can not call .Status().Update() for veleroRestore object https://github.com/vmware-tanzu/velero/issues/8285
 					gomega.Expect(k8sClient.Update(ctxTimeout, veleroRestore)).To(gomega.Succeed())
+					gomega.Expect(k8sClient.Update(ctxTimeout, veleroPodVolumeRestore)).To(gomega.Succeed())
+					gomega.Expect(k8sClient.Update(ctxTimeout, veleroDataDownload)).To(gomega.Succeed())
 
 					ginkgo.By("Velero Restore updated")
 
@@ -347,10 +397,16 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						if err != nil {
 							return false, err
 						}
-						if nonAdminRestore == nil || nonAdminRestore.Status.VeleroRestore == nil || nonAdminRestore.Status.VeleroRestore.Status == nil {
+						if nonAdminRestore == nil ||
+							nonAdminRestore.Status.VeleroRestore == nil ||
+							nonAdminRestore.Status.VeleroRestore.Status == nil ||
+							nonAdminRestore.Status.FileSystemVolumeRestores == nil ||
+							nonAdminRestore.Status.DataMoverVolumeRestores == nil {
 							return false, nil
 						}
-						return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted, nil
+						return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted &&
+							nonAdminRestore.Status.FileSystemVolumeRestores.Completed == 1 &&
+							nonAdminRestore.Status.DataMoverVolumeRestores.Completed == 1, nil
 					}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 				}
 			}
@@ -419,7 +475,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					},
 				},
 				QueueInfo: &nacv1alpha1.QueueInfo{
-					EstimatedQueuePosition: 5,
+					EstimatedQueuePosition: 0,
 				},
 			},
 			status: nacv1alpha1.NonAdminRestoreStatus{
@@ -442,7 +498,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					},
 				},
 				QueueInfo: &nacv1alpha1.QueueInfo{
-					EstimatedQueuePosition: 0,
+					EstimatedQueuePosition: 1,
 				},
 			},
 			enforcedRestoreSpec: &velerov1.RestoreSpec{
@@ -510,7 +566,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 					},
 				},
 				QueueInfo: &nacv1alpha1.QueueInfo{
-					EstimatedQueuePosition: 0,
+					EstimatedQueuePosition: 1,
 				},
 			},
 		}),

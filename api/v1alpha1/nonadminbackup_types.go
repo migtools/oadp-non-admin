@@ -74,7 +74,7 @@ type VeleroDeleteBackupRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// TODO
+// DataMoverVolumeBackups contains information of the related Velero DataUpload objects.
 type DataMoverVolumeBackups struct {
 	// number of DataUploads related to this NonAdminBackup's Backup
 	// +optional
@@ -113,7 +113,7 @@ type DataMoverVolumeBackups struct {
 	Completed int `json:"completed,omitempty"`
 }
 
-// TODO
+// FileSystemVolumeBackups contains information of the related Velero PodVolumeBackup objects.
 type FileSystemVolumeBackups struct {
 	// number of PodVolumeBackups related to this NonAdminBackup's Backup
 	// +optional
