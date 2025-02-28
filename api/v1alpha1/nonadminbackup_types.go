@@ -203,5 +203,5 @@ func (nab *NonAdminBackup) VeleroBackupName() string {
 
 // UsesNaBSL returns true if backup is using NonAdminBackupStorageLocation
 func (nab *NonAdminBackup) UsesNaBSL() bool {
-	return nab.Spec.BackupSpec.StorageLocation != constant.EmptyString
+	return nab.Spec.BackupSpec != nil && nab.Spec.BackupSpec.StorageLocation != constant.EmptyString
 }
