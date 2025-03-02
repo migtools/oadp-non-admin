@@ -22,7 +22,7 @@ Now, regular OpenShift users can perform backup and restore operations within th
 
 * **NAB**   - NonAdminBackup. A custom resource that users directly create to request a velero backup of the namespace from which the NAB object is created.  
 * **NAR**   - NonAdminRestore. A custom resource that users directly create to request a velero restore of the namespace from which the NAR object is created.  
-* **NAC**   - NonAdminController. A controller that validates the NAB and NAR objects and creates the velero backup and restore objects. The NAC is essentially a proxy between non admin users and velero.
+* **NAC**   - NonAdminController. A controller that validates the NAB and NAR objects and creates the velero backup and restore and related objects. The NAC is essentially a proxy between non admin users and velero.
 * **NABSL** - NonAdminBackupStorageLocation. A custom resource that users directly create to request a velero backup storage location.  Users can use object storage that is specifically created for their project, deliniated from other users and projects.
 * **NADR**  - NonAdminDownloadRequest. A custom resource that users directly create to request a velero backup download.  Users will be provided with a secured URL to download details regarding the backup or restore.
 
@@ -37,7 +37,7 @@ To enable OADP Self-Service the DPA spec must the spec.nonAdmin.enable field to 
     enable: true
 ```
 
-Once the OADP DPA is reconciled the cluster administrator should see the non-admin-controller running in the openshift-adp namespace.  The Openshift users without cluster admin rights will now be able to create NAB or NAR objects in their namespace to create a backup or restore.
+Once the OADP DPA is reconciled the cluster administrator should see the non-admin-controller running in the openshift-adp namespace.  The Openshift users without cluster admin rights will now be able to create NAB or NAR objects and related objects in their namespace to create a backup or restore.
 
 ## OpenShift User Instructions
 
@@ -55,7 +55,8 @@ Prior to OpenShift users taking advantage of OADP self-service feature the OpenS
 Ensure users have appropriate permissions in its namespace.  Users must have editor roles for the following objects in their namespace.
   * nonadminbackups.oadp.openshift.io                                
   * nonadminbackupstoragelocations.oadp.openshift.io                
-  * nonadminrestores.oadp.openshift.io                              
+  * nonadminrestores.oadp.openshift.io     
+  * nonadmindownloadrequests.oadp.openshift.io                         
 
   For example
   ```yaml
@@ -101,7 +102,7 @@ Ensure users have appropriate permissions in its namespace.  Users must have edi
       - get
   ```
 
-  **note** users will not be able to edit the NABSL's. Users will only be able to create NABSL's.  
+  **note** Users will not be able to edit the NABSLs that led to the creation of the BSL. They will only have the ability to create new NABSLs. The NAC controller will disallow such edit and inform user within the condition of the edited NABSL object.
 
 ## Self-Service workflow
 
@@ -154,7 +155,7 @@ metadata:
   - nonadminbackup.oadp.openshift.io/finalizer
   generation: 2
   name: mybackup-1
-  namespace: nacuser1  <--- The namespace is set by the NAC controller
+  namespace: nacuser1  <--- The namespace that NAC controller will set on the Velero Backup object to backup
   resourceVersion: "20714121"
   uid: 93effb39-9762-4d04-8e9e-194ebe6b9b31
 spec:
@@ -205,7 +206,7 @@ metadata:
   namespace: nacuser1
 spec: 
   restoreSpec:
-    backupName: mybackup-1
+    backupName: mybackup-1 <-- references the NAB object, not the Velero backup object
 ```
 
 Once created the NAR will look similar to the following:
@@ -263,11 +264,14 @@ Cluster administrators can gain efficiencies by delegating backup and restore op
 
 1. **Direct Creation**: Cluster administrators can create NABSLs directly for non-admin users.
 2. **Approval Workflow**: Cluster administrators can enable an approval process where:
-   - Users create NABSL's from the user namespace, this creates a NABSLApprovalRequest object in the openshift-adp namespace.
-   - Administrators review and approve/reject these requests in the openshift-adp namespace. Upon approval the NABSL is created in the users namespace.
-3. **Automatic Approval**: Users create NABSL from the user namespace, these are automatically approved.
+   - Users create a NABSL, which triggers the creation of a NonAdminBackupStorageLocationRequest object in the openshift-adp namespace.
+   - Administrators review and either approve or reject these requests. Once approved, a Velero BSL is created in the openshift-adp namespace, and the user is notified of the approval on the NABSL status. If rejected, the status of the NABSL is updated to reflect the rejection.
+   - Administrators can also revoke previously approved NABSL, which results in the removal of the Velero BSL, and the user is notified of the rejection. This is achieved by modifying the approve field back to pending or reject.
+   - This is an opt-in feature and must be explicitly enabled by the cluster administrator.
+3. **Automatic Approval**: Users create NABSL from the user namespace, these are automatically approved when nonAdmin.requireApprovalForBSL is set to false or not set.
 
-For security purposes it is recommended that cluster administrators use either the direct creation or the approval workflow.  The automatic approval option is less secure as it does not require administrator review.
+For security purposes it is recommended that cluster administrators use either the direct creation or the approval workflow.  The automatic approval option is less secure as it does not require administrator review.  It should also be noted that updating the NABSL after the initial creation will NOT change the associated Velero BSL. Updating the NABSL is not supported for non-admin users.
+
 
 To enable the approval workflow the DPA spec must be set as follows:
 ```
@@ -287,7 +291,7 @@ spec:
   approvalDecision: reject  [accept, reject]
 ```
 
-If approved both the NABSL and the BSL are created.  The NABSL is created in the users namespace, while the BSL is created in the openshift-adp or default namespace.
+If approved both the NABSL and the BSL are created.  The NABSL is created in the users namespace, while the BSL is created in the OADP namespace, such as openshift-adp.
 
 ### User Creation of NABSL:
 
@@ -354,13 +358,14 @@ The following NABSL fields are currently supported for template enforcement:
 
 | **NABSL Field**            | **Admin Enforceable** | **Restricted** | **special case** |
 |----------------------------|-----------------|----------------|-----------------|
-| `backupSyncPeriod`         |                 |                | ⚠️ special case |
+| `backupSyncPeriod`         |                 |                | ⚠️ Must be set lower than the DPA.backupSyncPeriod and lower than the garbage collection period |
 | `provider`                 |                 |                | ⚠️ special case |
 | `objectStorage`            | ✅ Yes          |                |                 |
 | `credential`               | ✅ Yes          |                |                 |
 | `config`                   | ✅ Yes          |                |                 |
 | `accessMode`               | ✅ Yes          |                |                 |
 | `validationFrequency`      | ✅ Yes          |                |                 |
+| `default`                  |                 |                | ⚠️ Must be false or empty |
 
 For example if the cluster administrator wanted to mandate that all NABSL's used a particular aws s3 bucket.
 
@@ -373,13 +378,26 @@ spec:
   credential:
     key: cloud
     name: cloud-credentials
-  default: true
   objectStorage:
     bucket: my-company-bucket <---
     prefix: velero
   provider: aws
 ```
-The DPA spec must be set in the following way:  TODO GET NABSL ENFORCEMENT EXAMPLE
+The DPA spec must be set in the following way: 
+
+```
+nonAdmin:
+  enable: true
+  enforceBSLSpec:
+    config:             <--- entire config must match expected NaBSL config
+      checksumAlgorithm: ""
+      profile: default
+      region: us-west-2
+    objectStorage:  <--- all of the objectStorage options must match expected NaBSL options
+      bucket: my-company-bucket
+      prefix: velero 
+    provider: aws
+```
 
 #### Restricted NonAdminBackups
 
@@ -390,22 +408,22 @@ In the same sense as the NABSL, cluster administrators can also restrict the Non
 |--------------------------------------------|--------------|--------------------------|-----------------|
 | `csiSnapshotTimeout`                       | ✅ Yes       |                          |                 |
 | `itemOperationTimeout`                     | ✅ Yes       |                          |                 |
-| `resourcePolicy`                           | ✅ Yes       |                          | ⚠️ special case |
-| `includedNamespaces`                       | ❌ No        | ✅ Yes                   |                 |
-| `excludedNamespaces`                       | ✅ Yes       | ✅ Yes                   |                 |
+| `resourcePolicy`                           | ✅ Yes       |                          | ⚠️ Non-admin users can specify the config-map that admins created in OADP Operator NS(Admins enforcing this value be a good alternative here), they cannot specify their own configmap as its lifecycle handling is not currently managed by NAC controller |
+| `includedNamespaces`                       | ❌ No        | ✅ Yes                   | ⚠️ Admins cannot enforce this because it does not make sense for a cluster wide non-admin backup setting, we have validations in place such that only the NS admins NS in included in the NAB spec.                 |
+| `excludedNamespaces`                       | ✅ Yes       | ✅ Yes                   | ⚠️ This spec is restricted for non-admin users and hence not enforceable by admins                |
 | `includedResources`                        | ✅ Yes       |                          |                 |
 | `excludedResources`                        | ✅ Yes       |                          |                 |
 | `orderedResources`                         | ✅ Yes       |                          |                 |
-| `includeClusterResources`                  | ✅ Yes       |                          | ⚠️ special case |
+| `includeClusterResources`                  | ✅ Yes       |                          | ⚠️ Non-admin users can only set this spec to false if they want, all other values are restricted, similar rule for admin enforcement regarding this spec value.  |
 | `excludedClusterScopedResources`           | ✅ Yes       |                          |                 |
-| `includedClusterScopedResources`           | ✅ Yes       |                          | ⚠️ special case |
+| `includedClusterScopedResources`           | ✅ Yes       |                          | ⚠️ This spec is restricted and non-enforceable, only empty list is acceptable  |
 | `excludedNamespaceScopedResources`         | ✅ Yes       |                          |                 |
 | `includedNamespaceScopedResources`         | ✅ Yes       |                          |                 |
 | `labelSelector`                            | ✅ Yes       |                          |                 |
 | `orLabelSelectors`                         | ✅ Yes       |                          |                 |
 | `snapshotVolumes`                          | ✅ Yes       |                          |                 |
-| `storageLocation`                          |              |                          | ⚠️ special case |
-| `volumeSnapshotLocations`                  |              |                          | ⚠️ special case |
+| `storageLocation`                          |              |                          | ⚠️ Can be empty (implying default BSL usage) or needs to be an existing NABSL |
+| `volumeSnapshotLocations`                  |              |                          | ⚠️ Not supported for non-admin users, default will be used if needed |
 | `ttl`                                      | ✅ Yes       |                          |                 |
 | `defaultVolumesToFsBackup`                 | ✅ Yes       |                          |                 |
 | `snapshotMoveData`                         | ✅ Yes       |                          |                 |
@@ -431,22 +449,23 @@ NonAdminRestores spec fields can also be restricted by the cluster administrator
 | **Field**                     | **Admin Enforceable** | **Restricted**    | **special case** |
 |-------------------------------|--------------|--------------------|-----------------|
 | `backupName`                  | ❌ No        |                    |                 |
-| `scheduleName`                | ❌ No        | ✅ Yes             |                 |
+| `scheduleName`                | ❌ No        | ✅ Yes             | ⚠️  not supported for non-admin users, we don't have non-admin backup schedule API as of now.  |
 | `itemOperationTimeout`        | ✅ Yes       |                    |                 |
 | `uploaderConfig`              | ✅ Yes       |                    |                 |
-| `includedNamespaces`          | ❌ No        | ✅ Yes             |                 |
-| `excludedNamespaces`          | ❌ No        | ✅ Yes         |                 |
-| `includedResources`           | ✅ Yes       |                |                 |
+| `includedNamespaces`          | ❌ No        | ✅ Yes             | ⚠️ restricted for non-admin users and hence non-enforceable by admins  |
+| `excludedNamespaces`          | ❌ No        | ✅ Yes             | ⚠️  restricted for non-admin users and hence non-enforceable by admins |
+| `includedResources`           | ✅ Yes       |                    |                 |
 | `excludedResources`           | ✅ Yes       |                |                 |
 | `restoreStatus`               | ✅ Yes       |                |                 |
 | `includeClusterResources`     | ✅ Yes       |                |                 |
 | `labelSelector`               | ✅ Yes       |                |                 |
 | `orLabelSelectors`            | ✅ Yes       |                |                 |
-| `namespaceMapping`            | ❌ No        | ✅ Yes         |                 |
+| `namespaceMapping`            | ❌ No        | ✅ Yes         | ⚠️ restricted for non-admin users and hence non-enforceable by admins                |
 | `restorePVs`                  | ✅ Yes       |                |                 |
 | `preserveNodePorts`           | ✅ Yes       |                |                 |
 | `existingResourcePolicy`      |              |                | ⚠️ special case |
 | `hooks`                       |              |                | ⚠️ special case |
+| `resourceModifers`            |              |                | ⚠️ Non-admin users can specify the config-map that admins created in OADP Operator NS(Admins enforcing this value be a good alternative here), they cannot specify their own configmap as its lifecycle handling is not currently managed by NAC controller | 
 
 
 
@@ -459,6 +478,7 @@ Navigate to: Administrator -> Home -> API Explorer -> Filter on `NonAdmin`. Choo
    * NonAdminBackup
    * NonAdminRestore
    * NonAdminBackupStorageLocation
+   * NonAdminDownloadRequest
 
 Click on instances and the create button.
 
@@ -466,8 +486,9 @@ Click on instances and the create button.
 ## Unsupported features of OADP regarding self-service
  * Cross Cluster or Migrations are NOT supported by self-service.  This type of OADP operation is only supported for the cluster administrator.
  * non-admin VSL's are not supported.  The VSL created by the cluster-admin in DPA would be the only VSL non-admin users can employ.
- * Resource policy and volume policy is not supported for non-admin user backup and restore operations.
- * Backup and restore logs via NonAdminDownloadRequest is not supported for default BSL's.  If the cluster administrator would like users to have access to logs, NonAdminBackupStorageLocation's must be created for the non-admin users.
+ * ResourceModifiers and Volume policies are not supported for non-admin user backup and restore operations.
+ * Backup and restore logs via NonAdminDownloadRequest is not supported for default BSL's.  If the cluster administrator would 
+ like users to have access to logs, NonAdminBackupStorageLocation's must be created for the non-admin users.
  
 
 ## Security Considerations for Cluster Administrators
