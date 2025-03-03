@@ -72,6 +72,7 @@ Ensure users have appropriate permissions in its namespace.  Users must have edi
         - nonadminbackups
         - nonadminrestores
         - nonadminbackupstoragelocations
+        - nonadmindownloadrequests
       verbs:
         - create
         - delete
