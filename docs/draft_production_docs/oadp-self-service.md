@@ -2,21 +2,26 @@
 
 ## Overview
 
-OADP Self Service enables non-administrator users to perform backup and restore operations in their authorized namespaces without requiring cluster-wide administrator privileges. This feature provides secure self-service data protection capabilities while maintaining proper access controls.
+OADP Self Service enables non-administrator users to perform backup and restore operations in their authorized namespaces without requiring 
+cluster-wide administrator privileges. This feature provides secure self-service data protection capabilities while maintaining proper administrator
+controls, restrictions and enforcements over the user's backup and restore operations.
 
 ### Key Benefits
 
 - Allows users to perform namespace-scoped backup and restore operations
 - Provides users with secure access to backup logs and status information
-- Enables users to create dedicated backup storage locations
+- Enables users to create dedicated backup storage locations with user owned buckets and credentials
 - Maintains cluster administrator control over non-administrator operations through 
-templates and policies
+restrictions and enforcements
 
 
 ## OADP Self Service Details
 
 OADP self-service introduces a significant change to backup and restore operations in OpenShift. Previously, only cluster administrators could perform these operations. 
-Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions, while cluster administrators maintain overall control through templates and policies.
+Now, regular OpenShift users can perform backup and restore operations within their authorized namespaces.  
+This is achieved through custom resources that securely manage these operations while maintaining proper access controls and visibility. 
+The self-service functionality is implemented in a way that ensures users can only operate within their assigned namespaces and permissions,
+while cluster administrators maintain overall control through restrictions and enforcements.
  
 ### Glossary of terms
 
