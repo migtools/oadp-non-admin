@@ -53,7 +53,6 @@ const statusPatchErr = "unable to patch status condition"
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests/finalizers,verbs=update
-// +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadmindownloadrequests/finalizers,verbs=update
 // +kubebuilder:rbac:groups=velero.io,resources=downloadrequests,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=downloadrequests/status,verbs=get
 
@@ -263,7 +262,7 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 					})
 				}
 			},
-			// DeleteFunc: , TODO: if velero DownloadRequests gets cleaned up, delete this?
+			// DeleteFunc: we won't delete on VDR deletion because eventually this will NADR will expire and get deleted anyway. GC controller will handle any leftovers
 		}, builder.WithPredicates(
 			ctrlpredicate.NewPredicateFuncs(func(object client.Object) bool {
 				// only watch OADP NS
