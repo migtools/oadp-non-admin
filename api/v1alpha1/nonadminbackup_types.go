@@ -74,6 +74,68 @@ type VeleroDeleteBackupRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// DataMoverDataUploads contains information of the related Velero DataUpload objects.
+type DataMoverDataUploads struct {
+	// number of DataUploads related to this NonAdminBackup's Backup
+	// +optional
+	Total int `json:"total,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase New
+	// +optional
+	New int `json:"new,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Accepted
+	// +optional
+	Accepted int `json:"accepted,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Prepared
+	// +optional
+	Prepared int `json:"prepared,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Canceling
+	// +optional
+	Canceling int `json:"canceling,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Canceled
+	// +optional
+	Canceled int `json:"canceled,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of DataUploads related to this NonAdminBackup's Backup in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
+}
+
+// FileSystemPodVolumeBackups contains information of the related Velero PodVolumeBackup objects.
+type FileSystemPodVolumeBackups struct {
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup
+	// +optional
+	Total int `json:"total,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase New
+	// +optional
+	New int `json:"new,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
+}
+
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
 type NonAdminBackupStatus struct {
 	// +optional
@@ -81,6 +143,12 @@ type NonAdminBackupStatus struct {
 
 	// +optional
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
+
+	// +optional
+	DataMoverDataUploads *DataMoverDataUploads `json:"dataMoverDataUploads,omitempty"`
+
+	// +optional
+	FileSystemPodVolumeBackups *FileSystemPodVolumeBackups `json:"fileSystemPodVolumeBackups,omitempty"`
 
 	// queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

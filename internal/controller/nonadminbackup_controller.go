@@ -24,12 +24,14 @@ import (
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	veleroclient "github.com/vmware-tanzu/velero/pkg/client"
 	"github.com/vmware-tanzu/velero/pkg/label"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -86,6 +88,8 @@ var (
 
 // +kubebuilder:rbac:groups=velero.io,resources=backups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=velero.io,resources=deletebackuprequests,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=velero.io,resources=podvolumebackups,verbs=get;list;watch
+// +kubebuilder:rbac:groups=velero.io,resources=datauploads,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state,
@@ -771,7 +775,29 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	// Status will be applied based on the current state of the VeleroBackup.
 	updated := updateNonAdminBackupVeleroBackupSpecStatus(&nab.Status, veleroBackup)
 
-	if updated || updatedPhase || updatedCondition || updatedQueueInfo {
+	podVolumeBackups := &velerov1.PodVolumeBackupList{}
+	err = r.List(ctx, podVolumeBackups, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list PodVolumeBackups in OADP namespace")
+	}
+	updatedPodVolumeBackupStatus := updateNonAdminBackupPodVolumeBackupStatus(&nab.Status, podVolumeBackups)
+
+	dataUploads := &velerov2alpha1.DataUploadList{}
+	err = r.List(ctx, dataUploads, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.BackupNameLabel: label.GetValidName(veleroBackup.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list DataUploads in OADP namespace")
+	}
+	updatedDataUploadStatus := updateNonAdminBackupDataUploadStatus(&nab.Status, dataUploads)
+
+	if updated || updatedPhase || updatedCondition || updatedQueueInfo || updatedPodVolumeBackupStatus || updatedDataUploadStatus {
 		if err := r.Status().Update(ctx, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
@@ -796,10 +822,26 @@ func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			VeleroBackupPredicate: predicate.VeleroBackupPredicate{
 				OADPNamespace: r.OADPNamespace,
 			},
+			VeleroPodVolumeBackupPredicate: predicate.VeleroPodVolumeBackupPredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
+			VeleroDataUploadPredicate: predicate.VeleroDataUploadPredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
 		}).
 		// handler runs after predicate
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupHandler{}).
 		Watches(&velerov1.Backup{}, &handler.VeleroBackupQueueHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
+		Watches(&velerov1.PodVolumeBackup{}, &handler.VeleroPodVolumeBackupHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
+		Watches(&velerov2alpha1.DataUpload{}, &handler.VeleroDataUploadHandler{
 			Client:        r.Client,
 			OADPNamespace: r.OADPNamespace,
 		}).
@@ -866,4 +908,128 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 
 	status.VeleroDeleteBackupRequest.Status = veleroDeleteBackupRequest.Status.DeepCopy()
 	return true
+}
+
+func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, podVolumeBackupList *velerov1.PodVolumeBackupList) bool {
+	if status.FileSystemPodVolumeBackups == nil {
+		status.FileSystemPodVolumeBackups = &nacv1alpha1.FileSystemPodVolumeBackups{}
+	}
+
+	updated := false
+	if len(podVolumeBackupList.Items) != status.FileSystemPodVolumeBackups.Total {
+		status.FileSystemPodVolumeBackups.Total = len(podVolumeBackupList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfInProgress := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
+	for _, podVolumeBackup := range podVolumeBackupList.Items {
+		switch podVolumeBackup.Status.Phase {
+		case velerov1.PodVolumeBackupPhaseNew:
+			numberOfNew++
+		case velerov1.PodVolumeBackupPhaseInProgress:
+			numberOfInProgress++
+		case velerov1.PodVolumeBackupPhaseFailed:
+			numberOfFailed++
+		case velerov1.PodVolumeBackupPhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
+		}
+	}
+	if status.FileSystemPodVolumeBackups.New != numberOfNew {
+		status.FileSystemPodVolumeBackups.New = numberOfNew
+		updated = true
+	}
+	if status.FileSystemPodVolumeBackups.InProgress != numberOfInProgress {
+		status.FileSystemPodVolumeBackups.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.FileSystemPodVolumeBackups.Failed != numberOfFailed {
+		status.FileSystemPodVolumeBackups.Failed = numberOfFailed
+		updated = true
+	}
+	if status.FileSystemPodVolumeBackups.Completed != numberOfCompleted {
+		status.FileSystemPodVolumeBackups.Completed = numberOfCompleted
+		updated = true
+	}
+
+	return updated
+}
+
+func updateNonAdminBackupDataUploadStatus(status *nacv1alpha1.NonAdminBackupStatus, dataUploadList *velerov2alpha1.DataUploadList) bool {
+	if status.DataMoverDataUploads == nil {
+		status.DataMoverDataUploads = &nacv1alpha1.DataMoverDataUploads{}
+	}
+
+	updated := false
+	if len(dataUploadList.Items) != status.DataMoverDataUploads.Total {
+		status.DataMoverDataUploads.Total = len(dataUploadList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfAccepted := 0
+	numberOfPrepared := 0
+	numberOfInProgress := 0
+	numberOfCanceling := 0
+	numberOfCanceled := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
+	for _, dataUpload := range dataUploadList.Items {
+		switch dataUpload.Status.Phase {
+		case velerov2alpha1.DataUploadPhaseNew:
+			numberOfNew++
+		case velerov2alpha1.DataUploadPhaseAccepted:
+			numberOfAccepted++
+		case velerov2alpha1.DataUploadPhasePrepared:
+			numberOfPrepared++
+		case velerov2alpha1.DataUploadPhaseInProgress:
+			numberOfInProgress++
+		case velerov2alpha1.DataUploadPhaseCanceling:
+			numberOfCanceling++
+		case velerov2alpha1.DataUploadPhaseCanceled:
+			numberOfCanceled++
+		case velerov2alpha1.DataUploadPhaseFailed:
+			numberOfFailed++
+		case velerov2alpha1.DataUploadPhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
+		}
+	}
+	if status.DataMoverDataUploads.New != numberOfNew {
+		status.DataMoverDataUploads.New = numberOfNew
+		updated = true
+	}
+	if status.DataMoverDataUploads.Accepted != numberOfAccepted {
+		status.DataMoverDataUploads.Accepted = numberOfAccepted
+		updated = true
+	}
+	if status.DataMoverDataUploads.Prepared != numberOfPrepared {
+		status.DataMoverDataUploads.Prepared = numberOfPrepared
+		updated = true
+	}
+	if status.DataMoverDataUploads.InProgress != numberOfInProgress {
+		status.DataMoverDataUploads.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.DataMoverDataUploads.Canceling != numberOfCanceling {
+		status.DataMoverDataUploads.Canceling = numberOfCanceling
+		updated = true
+	}
+	if status.DataMoverDataUploads.Canceled != numberOfCanceled {
+		status.DataMoverDataUploads.Canceled = numberOfCanceled
+		updated = true
+	}
+	if status.DataMoverDataUploads.Failed != numberOfFailed {
+		status.DataMoverDataUploads.Failed = numberOfFailed
+		updated = true
+	}
+	if status.DataMoverDataUploads.Completed != numberOfCompleted {
+		status.DataMoverDataUploads.Completed = numberOfCompleted
+		updated = true
+	}
+
+	return updated
 }

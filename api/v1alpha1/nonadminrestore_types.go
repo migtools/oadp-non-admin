@@ -46,10 +46,78 @@ type VeleroRestore struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
+// DataMoverDataDownloads contains information of the related Velero DataDownload objects.
+type DataMoverDataDownloads struct {
+	// number of DataDownloads related to this NonAdminRestore's Restore
+	// +optional
+	Total int `json:"total,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase New
+	// +optional
+	New int `json:"new,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Accepted
+	// +optional
+	Accepted int `json:"accepted,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Prepared
+	// +optional
+	Prepared int `json:"prepared,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Canceling
+	// +optional
+	Canceling int `json:"canceling,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Canceled
+	// +optional
+	Canceled int `json:"canceled,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of DataDownloads related to this NonAdminRestore's Restore in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
+}
+
+// FileSystemPodVolumeRestores contains information of the related Velero PodVolumeRestore objects.
+type FileSystemPodVolumeRestores struct {
+	// number of PodVolumeRestores related to this NonAdminRestore's Restore
+	// +optional
+	Total int `json:"total,omitempty"`
+
+	// number of PodVolumeRestores related to this NonAdminRestore's Restore in phase New
+	// +optional
+	New int `json:"new,omitempty"`
+
+	// number of PodVolumeRestores related to this NonAdminRestore's Restore in phase InProgress
+	// +optional
+	InProgress int `json:"inProgress,omitempty"`
+
+	// number of PodVolumeRestores related to this NonAdminRestore's Restore in phase Failed
+	// +optional
+	Failed int `json:"failed,omitempty"`
+
+	// number of PodVolumeRestores related to this NonAdminRestore's Restore in phase Completed
+	// +optional
+	Completed int `json:"completed,omitempty"`
+}
+
 // NonAdminRestoreStatus defines the observed state of NonAdminRestore
 type NonAdminRestoreStatus struct {
 	// +optional
 	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
+
+	// +optional
+	DataMoverDataDownloads *DataMoverDataDownloads `json:"dataMoverDataDownloads,omitempty"`
+
+	// +optional
+	FileSystemPodVolumeRestores *FileSystemPodVolumeRestores `json:"fileSystemPodVolumeRestores,omitempty"`
 
 	// queueInfo is used to estimate how many restores are scheduled before the given VeleroRestore in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

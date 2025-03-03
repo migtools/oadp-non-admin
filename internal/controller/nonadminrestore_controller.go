@@ -23,9 +23,12 @@ import (
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	"github.com/vmware-tanzu/velero/pkg/label"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,6 +65,8 @@ const (
 // +kubebuilder:rbac:groups=oadp.openshift.io,resources=nonadminrestores/finalizers,verbs=update
 
 // +kubebuilder:rbac:groups=velero.io,resources=restores,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=velero.io,resources=podvolumerestores,verbs=get;list;watch
+// +kubebuilder:rbac:groups=velero.io,resources=datadownloads,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state,
@@ -346,7 +351,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 		restoreSpec.ExcludedResources = append(restoreSpec.ExcludedResources,
 			"volumesnapshotclasses")
 
-		veleroRestore := velerov1.Restore{
+		veleroRestore = &velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        veleroRestoreNACUUID,
 				Namespace:   r.OADPNamespace,
@@ -356,7 +361,7 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 			Spec: *restoreSpec,
 		}
 
-		err = r.Create(ctx, &veleroRestore)
+		err = r.Create(ctx, veleroRestore)
 
 		if err != nil {
 			// We do not retry here as the veleroRestoreNACUUID
@@ -393,7 +398,29 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 
 	updatedVeleroStatus := updateVeleroRestoreStatus(&nar.Status, veleroRestore)
 
-	if updatedPhase || updatedCondition || updatedVeleroStatus || updatedQueueInfo {
+	podVolumeRestores := &velerov1.PodVolumeRestoreList{}
+	err = r.List(ctx, podVolumeRestores, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.RestoreNameLabel: label.GetValidName(veleroRestore.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list PodVolumeRestores in OADP namespace")
+	}
+	updatedPodVolumeRestoreStatus := updateNonAdminBackupPodVolumeRestoreStatus(&nar.Status, podVolumeRestores)
+
+	dataDownloads := &velerov2alpha1.DataDownloadList{}
+	err = r.List(ctx, dataDownloads, &client.ListOptions{
+		Namespace:     r.OADPNamespace,
+		LabelSelector: labels.SelectorFromSet(labels.Set{velerov1.RestoreNameLabel: label.GetValidName(veleroRestore.Name)}),
+	})
+	if err != nil {
+		// Log error and continue with the reconciliation, this is not critical error
+		logger.Error(err, "Failed to list DataDownloads in OADP namespace")
+	}
+	updatedDataDownloadStatus := updateNonAdminBackupDataDownloadStatus(&nar.Status, dataDownloads)
+
+	if updatedPhase || updatedCondition || updatedVeleroStatus || updatedQueueInfo || updatedPodVolumeRestoreStatus || updatedDataDownloadStatus {
 		if err := r.Status().Update(ctx, nar); err != nil {
 			logger.Error(err, nonAdminRestoreStatusUpdateFailureMessage)
 			return false, err
@@ -429,6 +456,130 @@ func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, velero
 	return true
 }
 
+func updateNonAdminBackupPodVolumeRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, podVolumeRestoreList *velerov1.PodVolumeRestoreList) bool {
+	if status.FileSystemPodVolumeRestores == nil {
+		status.FileSystemPodVolumeRestores = &nacv1alpha1.FileSystemPodVolumeRestores{}
+	}
+
+	updated := false
+	if len(podVolumeRestoreList.Items) != status.FileSystemPodVolumeRestores.Total {
+		status.FileSystemPodVolumeRestores.Total = len(podVolumeRestoreList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfInProgress := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
+	for _, podVolumeBackup := range podVolumeRestoreList.Items {
+		switch podVolumeBackup.Status.Phase {
+		case velerov1.PodVolumeRestorePhaseNew:
+			numberOfNew++
+		case velerov1.PodVolumeRestorePhaseInProgress:
+			numberOfInProgress++
+		case velerov1.PodVolumeRestorePhaseFailed:
+			numberOfFailed++
+		case velerov1.PodVolumeRestorePhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
+		}
+	}
+	if status.FileSystemPodVolumeRestores.New != numberOfNew {
+		status.FileSystemPodVolumeRestores.New = numberOfNew
+		updated = true
+	}
+	if status.FileSystemPodVolumeRestores.InProgress != numberOfInProgress {
+		status.FileSystemPodVolumeRestores.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.FileSystemPodVolumeRestores.Failed != numberOfFailed {
+		status.FileSystemPodVolumeRestores.Failed = numberOfFailed
+		updated = true
+	}
+	if status.FileSystemPodVolumeRestores.Completed != numberOfCompleted {
+		status.FileSystemPodVolumeRestores.Completed = numberOfCompleted
+		updated = true
+	}
+
+	return updated
+}
+
+func updateNonAdminBackupDataDownloadStatus(status *nacv1alpha1.NonAdminRestoreStatus, dataDownloadList *velerov2alpha1.DataDownloadList) bool {
+	if status.DataMoverDataDownloads == nil {
+		status.DataMoverDataDownloads = &nacv1alpha1.DataMoverDataDownloads{}
+	}
+
+	updated := false
+	if len(dataDownloadList.Items) != status.DataMoverDataDownloads.Total {
+		status.DataMoverDataDownloads.Total = len(dataDownloadList.Items)
+		updated = true
+	}
+	numberOfNew := 0
+	numberOfAccepted := 0
+	numberOfPrepared := 0
+	numberOfInProgress := 0
+	numberOfCanceling := 0
+	numberOfCanceled := 0
+	numberOfFailed := 0
+	numberOfCompleted := 0
+	for _, dataUpload := range dataDownloadList.Items {
+		switch dataUpload.Status.Phase {
+		case velerov2alpha1.DataDownloadPhaseNew:
+			numberOfNew++
+		case velerov2alpha1.DataDownloadPhaseAccepted:
+			numberOfAccepted++
+		case velerov2alpha1.DataDownloadPhasePrepared:
+			numberOfPrepared++
+		case velerov2alpha1.DataDownloadPhaseInProgress:
+			numberOfInProgress++
+		case velerov2alpha1.DataDownloadPhaseCanceling:
+			numberOfCanceling++
+		case velerov2alpha1.DataDownloadPhaseCanceled:
+			numberOfCanceled++
+		case velerov2alpha1.DataDownloadPhaseFailed:
+			numberOfFailed++
+		case velerov2alpha1.DataDownloadPhaseCompleted:
+			numberOfCompleted++
+		default:
+			continue
+		}
+	}
+	if status.DataMoverDataDownloads.New != numberOfNew {
+		status.DataMoverDataDownloads.New = numberOfNew
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Accepted != numberOfAccepted {
+		status.DataMoverDataDownloads.Accepted = numberOfAccepted
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Prepared != numberOfPrepared {
+		status.DataMoverDataDownloads.Prepared = numberOfPrepared
+		updated = true
+	}
+	if status.DataMoverDataDownloads.InProgress != numberOfInProgress {
+		status.DataMoverDataDownloads.InProgress = numberOfInProgress
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Canceling != numberOfCanceling {
+		status.DataMoverDataDownloads.Canceling = numberOfCanceling
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Canceled != numberOfCanceled {
+		status.DataMoverDataDownloads.Canceled = numberOfCanceled
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Failed != numberOfFailed {
+		status.DataMoverDataDownloads.Failed = numberOfFailed
+		updated = true
+	}
+	if status.DataMoverDataDownloads.Completed != numberOfCompleted {
+		status.DataMoverDataDownloads.Completed = numberOfCompleted
+		updated = true
+	}
+
+	return updated
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminRestoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -438,8 +589,24 @@ func (r *NonAdminRestoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			VeleroRestorePredicate: predicate.VeleroRestorePredicate{
 				OADPNamespace: r.OADPNamespace,
 			},
+			VeleroPodVolumeRestorePredicate: predicate.VeleroPodVolumeRestorePredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
+			VeleroDataDownloadPredicate: predicate.VeleroDataDownloadPredicate{
+				Client:        r.Client,
+				OADPNamespace: r.OADPNamespace,
+			},
 		}).
 		// handler runs after predicate
 		Watches(&velerov1.Restore{}, &handler.VeleroRestoreHandler{}).
+		Watches(&velerov1.PodVolumeRestore{}, &handler.VeleroPodVolumeRestoreHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
+		Watches(&velerov2alpha1.DataDownload{}, &handler.VeleroDataDownloadHandler{
+			Client:        r.Client,
+			OADPNamespace: r.OADPNamespace,
+		}).
 		Complete(r)
 }

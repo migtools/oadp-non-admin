@@ -30,6 +30,7 @@ import (
 	"github.com/openshift/oadp-operator/api/v1alpha1"
 	"github.com/sirupsen/logrus"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"go.uber.org/zap/zapcore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -63,6 +64,8 @@ func init() {
 	utilruntime.Must(nacv1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(velerov1.AddToScheme(scheme))
+
+	utilruntime.Must(velerov2alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

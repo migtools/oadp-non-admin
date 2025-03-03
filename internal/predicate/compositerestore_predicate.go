@@ -20,6 +20,7 @@ import (
 	"context"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -27,10 +28,12 @@ import (
 
 // CompositeRestorePredicate is a combination of NonAdminRestore and Velero Restore event filters
 type CompositeRestorePredicate struct {
-	Context                     context.Context
-	NonAdminRestorePredicate    NonAdminRestorePredicate
-	VeleroRestorePredicate      VeleroRestorePredicate
-	VeleroRestoreQueuePredicate VeleroRestoreQueuePredicate
+	Context                         context.Context
+	NonAdminRestorePredicate        NonAdminRestorePredicate
+	VeleroRestorePredicate          VeleroRestorePredicate
+	VeleroRestoreQueuePredicate     VeleroRestoreQueuePredicate
+	VeleroPodVolumeRestorePredicate VeleroPodVolumeRestorePredicate
+	VeleroDataDownloadPredicate     VeleroDataDownloadPredicate
 }
 
 // Create event filter only accepts NonAdminRestore create events
@@ -50,6 +53,10 @@ func (p CompositeRestorePredicate) Update(evt event.UpdateEvent) bool {
 		return p.NonAdminRestorePredicate.Update(p.Context, evt)
 	case *velerov1.Restore:
 		return p.VeleroRestoreQueuePredicate.Update(p.Context, evt) || p.VeleroRestorePredicate.Update(p.Context, evt)
+	case *velerov1.PodVolumeRestore:
+		return p.VeleroPodVolumeRestorePredicate.Update(p.Context, evt)
+	case *velerov2alpha1.DataDownload:
+		return p.VeleroDataDownloadPredicate.Update(p.Context, evt)
 	default:
 		return false
 	}
