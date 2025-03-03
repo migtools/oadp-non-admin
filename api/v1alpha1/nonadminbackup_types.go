@@ -74,8 +74,8 @@ type VeleroDeleteBackupRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// DataMoverVolumeBackups contains information of the related Velero DataUpload objects.
-type DataMoverVolumeBackups struct {
+// DataMoverDataUploads contains information of the related Velero DataUpload objects.
+type DataMoverDataUploads struct {
 	// number of DataUploads related to this NonAdminBackup's Backup
 	// +optional
 	Total int `json:"total,omitempty"`
@@ -113,8 +113,8 @@ type DataMoverVolumeBackups struct {
 	Completed int `json:"completed,omitempty"`
 }
 
-// FileSystemVolumeBackups contains information of the related Velero PodVolumeBackup objects.
-type FileSystemVolumeBackups struct {
+// FileSystemPodVolumeBackups contains information of the related Velero PodVolumeBackup objects.
+type FileSystemPodVolumeBackups struct {
 	// number of PodVolumeBackups related to this NonAdminBackup's Backup
 	// +optional
 	Total int `json:"total,omitempty"`
@@ -145,10 +145,10 @@ type NonAdminBackupStatus struct {
 	VeleroDeleteBackupRequest *VeleroDeleteBackupRequest `json:"veleroDeleteBackupRequest,omitempty"`
 
 	// +optional
-	DataMoverVolumeBackups *DataMoverVolumeBackups `json:"dataMoverVolumeBackups,omitempty"`
+	DataMoverDataUploads *DataMoverDataUploads `json:"dataMoverDataUploads,omitempty"`
 
 	// +optional
-	FileSystemVolumeBackups *FileSystemVolumeBackups `json:"fileSystemVolumeBackups,omitempty"`
+	FileSystemPodVolumeBackups *FileSystemPodVolumeBackups `json:"fileSystemPodVolumeBackups,omitempty"`
 
 	// queueInfo is used to estimate how many backups are scheduled before the given VeleroBackup in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

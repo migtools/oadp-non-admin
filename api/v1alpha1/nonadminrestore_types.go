@@ -46,8 +46,8 @@ type VeleroRestore struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// DataMoverVolumeRestores contains information of the related Velero DataDownload objects.
-type DataMoverVolumeRestores struct {
+// DataMoverDataDownloads contains information of the related Velero DataDownload objects.
+type DataMoverDataDownloads struct {
 	// number of DataDownloads related to this NonAdminRestore's Restore
 	// +optional
 	Total int `json:"total,omitempty"`
@@ -85,8 +85,8 @@ type DataMoverVolumeRestores struct {
 	Completed int `json:"completed,omitempty"`
 }
 
-// FileSystemVolumeRestores contains information of the related Velero PodVolumeRestore objects.
-type FileSystemVolumeRestores struct {
+// FileSystemPodVolumeRestores contains information of the related Velero PodVolumeRestore objects.
+type FileSystemPodVolumeRestores struct {
 	// number of PodVolumeRestores related to this NonAdminRestore's Restore
 	// +optional
 	Total int `json:"total,omitempty"`
@@ -114,10 +114,10 @@ type NonAdminRestoreStatus struct {
 	VeleroRestore *VeleroRestore `json:"veleroRestore,omitempty"`
 
 	// +optional
-	DataMoverVolumeRestores *DataMoverVolumeRestores `json:"dataMoverVolumeRestores,omitempty"`
+	DataMoverDataDownloads *DataMoverDataDownloads `json:"dataMoverDataDownloads,omitempty"`
 
 	// +optional
-	FileSystemVolumeRestores *FileSystemVolumeRestores `json:"fileSystemVolumeRestores,omitempty"`
+	FileSystemPodVolumeRestores *FileSystemPodVolumeRestores `json:"fileSystemPodVolumeRestores,omitempty"`
 
 	// queueInfo is used to estimate how many restores are scheduled before the given VeleroRestore in the OADP namespace.
 	// This number is not guaranteed to be accurate, but it should be close. It's inaccurate for cases when

@@ -457,13 +457,13 @@ func updateVeleroRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, velero
 }
 
 func updateNonAdminBackupPodVolumeRestoreStatus(status *nacv1alpha1.NonAdminRestoreStatus, podVolumeRestoreList *velerov1.PodVolumeRestoreList) bool {
-	if status.FileSystemVolumeRestores == nil {
-		status.FileSystemVolumeRestores = &nacv1alpha1.FileSystemVolumeRestores{}
+	if status.FileSystemPodVolumeRestores == nil {
+		status.FileSystemPodVolumeRestores = &nacv1alpha1.FileSystemPodVolumeRestores{}
 	}
 
 	updated := false
-	if len(podVolumeRestoreList.Items) != status.FileSystemVolumeRestores.Total {
-		status.FileSystemVolumeRestores.Total = len(podVolumeRestoreList.Items)
+	if len(podVolumeRestoreList.Items) != status.FileSystemPodVolumeRestores.Total {
+		status.FileSystemPodVolumeRestores.Total = len(podVolumeRestoreList.Items)
 		updated = true
 	}
 	numberOfNew := 0
@@ -484,20 +484,20 @@ func updateNonAdminBackupPodVolumeRestoreStatus(status *nacv1alpha1.NonAdminRest
 			continue
 		}
 	}
-	if status.FileSystemVolumeRestores.New != numberOfNew {
-		status.FileSystemVolumeRestores.New = numberOfNew
+	if status.FileSystemPodVolumeRestores.New != numberOfNew {
+		status.FileSystemPodVolumeRestores.New = numberOfNew
 		updated = true
 	}
-	if status.FileSystemVolumeRestores.InProgress != numberOfInProgress {
-		status.FileSystemVolumeRestores.InProgress = numberOfInProgress
+	if status.FileSystemPodVolumeRestores.InProgress != numberOfInProgress {
+		status.FileSystemPodVolumeRestores.InProgress = numberOfInProgress
 		updated = true
 	}
-	if status.FileSystemVolumeRestores.Failed != numberOfFailed {
-		status.FileSystemVolumeRestores.Failed = numberOfFailed
+	if status.FileSystemPodVolumeRestores.Failed != numberOfFailed {
+		status.FileSystemPodVolumeRestores.Failed = numberOfFailed
 		updated = true
 	}
-	if status.FileSystemVolumeRestores.Completed != numberOfCompleted {
-		status.FileSystemVolumeRestores.Completed = numberOfCompleted
+	if status.FileSystemPodVolumeRestores.Completed != numberOfCompleted {
+		status.FileSystemPodVolumeRestores.Completed = numberOfCompleted
 		updated = true
 	}
 
@@ -505,13 +505,13 @@ func updateNonAdminBackupPodVolumeRestoreStatus(status *nacv1alpha1.NonAdminRest
 }
 
 func updateNonAdminBackupDataDownloadStatus(status *nacv1alpha1.NonAdminRestoreStatus, dataDownloadList *velerov2alpha1.DataDownloadList) bool {
-	if status.DataMoverVolumeRestores == nil {
-		status.DataMoverVolumeRestores = &nacv1alpha1.DataMoverVolumeRestores{}
+	if status.DataMoverDataDownloads == nil {
+		status.DataMoverDataDownloads = &nacv1alpha1.DataMoverDataDownloads{}
 	}
 
 	updated := false
-	if len(dataDownloadList.Items) != status.DataMoverVolumeRestores.Total {
-		status.DataMoverVolumeRestores.Total = len(dataDownloadList.Items)
+	if len(dataDownloadList.Items) != status.DataMoverDataDownloads.Total {
+		status.DataMoverDataDownloads.Total = len(dataDownloadList.Items)
 		updated = true
 	}
 	numberOfNew := 0
@@ -544,36 +544,36 @@ func updateNonAdminBackupDataDownloadStatus(status *nacv1alpha1.NonAdminRestoreS
 			continue
 		}
 	}
-	if status.DataMoverVolumeRestores.New != numberOfNew {
-		status.DataMoverVolumeRestores.New = numberOfNew
+	if status.DataMoverDataDownloads.New != numberOfNew {
+		status.DataMoverDataDownloads.New = numberOfNew
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Accepted != numberOfAccepted {
-		status.DataMoverVolumeRestores.Accepted = numberOfAccepted
+	if status.DataMoverDataDownloads.Accepted != numberOfAccepted {
+		status.DataMoverDataDownloads.Accepted = numberOfAccepted
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Prepared != numberOfPrepared {
-		status.DataMoverVolumeRestores.Prepared = numberOfPrepared
+	if status.DataMoverDataDownloads.Prepared != numberOfPrepared {
+		status.DataMoverDataDownloads.Prepared = numberOfPrepared
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.InProgress != numberOfInProgress {
-		status.DataMoverVolumeRestores.InProgress = numberOfInProgress
+	if status.DataMoverDataDownloads.InProgress != numberOfInProgress {
+		status.DataMoverDataDownloads.InProgress = numberOfInProgress
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Canceling != numberOfCanceling {
-		status.DataMoverVolumeRestores.Canceling = numberOfCanceling
+	if status.DataMoverDataDownloads.Canceling != numberOfCanceling {
+		status.DataMoverDataDownloads.Canceling = numberOfCanceling
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Canceled != numberOfCanceled {
-		status.DataMoverVolumeRestores.Canceled = numberOfCanceled
+	if status.DataMoverDataDownloads.Canceled != numberOfCanceled {
+		status.DataMoverDataDownloads.Canceled = numberOfCanceled
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Failed != numberOfFailed {
-		status.DataMoverVolumeRestores.Failed = numberOfFailed
+	if status.DataMoverDataDownloads.Failed != numberOfFailed {
+		status.DataMoverDataDownloads.Failed = numberOfFailed
 		updated = true
 	}
-	if status.DataMoverVolumeRestores.Completed != numberOfCompleted {
-		status.DataMoverVolumeRestores.Completed = numberOfCompleted
+	if status.DataMoverDataDownloads.Completed != numberOfCompleted {
+		status.DataMoverDataDownloads.Completed = numberOfCompleted
 		updated = true
 	}
 

@@ -1271,13 +1271,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						if nonAdminBackup == nil ||
 							nonAdminBackup.Status.VeleroBackup == nil ||
 							nonAdminBackup.Status.VeleroBackup.Status == nil ||
-							nonAdminBackup.Status.FileSystemVolumeBackups == nil ||
-							nonAdminBackup.Status.DataMoverVolumeBackups == nil {
+							nonAdminBackup.Status.FileSystemPodVolumeBackups == nil ||
+							nonAdminBackup.Status.DataMoverDataUploads == nil {
 							return false, nil
 						}
 						return nonAdminBackup.Status.VeleroBackup.Status.Phase == velerov1.BackupPhaseCompleted &&
-							nonAdminBackup.Status.FileSystemVolumeBackups.Completed == 1 &&
-							nonAdminBackup.Status.DataMoverVolumeBackups.Completed == 1, nil
+							nonAdminBackup.Status.FileSystemPodVolumeBackups.Completed == 1 &&
+							nonAdminBackup.Status.DataMoverDataUploads.Completed == 1, nil
 					}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 				}
 			}

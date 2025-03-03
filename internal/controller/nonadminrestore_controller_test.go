@@ -400,13 +400,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						if nonAdminRestore == nil ||
 							nonAdminRestore.Status.VeleroRestore == nil ||
 							nonAdminRestore.Status.VeleroRestore.Status == nil ||
-							nonAdminRestore.Status.FileSystemVolumeRestores == nil ||
-							nonAdminRestore.Status.DataMoverVolumeRestores == nil {
+							nonAdminRestore.Status.FileSystemPodVolumeRestores == nil ||
+							nonAdminRestore.Status.DataMoverDataDownloads == nil {
 							return false, nil
 						}
 						return nonAdminRestore.Status.VeleroRestore.Status.Phase == velerov1.RestorePhaseCompleted &&
-							nonAdminRestore.Status.FileSystemVolumeRestores.Completed == 1 &&
-							nonAdminRestore.Status.DataMoverVolumeRestores.Completed == 1, nil
+							nonAdminRestore.Status.FileSystemPodVolumeRestores.Completed == 1 &&
+							nonAdminRestore.Status.DataMoverDataDownloads.Completed == 1, nil
 					}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())
 				}
 			}

@@ -911,13 +911,13 @@ func updateNonAdminBackupDeleteBackupRequestStatus(status *nacv1alpha1.NonAdminB
 }
 
 func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBackupStatus, podVolumeBackupList *velerov1.PodVolumeBackupList) bool {
-	if status.FileSystemVolumeBackups == nil {
-		status.FileSystemVolumeBackups = &nacv1alpha1.FileSystemVolumeBackups{}
+	if status.FileSystemPodVolumeBackups == nil {
+		status.FileSystemPodVolumeBackups = &nacv1alpha1.FileSystemPodVolumeBackups{}
 	}
 
 	updated := false
-	if len(podVolumeBackupList.Items) != status.FileSystemVolumeBackups.Total {
-		status.FileSystemVolumeBackups.Total = len(podVolumeBackupList.Items)
+	if len(podVolumeBackupList.Items) != status.FileSystemPodVolumeBackups.Total {
+		status.FileSystemPodVolumeBackups.Total = len(podVolumeBackupList.Items)
 		updated = true
 	}
 	numberOfNew := 0
@@ -938,20 +938,20 @@ func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBacku
 			continue
 		}
 	}
-	if status.FileSystemVolumeBackups.New != numberOfNew {
-		status.FileSystemVolumeBackups.New = numberOfNew
+	if status.FileSystemPodVolumeBackups.New != numberOfNew {
+		status.FileSystemPodVolumeBackups.New = numberOfNew
 		updated = true
 	}
-	if status.FileSystemVolumeBackups.InProgress != numberOfInProgress {
-		status.FileSystemVolumeBackups.InProgress = numberOfInProgress
+	if status.FileSystemPodVolumeBackups.InProgress != numberOfInProgress {
+		status.FileSystemPodVolumeBackups.InProgress = numberOfInProgress
 		updated = true
 	}
-	if status.FileSystemVolumeBackups.Failed != numberOfFailed {
-		status.FileSystemVolumeBackups.Failed = numberOfFailed
+	if status.FileSystemPodVolumeBackups.Failed != numberOfFailed {
+		status.FileSystemPodVolumeBackups.Failed = numberOfFailed
 		updated = true
 	}
-	if status.FileSystemVolumeBackups.Completed != numberOfCompleted {
-		status.FileSystemVolumeBackups.Completed = numberOfCompleted
+	if status.FileSystemPodVolumeBackups.Completed != numberOfCompleted {
+		status.FileSystemPodVolumeBackups.Completed = numberOfCompleted
 		updated = true
 	}
 
@@ -959,13 +959,13 @@ func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBacku
 }
 
 func updateNonAdminBackupDataUploadStatus(status *nacv1alpha1.NonAdminBackupStatus, dataUploadList *velerov2alpha1.DataUploadList) bool {
-	if status.DataMoverVolumeBackups == nil {
-		status.DataMoverVolumeBackups = &nacv1alpha1.DataMoverVolumeBackups{}
+	if status.DataMoverDataUploads == nil {
+		status.DataMoverDataUploads = &nacv1alpha1.DataMoverDataUploads{}
 	}
 
 	updated := false
-	if len(dataUploadList.Items) != status.DataMoverVolumeBackups.Total {
-		status.DataMoverVolumeBackups.Total = len(dataUploadList.Items)
+	if len(dataUploadList.Items) != status.DataMoverDataUploads.Total {
+		status.DataMoverDataUploads.Total = len(dataUploadList.Items)
 		updated = true
 	}
 	numberOfNew := 0
@@ -998,36 +998,36 @@ func updateNonAdminBackupDataUploadStatus(status *nacv1alpha1.NonAdminBackupStat
 			continue
 		}
 	}
-	if status.DataMoverVolumeBackups.New != numberOfNew {
-		status.DataMoverVolumeBackups.New = numberOfNew
+	if status.DataMoverDataUploads.New != numberOfNew {
+		status.DataMoverDataUploads.New = numberOfNew
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Accepted != numberOfAccepted {
-		status.DataMoverVolumeBackups.Accepted = numberOfAccepted
+	if status.DataMoverDataUploads.Accepted != numberOfAccepted {
+		status.DataMoverDataUploads.Accepted = numberOfAccepted
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Prepared != numberOfPrepared {
-		status.DataMoverVolumeBackups.Prepared = numberOfPrepared
+	if status.DataMoverDataUploads.Prepared != numberOfPrepared {
+		status.DataMoverDataUploads.Prepared = numberOfPrepared
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.InProgress != numberOfInProgress {
-		status.DataMoverVolumeBackups.InProgress = numberOfInProgress
+	if status.DataMoverDataUploads.InProgress != numberOfInProgress {
+		status.DataMoverDataUploads.InProgress = numberOfInProgress
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Canceling != numberOfCanceling {
-		status.DataMoverVolumeBackups.Canceling = numberOfCanceling
+	if status.DataMoverDataUploads.Canceling != numberOfCanceling {
+		status.DataMoverDataUploads.Canceling = numberOfCanceling
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Canceled != numberOfCanceled {
-		status.DataMoverVolumeBackups.Canceled = numberOfCanceled
+	if status.DataMoverDataUploads.Canceled != numberOfCanceled {
+		status.DataMoverDataUploads.Canceled = numberOfCanceled
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Failed != numberOfFailed {
-		status.DataMoverVolumeBackups.Failed = numberOfFailed
+	if status.DataMoverDataUploads.Failed != numberOfFailed {
+		status.DataMoverDataUploads.Failed = numberOfFailed
 		updated = true
 	}
-	if status.DataMoverVolumeBackups.Completed != numberOfCompleted {
-		status.DataMoverVolumeBackups.Completed = numberOfCompleted
+	if status.DataMoverDataUploads.Completed != numberOfCompleted {
+		status.DataMoverDataUploads.Completed = numberOfCompleted
 		updated = true
 	}
 
