@@ -21,8 +21,6 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
 // NonAdminDownloadRequestSpec defines the desired state of NonAdminDownloadRequest.
@@ -91,12 +89,10 @@ const (
 )
 
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
-// only process NADR with target kind and name populated and without terminal condition.
 //
 // Terminal condition includes
 // - NonAdminBackupStorageLocationNotUsed: we currently require NaBSL usage on the NAB/NAR to process this download request
-//
-// returns true if ready for processing, false if required fields are not populated
+// returns true if ready for processing, false otherwise
 func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
 	// if nadr has ConditionNonAdminBackupStorageLocationUsed return false
 	if nadr.Status.Conditions != nil {
@@ -107,8 +103,7 @@ func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
 			}
 		}
 	}
-	return nadr.Spec.Target.Kind != constant.EmptyString &&
-		nadr.Spec.Target.Name != constant.EmptyString
+	return true // required fields are set via velero validation markers
 }
 
 // VeleroDownloadRequestName defines velero download request name for this NonAdminDownloadRequest

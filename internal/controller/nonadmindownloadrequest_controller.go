@@ -224,6 +224,7 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 			return err
 		}
 	}
+	//  veleroDR is created, when veleroDR status is updated, the watch will trigger reconcile
 	return nil
 }
 
@@ -234,13 +235,14 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlpredicate.Funcs{
-			CreateFunc: func(tce event.TypedCreateEvent[client.Object]) bool {
-				if nadr, ok := tce.Object.(*nacv1alpha1.NonAdminDownloadRequest); ok {
-					return nadr.ReadyForProcessing()
-				}
-				return false
+			CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool {
+				return true // required fields are set via velero validation markers
 			},
 			UpdateFunc: func(tue event.TypedUpdateEvent[client.Object]) bool {
+				// only process update on spec change
+				if tue.ObjectNew.GetGeneration() == tue.ObjectOld.GetGeneration() {
+					return false
+				}
 				if nadr, ok := tue.ObjectNew.(*nacv1alpha1.NonAdminDownloadRequest); ok {
 					return nadr.ReadyForProcessing()
 				}
