@@ -190,13 +190,13 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 	}
 	// error if nab does not use nabsl
 	if !nab.UsesNaBSL() {
-		patchErr := r.patchAddErrorStatusTrueConditionBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed, "backup does not use nonadminbackupstoragelocation")
+		patchErr := r.patchAddErrorStatusTrueConditionBackoff(ctx, req, nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed, "backup does not use nonadminbackupstoragelocation, recreate nadr to process")
 		logger.Error(patchErr, statusPatchErr)
 		// patch status to completed to stop processing this NADR
 		// because it is not using NonAdminBackupStorageLocation, user is expected to recreate NADR
 		// after they have a NAB using NABSL
 		prePatch := req.DeepCopy()
-		req.Status.Phase = nacv1alpha1.NonAdminPhaseCreated // not using nabsl is terminal
+		req.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff // not using nabsl is terminal
 		if patchErr := r.Status().Patch(ctx, req, client.MergeFrom(prePatch)); patchErr != nil {
 			logger.Error(patchErr, statusPatchErr)
 			return patchErr

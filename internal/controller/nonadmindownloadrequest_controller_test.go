@@ -37,7 +37,7 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/function"
 )
 
-var _ = ginkgo.FDescribe("NonAdminDownloadRequest Controller", func() {
+var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 	var (
 		ctx                  context.Context
 		reconciler           NonAdminDownloadRequestReconciler
@@ -325,7 +325,7 @@ var _ = ginkgo.FDescribe("NonAdminDownloadRequest Controller", func() {
 			gomega.Expect(updatedNadr.Status.Conditions).NotTo(gomega.BeEmpty())
 			gomega.Expect(updatedNadr.Status.Conditions[0].Type).To(gomega.Equal(string(nacv1alpha1.ConditionNonAdminBackupStorageLocationNotUsed)))
 			gomega.Expect(updatedNadr.Status.Conditions[0].Status).To(gomega.Equal(metav1.ConditionTrue))
-			gomega.Expect(updatedNadr.Status.Phase).To(gomega.Equal(nacv1alpha1.NonAdminPhaseCreated))
+			gomega.Expect(updatedNadr.Status.Phase).To(gomega.Equal(nacv1alpha1.NonAdminPhaseBackingOff))
 		})
 		ginkgo.It("should error when referring a non-existent NonAdminBackup", func() {
 			nadr.Spec.Target.Kind = velerov1.DownloadTargetKindBackupLog

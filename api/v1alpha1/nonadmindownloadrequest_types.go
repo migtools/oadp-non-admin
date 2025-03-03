@@ -90,7 +90,7 @@ const (
 
 // ReadyForProcessing returns if this NonAdminDownloadRequests is in a state ready for processing
 //
-// Terminal condition includes
+// Terminal conditions include
 // - NonAdminBackupStorageLocationNotUsed: we currently require NaBSL usage on the NAB/NAR to process this download request
 // returns true if ready for processing, false otherwise
 func (nadr *NonAdminDownloadRequest) ReadyForProcessing() bool {
