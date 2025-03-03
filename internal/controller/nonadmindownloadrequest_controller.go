@@ -118,7 +118,7 @@ func (r *NonAdminDownloadRequestReconciler) deleteExpiredDownloadRequest(ctx con
 	logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), req.Namespace)
 	if err := r.Delete(ctx, veleroDR); err != nil {
 		if !apierrors.IsNotFound(err) {
-			logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName(), err)
+			logger.Error(err, "Failed to delete expired NonAdminDownloadRequest associated velero download request", req.VeleroDownloadRequestName())
 			// other errors, requeue to retry delete
 			return err
 		}
@@ -126,7 +126,7 @@ func (r *NonAdminDownloadRequestReconciler) deleteExpiredDownloadRequest(ctx con
 	logger.V(1).Info("Deleting expired NonAdminDownloadRequest", req.Name, req.Namespace)
 	if err := r.Delete(ctx, req); err != nil {
 		if !apierrors.IsNotFound(err) {
-			logger.V(1).Info("Failed to delete expired NonAdminDownloadRequest", req.Name, err)
+			logger.Error(err, "Failed to delete expired NonAdminDownloadRequest", req.Name)
 			// other errors, requeue to retry delete
 			return err
 		}
