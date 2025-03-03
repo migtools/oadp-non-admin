@@ -90,9 +90,8 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 	}
 	// if request has status, it may already be processed or expired
 	if req.Status.VeleroDownloadRequest.Status != nil {
-		// if request is expired, delete NADR after deleting velero DR
+		// if request is expired, delete NADR
 		if req.Status.VeleroDownloadRequest.Status.Expiration != nil && req.Status.VeleroDownloadRequest.Status.Expiration.Before(&metav1.Time{Time: time.Now()}) {
-			// find associated velero downloadrequest and delete that first
 			return reconcile.Result{}, r.deleteExpiredDownloadRequest(ctx, &veleroDR, req)
 		}
 		// if request is not expired, and has downloadUrl, requeue when expired to cleanup.
@@ -113,16 +112,9 @@ func (r *NonAdminDownloadRequestReconciler) Reconcile(ctx context.Context, req *
 
 // Delete expired download request
 // find associated velero downloadrequest and delete that first
-func (r *NonAdminDownloadRequestReconciler) deleteExpiredDownloadRequest(ctx context.Context, veleroDR *velerov1.DownloadRequest, req *nacv1alpha1.NonAdminDownloadRequest) error {
-	logger := log.FromContext(ctx).WithValues("veleroDownloadRequest", req.VeleroDownloadRequestName())
-	logger.V(1).Info("Deleting expired NonAdminDownloadRequest associated velero download request")
-	if err := r.Delete(ctx, veleroDR); err != nil {
-		if !apierrors.IsNotFound(err) {
-			logger.Error(err, "Failed to delete expired NonAdminDownloadRequest associated velero download request")
-			// other errors, requeue to retry delete
-			return err
-		}
-	}
+func (r *NonAdminDownloadRequestReconciler) deleteExpiredDownloadRequest(ctx context.Context, _ *velerov1.DownloadRequest, req *nacv1alpha1.NonAdminDownloadRequest) error {
+	logger := log.FromContext(ctx)
+	// velero GC handles expired velero download request, so we handle NADR only.
 	logger.V(1).Info("Deleting expired NonAdminDownloadRequest")
 	if err := r.Delete(ctx, req); err != nil {
 		if !apierrors.IsNotFound(err) {
