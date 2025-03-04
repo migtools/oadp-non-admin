@@ -53,6 +53,7 @@ type nonAdminBackupSingleReconcileScenario struct {
 	resultError                         error
 	nonAdminBackupPriorStatus           *nacv1alpha1.NonAdminBackupStatus
 	nonAdminBackupSpec                  nacv1alpha1.NonAdminBackupSpec
+	nonAdminBackupStorageLocationStatus *nacv1alpha1.NonAdminBackupStorageLocationStatus
 	nonAdminBackupExpectedStatus        nacv1alpha1.NonAdminBackupStatus
 	result                              reconcile.Result
 	createVeleroBackup                  bool
@@ -337,7 +338,8 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 					},
 				}
 				gomega.Expect(k8sClient.Create(ctx, nonAdminBackupStorageLocation)).To(gomega.Succeed())
-				nonAdminBackupStorageLocation.Status.Phase = nacv1alpha1.NonAdminPhaseCreated
+
+				nonAdminBackupStorageLocation.Status = *scenario.nonAdminBackupStorageLocationStatus
 				gomega.Expect(k8sClient.Status().Update(ctx, nonAdminBackupStorageLocation)).To(gomega.Succeed())
 
 				nonAdminBackup.Spec.BackupSpec.StorageLocation = nonAdminBackupStorageLocationName
@@ -537,11 +539,15 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			veleroBackupExpectedDeleted: true,
 			resultError:                 reconcile.TerminalError(fmt.Errorf("NonAdminBackupStorageLocation not found in the namespace: nonadminbackupstoragelocations.oadp.openshift.io \"wrong\" not found")),
 		}),
-		ginkgo.Entry("When triggered by NonAdminBackup Create event with NonAdminBackupStorageLocation that does not have proper VeleroBackupStorageLocation UUID, should update NonAdminBackup phase to BackingOff", nonAdminBackupSingleReconcileScenario{
+		ginkgo.Entry("When triggered by NonAdminBackup Create event with NonAdminBackupStorageLocation that does not have corresponding VeleroBackupStorageLocation UUID, should update NonAdminBackup phase to BackingOff", nonAdminBackupSingleReconcileScenario{
 			createNonAdminBackupStorageLocation: true,
 			createVeleroBackupStorageLocation:   false,
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
+			},
+			nonAdminBackupStorageLocationStatus: &nacv1alpha1.NonAdminBackupStorageLocationStatus{
+				Phase:      nacv1alpha1.NonAdminPhaseCreated,
+				Conditions: []metav1.Condition{},
 			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
@@ -563,6 +569,18 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{},
 			},
+			nonAdminBackupStorageLocationStatus: &nacv1alpha1.NonAdminBackupStorageLocationStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
 			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
 				Phase: nacv1alpha1.NonAdminPhaseCreated,
 				Conditions: []metav1.Condition{
@@ -581,6 +599,77 @@ var _ = ginkgo.Describe("Test single reconciles of NonAdminBackup Reconcile func
 				},
 			},
 			result: reconcile.Result{},
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup Create event with NonAdminBackupStorageLocation phase different then created, should fail to create Velero Backup object", nonAdminBackupSingleReconcileScenario{
+			createNonAdminBackupStorageLocation: true,
+			createVeleroBackupStorageLocation:   true,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{},
+			},
+			nonAdminBackupStorageLocationStatus: &nacv1alpha1.NonAdminBackupStorageLocationStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionFalse,
+						Reason:  "InvalidBackupSpec",
+						Message: "NonAdminBackupStorageLocation is not in created state and can not be used for the NonAdminBackup",
+					},
+				},
+			},
+			veleroBackupExpectedDeleted: true,
+			resultError:                 fmt.Errorf("NonAdminBackupStorageLocation is not in created state and can not be used for the NonAdminBackup"),
+		}),
+		ginkgo.Entry("When triggered by NonAdminBackup Create event with NonAdminBackupStorageLocation phase created and one of the conditions False, should fail to create Velero Backup object", nonAdminBackupSingleReconcileScenario{
+			createNonAdminBackupStorageLocation: true,
+			createVeleroBackupStorageLocation:   true,
+			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{},
+			},
+			nonAdminBackupStorageLocationStatus: &nacv1alpha1.NonAdminBackupStorageLocationStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				Conditions: []metav1.Condition{
+					{
+						Type:               string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               string(nacv1alpha1.NonAdminBSLConditionSecretSynced),
+						Status:             metav1.ConditionFalse,
+						Reason:             "SecretSyncFailed",
+						Message:            "secret sync failed",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+			},
+			nonAdminBackupExpectedStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseBackingOff,
+				Conditions: []metav1.Condition{
+					{
+						Type:    string(nacv1alpha1.NonAdminConditionAccepted),
+						Status:  metav1.ConditionFalse,
+						Reason:  "InvalidBackupSpec",
+						Message: "NonAdminBackupStorageLocation has an unsatisfied condition: SecretSynced is False",
+					},
+				},
+			},
+			veleroBackupExpectedDeleted: true,
+			resultError:                 fmt.Errorf("NonAdminBackupStorageLocation has an unsatisfied condition: SecretSynced is False"),
 		}),
 		ginkgo.Entry("When triggered by NonAdminBackup deleteNonAdmin spec field when BackupSpec is invalid, should delete NonAdminBackup without error", nonAdminBackupSingleReconcileScenario{
 			nonAdminBackupSpec: nacv1alpha1.NonAdminBackupSpec{

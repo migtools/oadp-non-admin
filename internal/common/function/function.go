@@ -134,6 +134,15 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 		} else if err != nil {
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.storageLocation is invalid: %v", err)
 		}
+		if nonAdminBsl.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
+			return fmt.Errorf("NonAdminBackupStorageLocation is not in created state and can not be used for the NonAdminBackup")
+		}
+
+		for _, condition := range nonAdminBsl.Status.Conditions {
+			if condition.Status != metav1.ConditionTrue {
+				return fmt.Errorf("NonAdminBackupStorageLocation has an unsatisfied condition: %s is %s", condition.Type, condition.Status)
+			}
+		}
 		if nonAdminBsl.Status.VeleroBackupStorageLocation == nil || nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString {
 			return fmt.Errorf("unable to get VeleroBackupStorageLocation UUID from NonAdminBackupStorageLocation Status")
 		}
