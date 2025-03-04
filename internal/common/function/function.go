@@ -264,7 +264,7 @@ func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdmin
 		case "StorageType":
 			enforcedStorageType := compareStorageTypes(enforcedField, currentField)
 			if enforcedStorageType != constant.EmptyString {
-				return fmt.Errorf("the administrator has restricted spec.backupStorageLocationSpec.%v field value to %v", enforcedFieldName, enforcedStorageType)
+				return fmt.Errorf("the administrator has restricted spec.backupStorageLocationSpec.objectStorage field value(s) to: %v", enforcedStorageType)
 			}
 		default:
 			if !enforcedField.IsZero() && !currentField.IsZero() && !reflect.DeepEqual(enforcedField.Interface(), currentField.Interface()) {
@@ -336,7 +336,7 @@ func compareStorageTypes(enforcedStorageType, currentStorageType reflect.Value) 
 				if enforcedStorage.ObjectStorage.Bucket != currentStorage.ObjectStorage.Bucket ||
 					enforcedStorage.ObjectStorage.Prefix != currentStorage.ObjectStorage.Prefix ||
 					string(enforcedStorage.ObjectStorage.CACert) != string(currentStorage.ObjectStorage.CACert) {
-					return fmt.Sprintf("objectStorage: bucket: %s, prefix: %s, caCert: %s",
+					return fmt.Sprintf("bucket: %s, prefix: %s, caCert: %s",
 						enforcedStorage.ObjectStorage.Bucket,
 						enforcedStorage.ObjectStorage.Prefix,
 						string(enforcedStorage.ObjectStorage.CACert))
