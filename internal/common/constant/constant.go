@@ -34,6 +34,7 @@ const (
 	NabOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nab-origin-nacuuid"
 	NarOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
 	NabslOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nabsl-origin-nacuuid"
+	NadrOriginNACUUIDLabel  = v1alpha1.OadpOperatorLabel + "-nadr-origin-nacuuid"
 	NabSyncLabel            = v1alpha1.OadpOperatorLabel + "-nab-synced-from-nacuuid"
 
 	NabOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
@@ -42,6 +43,8 @@ const (
 	NarOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
 	NabslOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nabsl-origin-name"
 	NabslOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nabsl-origin-namespace"
+	NadrOriginNameAnnotation       = v1alpha1.OadpOperatorLabel + "-nadr-origin-name"
+	NadrOriginNamespaceAnnotation  = v1alpha1.OadpOperatorLabel + "-nadr-origin-namespace"
 
 	NabFinalizerName   = "nonadminbackup.oadp.openshift.io/finalizer"
 	NarFinalizerName   = "nonadminrestore.oadp.openshift.io/finalizer"

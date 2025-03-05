@@ -41,6 +41,11 @@ import (
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
 )
 
+// Common labels for objects manipulated by the Non Admin Controller
+// Labels should be used to identify the NAC object
+// Annotations on the other hand should be used to define ownership
+// of the specific Object, such as Backup/Restore.
+
 // GetNonAdminLabels return the required Non Admin labels
 func GetNonAdminLabels() map[string]string {
 	return map[string]string{
@@ -77,6 +82,14 @@ func GetNonAdminBackupStorageLocationAnnotations(objectMeta metav1.ObjectMeta) m
 	return map[string]string{
 		constant.NabslOriginNamespaceAnnotation: objectMeta.Namespace,
 		constant.NabslOriginNameAnnotation:      objectMeta.Name,
+	}
+}
+
+// GetNonAdminDownloadRequestAnnotations return the required Non Admin annotations
+func GetNonAdminDownloadRequestAnnotations(objectMeta *nacv1alpha1.NonAdminDownloadRequest) map[string]string {
+	return map[string]string{
+		constant.NadrOriginNamespaceAnnotation: objectMeta.Namespace,
+		constant.NadrOriginNameAnnotation:      objectMeta.Name,
 	}
 }
 

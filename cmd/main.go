@@ -208,6 +208,14 @@ func main() {
 		setupLog.Error(err, "unable to setup NonAdminBackupStorageLocation controller with manager")
 		os.Exit(1)
 	}
+	if err = (&controller.NonAdminDownloadRequestReconciler{
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
+		OADPNamespace: oadpNamespace,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NonAdminDownloadRequest")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 	if dpaConfiguration.BackupSyncPeriod.Duration > 0 {
 		if err = (&controller.NonAdminBackupSynchronizerReconciler{

@@ -26,3 +26,7 @@ go.work
 *.swp
 *.swo
 *~
+
+# debug
+__debug_bin*
+debug.test*
