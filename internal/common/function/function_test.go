@@ -407,6 +407,7 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 						Namespace: "self-service-namespace",
 					},
 					Status: nacv1alpha1.NonAdminBackupStorageLocationStatus{
+						Phase: nacv1alpha1.NonAdminPhaseCreated,
 						VeleroBackupStorageLocation: &nacv1alpha1.VeleroBackupStorageLocation{
 							NACUUID: "user-defined-backup-storage-location-uuid",
 						},
