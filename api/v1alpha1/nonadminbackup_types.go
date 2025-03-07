@@ -168,6 +168,9 @@ type NonAdminBackupStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=nonadminbackups,shortName=nab
+// +kubebuilder:printcolumn:name="Backup-Status",type="string",JSONPath=".status.veleroBackup.status.phase"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // NonAdminBackup is the Schema for the nonadminbackups API
 type NonAdminBackup struct {

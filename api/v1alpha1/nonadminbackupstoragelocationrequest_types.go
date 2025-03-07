@@ -84,6 +84,10 @@ type NonAdminBackupStorageLocationRequestStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=nonadminbackupstoragelocationrequests,shortName=nabslrequest
+// +kubebuilder:printcolumn:name="NABSL-Namespace",type="string",JSONPath=".status.nonAdminBackupStorageLocation.namespace"
+// +kubebuilder:printcolumn:name="NABSL-Name",type="string",JSONPath=".status.nonAdminBackupStorageLocation.name"
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // NonAdminBackupStorageLocationRequest is the Schema for the nonadminbackupstoragelocationrequests API
 type NonAdminBackupStorageLocationRequest struct {
