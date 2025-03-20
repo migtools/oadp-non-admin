@@ -38,12 +38,12 @@ type VeleroDataDownloadHandler struct {
 }
 
 // Create event handler
-func (VeleroDataDownloadHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroDataDownloadHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Create event handler for the DataDownload object
 }
 
 // Update event handler adds Velero DataDownload's NonAdminRestore to controller queue
-func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroDataDownloadHandler")
 
 	owners := evt.ObjectNew.GetOwnerReferences()
@@ -73,11 +73,11 @@ func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.UpdateE
 }
 
 // Delete event handler
-func (VeleroDataDownloadHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroDataDownloadHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Delete event handler for the DataDownload object
 }
 
 // Generic event handler
-func (VeleroDataDownloadHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroDataDownloadHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Generic event handler for the DataDownload object
 }

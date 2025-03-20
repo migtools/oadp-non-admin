@@ -248,7 +248,7 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 		})).
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
-			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.RateLimitingInterface) {
+			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok &&
 					dr.Status.Phase == velerov1.DownloadRequestPhaseProcessed { // only reconcile on updates when downloadrequests is processed
 					log := function.GetLogger(ctx, dr, "VeleroDownloadRequestHandler")

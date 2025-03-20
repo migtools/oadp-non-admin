@@ -19,6 +19,7 @@ package predicate
 import (
 	"context"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
@@ -38,7 +39,7 @@ func (NonAdminBackupStorageLocationRequestPredicate) Create(ctx context.Context,
 }
 
 // Update event filter only accepts NonAdminBackupStorageLocationRequest update events that include spec change
-func (NonAdminBackupStorageLocationRequestPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+func (NonAdminBackupStorageLocationRequestPredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminBackupStorageLocationRequestPredicateKey)
 
 	// spec change

@@ -17,7 +17,7 @@ If you are upgrading project's kubebuilder version, please follow [upgrade kubeb
 > **NOTE:** Run `make help` for more information on all potential `make` targets
 
 ## Prerequisites
-- go version v1.22+
+- go version v1.23+
 - docker version 17.03+
 - oc
 - Access to a OpenShift cluster

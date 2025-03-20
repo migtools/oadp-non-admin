@@ -37,12 +37,12 @@ type VeleroRestoreQueueHandler struct {
 }
 
 // Create event handler
-func (VeleroRestoreQueueHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroRestoreQueueHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Create event handler for the Restore object
 }
 
 // Update event handler adds Velero Restore's NonAdminRestore to controller queue
-func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Only update to the first in the queue Velero Restore should trigger changes to the
 	// NonAdminRestore objects. Updates to the Velero Restore 2nd and 3rd does not lower the
 	// queue. This optimizes the number of times we need to update the NonAdminRestore objects
@@ -87,11 +87,11 @@ func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.UpdateE
 }
 
 // Delete event handler
-func (VeleroRestoreQueueHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroRestoreQueueHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Delete event handler for the Restore object
 }
 
 // Generic event handler
-func (VeleroRestoreQueueHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroRestoreQueueHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Generic event handler for the Restore object
 }

@@ -35,7 +35,7 @@ type VeleroDataUploadPredicate struct {
 
 // Update event filter only accepts Velero DataUpload update events from OADP namespace
 // and from Velero DataUpload that have required metadata
-func (p VeleroDataUploadPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+func (p VeleroDataUploadPredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroDataUploadPredicate")
 
 	namespace := evt.ObjectNew.GetNamespace()

@@ -21,6 +21,7 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -47,7 +48,7 @@ func (p CompositeRestorePredicate) Create(evt event.CreateEvent) bool {
 }
 
 // Update event filter accepts both NonAdminRestore and Velero Restore update events
-func (p CompositeRestorePredicate) Update(evt event.UpdateEvent) bool {
+func (p CompositeRestorePredicate) Update(evt event.TypedUpdateEvent[client.Object]) bool {
 	switch evt.ObjectNew.(type) {
 	case *nacv1alpha1.NonAdminRestore:
 		return p.NonAdminRestorePredicate.Update(p.Context, evt)
