@@ -53,6 +53,7 @@ type NonAdminBackupReconciler struct {
 	Scheme             *runtime.Scheme
 	EnforcedBackupSpec *velerov1.BackupSpec
 	OADPNamespace      string
+	Name               string
 }
 
 type nonAdminBackupReconcileStepFunction func(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error)
@@ -812,7 +813,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminBackupReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	return ctrl.NewControllerManagedBy(mgr).Named(r.Name).
 		For(&nacv1alpha1.NonAdminBackup{}).
 		WithEventFilter(predicate.CompositeBackupPredicate{
 			NonAdminBackupPredicate: predicate.NonAdminBackupPredicate{},

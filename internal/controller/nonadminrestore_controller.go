@@ -50,6 +50,7 @@ type NonAdminRestoreReconciler struct {
 	Scheme              *runtime.Scheme
 	EnforcedRestoreSpec *velerov1.RestoreSpec
 	OADPNamespace       string
+	Name                string
 }
 
 type nonAdminRestoreReconcileStepFunction func(ctx context.Context, logger logr.Logger, nar *nacv1alpha1.NonAdminRestore) (bool, error)
@@ -598,6 +599,7 @@ func (r *NonAdminRestoreReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				OADPNamespace: r.OADPNamespace,
 			},
 		}).
+		Named(r.Name).
 		// handler runs after predicate
 		Watches(&velerov1.Restore{}, &handler.VeleroRestoreHandler{}).
 		Watches(&velerov1.PodVolumeRestore{}, &handler.VeleroPodVolumeRestoreHandler{

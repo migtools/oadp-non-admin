@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -155,12 +156,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 				},
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
+			name := "gc-test-reconciler-" + strconv.Itoa(counter)
 			err = (&GarbageCollectorReconciler{
 				Client:        k8sManager.GetClient(),
 				Scheme:        k8sManager.GetScheme(),
 				OADPNamespace: oadpNamespace,
 				Frequency:     2 * time.Second,
+				Name:          name,
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -172,7 +174,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			// wait manager start
 			gomega.Eventually(func() (bool, error) {
 				logOutput := ginkgo.CurrentSpecReport().CapturedGinkgoWriterOutput
-				startUpLog := `INFO	Starting workers	{"controller": "nonadmingarbagecollector", "worker count": 1}`
+				startUpLog := `INFO	Starting workers	{"controller": "` + name + `", "worker count": 1}`
 				return strings.Contains(logOutput, startUpLog) &&
 					strings.Count(logOutput, startUpLog) == 1, nil
 			}, 5*time.Second, 1*time.Second).Should(gomega.BeTrue())

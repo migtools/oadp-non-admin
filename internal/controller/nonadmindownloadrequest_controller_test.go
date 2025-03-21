@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +79,7 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 			Scheme:        k8sManager.GetScheme(),
 			OADPNamespace: oadpNamespace,
 			Frequency:     2 * time.Second,
+			Name:          "nadr-gcr-test-" + strconv.Itoa(counter),
 		}).SetupWithManager(k8sManager)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -156,6 +158,7 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 			Client:        k8sClient,
 			Scheme:        scheme.Scheme,
 			OADPNamespace: oadpNamespace, // Set a test OADP namespace
+			Name:          "nadr-test-" + strconv.Itoa(counter),
 		}
 		request = reconcile.Request{
 			NamespacedName: types.NamespacedName{
@@ -411,7 +414,6 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 				Scheme: scheme.Scheme,
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
 			err = reconciler.SetupWithManager(mgr)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})

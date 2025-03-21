@@ -43,6 +43,7 @@ import (
 // NonAdminBackupSynchronizerReconciler reconciles BackupStorageLocation objects
 type NonAdminBackupSynchronizerReconciler struct {
 	client.Client
+	Name          string
 	Scheme        *runtime.Scheme
 	OADPNamespace string
 	SyncPeriod    time.Duration
@@ -164,10 +165,13 @@ func (r *NonAdminBackupSynchronizerReconciler) Reconcile(ctx context.Context, _ 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *NonAdminBackupSynchronizerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.Name == "" {
+		r.Name = "nonadminbackupsynchronizer"
+	}
 	return ctrl.NewControllerManagedBy(mgr).
-		Named("nonadminbackupsynchronizer").
+		Named(r.Name).
 		WithLogConstructor(func(_ *reconcile.Request) logr.Logger {
-			return logr.New(ctrl.Log.GetSink().WithValues("controller", "nonadminbackupsynchronizer"))
+			return logr.New(ctrl.Log.GetSink().WithValues("controller", r.Name))
 		}).
 		WatchesRawSource(&source.PeriodicalSource{Frequency: r.SyncPeriod}).
 		Complete(r)
