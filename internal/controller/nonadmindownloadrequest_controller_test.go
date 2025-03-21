@@ -29,9 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -63,6 +65,9 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 		nonAdminNamespace = fmt.Sprintf("%s-nan-%d", nonAdminNamespacePrefix, counter)
 		oadpNamespace = fmt.Sprintf("%s-on-%d", oadpNamespacePrefix, counter)
 		k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+			Controller: config.Controller{
+				SkipNameValidation: ptr.To(true),
+			},
 			Scheme: k8sClient.Scheme(),
 			Cache: cache.Options{
 				DefaultNamespaces: map[string]cache.Config{
@@ -408,6 +413,9 @@ var _ = ginkgo.Describe("NonAdminDownloadRequest Controller", func() {
 	ginkgo.Context("Testing SetupWithManager", func() {
 		ginkgo.It("Should set up the controller with the manager", func() {
 			mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+				Controller: config.Controller{
+					SkipNameValidation: ptr.To(true),
+				},
 				Scheme: scheme.Scheme,
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())

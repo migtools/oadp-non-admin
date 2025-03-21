@@ -27,9 +27,11 @@ import (
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
@@ -146,6 +148,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of GarbageCollector Controller
 			gomega.Expect(restoresInOADPNamespace.Items).To(gomega.HaveLen(scenario.restores + scenario.orphanRestores))
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Controller: config.Controller{
+					SkipNameValidation: ptr.To(true),
+				},
 				Scheme: k8sClient.Scheme(),
 				Cache: cache.Options{
 					DefaultNamespaces: map[string]cache.Config{
