@@ -46,7 +46,6 @@ type NonAdminDownloadRequestReconciler struct {
 	client.Client
 	Scheme        *runtime.Scheme
 	OADPNamespace string
-	Name          string
 }
 
 const statusPatchErr = "unable to patch status condition"
@@ -247,7 +246,7 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 				return false
 			},
 		})).
-		Named(r.Name).
+		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
 			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok &&

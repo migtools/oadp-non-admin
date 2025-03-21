@@ -58,14 +58,10 @@ const (
 // NonAdminBackupStorageLocationReconciler reconciles a NonAdminBackupStorageLocation object
 type NonAdminBackupStorageLocationReconciler struct {
 	client.Client
-	Scheme            *runtime.Scheme
-	EnforcedBslSpec   *oadpv1alpha1.EnforceBackupStorageLocationSpec
-	DefaultSyncPeriod *time.Duration
-	OADPNamespace     string
-	// name for controller
-	// will be filled using lowercase GVK ie. 'nonadminbackupstoragelocation' on empty
-	// only customized in tests
-	Name                  string
+	Scheme                *runtime.Scheme
+	EnforcedBslSpec       *oadpv1alpha1.EnforceBackupStorageLocationSpec
+	DefaultSyncPeriod     *time.Duration
+	OADPNamespace         string
 	RequireApprovalForBSL bool
 	SyncPeriod            time.Duration
 }
@@ -156,7 +152,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 //     to ensure correct Secret-to-NaBSL mapping or get all the NaBSL objects and check
 //     if that particular secret is being used by any of them.
 func (r *NonAdminBackupStorageLocationReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).Named(r.Name).
+	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminBackupStorageLocation{}).
 		WithEventFilter(
 			predicate.CompositeNaBSLPredicate{

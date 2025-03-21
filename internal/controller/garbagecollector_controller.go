@@ -41,7 +41,6 @@ import (
 // GarbageCollectorReconciler reconciles Velero objects
 type GarbageCollectorReconciler struct {
 	client.Client
-	Name                  string
 	Scheme                *runtime.Scheme
 	OADPNamespace         string
 	Frequency             time.Duration
@@ -274,13 +273,10 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *GarbageCollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.Name == "" {
-		r.Name = "nonadmingarbagecollector"
-	}
 	return ctrl.NewControllerManagedBy(mgr).
-		Named(r.Name).
+		Named("nonadmingarbagecollector").
 		WithLogConstructor(func(_ *reconcile.Request) logr.Logger {
-			return logr.New(ctrl.Log.GetSink().WithValues("controller", r.Name))
+			return logr.New(ctrl.Log.GetSink().WithValues("controller", "nonadmingarbagecollector"))
 		}).
 		WatchesRawSource(&source.PeriodicalSource{Frequency: r.Frequency}).
 		Complete(r)

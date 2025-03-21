@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -189,7 +188,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 		nonAdminBslName = fmt.Sprintf("non-admin-bsl-object-%v", counter)
 		nonAdminBslNamespace = fmt.Sprintf("test-non-admin-bsl-reconcile-full-%v", counter)
 		oadpNamespace = nonAdminBslNamespace + "-oadp"
-		ctx, cancel = context.WithCancel(context.Background())
 	})
 
 	ginkgo.AfterEach(func() {
@@ -197,14 +195,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 
 		cancel()
 		// wait cancel
-		<-ctx.Done()
-		gomega.Expect(ctx.Err()).To(gomega.Equal(context.Canceled))
+		time.Sleep(1 * time.Second)
 	})
 
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackupStorageLocation Create event",
 		func(scenario nonAdminBackupStorageLocationFullReconcileScenario) {
-			// check that context is not canceled
-			gomega.Expect(ctx.Err()).To(gomega.Succeed())
+			ctx, cancel = context.WithCancel(context.Background())
 
 			gomega.Expect(createTestNamespaces(ctx, nonAdminBslNamespace, oadpNamespace)).To(gomega.Succeed())
 
@@ -230,7 +226,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 				OADPNamespace:   oadpNamespace,
 				EnforcedBslSpec: enforcedBslSpec,
 				SyncPeriod:      2 * time.Minute,
-				Name:            "nabsl-test-reconciler-" + strconv.Itoa(counter),
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -242,12 +237,12 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 			// wait manager start
 			managerStartTimeout := 10 * time.Second
 			pollInterval := 100 * time.Millisecond
-			managerStartTimeoutCtx, managerCancel := context.WithTimeout(ctx, managerStartTimeout)
-			defer managerCancel()
+			ctxTimeout, cancel := context.WithTimeout(ctx, managerStartTimeout)
+			defer cancel()
 
-			err = wait.PollUntilContextTimeout(managerStartTimeoutCtx, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
+			err = wait.PollUntilContextTimeout(ctxTimeout, pollInterval, managerStartTimeout, true, func(ctx context.Context) (done bool, err error) {
 				select {
-				case <-managerStartTimeoutCtx.Done():
+				case <-ctx.Done():
 					return false, ctx.Err()
 				default:
 					// Check if the manager has started by verifying if the client is initialized
@@ -259,13 +254,13 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 
 			ginkgo.By("Waiting Reconcile of create event")
 			nonAdminBsl := buildTestNonAdminBackupStorageLocation(nonAdminBslNamespace, nonAdminBslName, scenario.spec)
-			gomega.Expect(k8sClient.Create(ctx, nonAdminBsl)).To(gomega.Succeed())
+			gomega.Expect(k8sClient.Create(ctxTimeout, nonAdminBsl)).To(gomega.Succeed())
 			// wait NonAdminBackupStorageLocation reconcile
 			time.Sleep(2 * time.Second)
 
 			ginkgo.By("Fetching NonAdminBackupStorageLocation after Reconcile")
 			gomega.Expect(k8sClient.Get(
-				ctx,
+				ctxTimeout,
 				types.NamespacedName{
 					Name:      nonAdminBslName,
 					Namespace: nonAdminBslNamespace,
@@ -287,7 +282,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 				)).To(gomega.BeTrue())
 
 				gomega.Expect(k8sClient.Get(
-					ctx,
+					ctxTimeout,
 					types.NamespacedName{
 						Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.Name,
 						Namespace: oadpNamespace,
@@ -306,14 +301,14 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 				veleroBsl.Status = velerov1.BackupStorageLocationStatus{
 					Phase: velerov1.BackupStorageLocationPhaseAvailable,
 				}
-				gomega.Expect(k8sClient.Update(ctx, veleroBsl)).To(gomega.Succeed())
+				gomega.Expect(k8sClient.Update(ctxTimeout, veleroBsl)).To(gomega.Succeed())
 
 				ginkgo.By("Velero BackupStorageLocation updated")
 
 				// wait NonAdminBackupStorageLocation reconcile
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctx,
+						ctxTimeout,
 						types.NamespacedName{
 							Name:      nonAdminBslName,
 							Namespace: nonAdminBslNamespace,
@@ -331,7 +326,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 
 				ginkgo.By("Validating NonAdminBackupStorageLocationRequest Status")
 				gomega.Expect(k8sClient.Get(
-					ctx,
+					ctxTimeout,
 					types.NamespacedName{
 						Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID,
 						Namespace: oadpNamespace,
@@ -348,10 +343,10 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 			}
 
 			ginkgo.By("Waiting NonAdminBackupStorageLocation deletion")
-			gomega.Expect(k8sClient.Delete(ctx, nonAdminBsl)).To(gomega.Succeed())
+			gomega.Expect(k8sClient.Delete(ctxTimeout, nonAdminBsl)).To(gomega.Succeed())
 			gomega.Eventually(func() (bool, error) {
 				err := k8sClient.Get(
-					ctx,
+					ctxTimeout,
 					types.NamespacedName{
 						Name:      nonAdminBslName,
 						Namespace: nonAdminBslNamespace,
@@ -366,7 +361,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 			if scenario.expectedStatus.VeleroBackupStorageLocation != nil && len(nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID) > 0 {
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctx,
+						ctxTimeout,
 						types.NamespacedName{
 							Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.Name,
 							Namespace: oadpNamespace,
@@ -380,7 +375,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackupStorageLocati
 				}, 10*time.Second, 1*time.Second).Should(gomega.BeTrue())
 				gomega.Eventually(func() (bool, error) {
 					err := k8sClient.Get(
-						ctx,
+						ctxTimeout,
 						types.NamespacedName{
 							Name:      nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID,
 							Namespace: oadpNamespace,

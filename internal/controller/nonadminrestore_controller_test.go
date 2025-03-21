@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -222,7 +221,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				Scheme:              k8sManager.GetScheme(),
 				OADPNamespace:       oadpNamespace,
 				EnforcedRestoreSpec: enforcedRestoreSpec,
-				Name:                "nar-test-reconciler-" + strconv.Itoa(counter),
 			}).SetupWithManager(k8sManager)
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
