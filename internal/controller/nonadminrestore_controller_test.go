@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
@@ -208,6 +209,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			}
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Controller: config.Controller{
+					SkipNameValidation: ptr.To(true),
+				},
 				Scheme: k8sClient.Scheme(),
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())

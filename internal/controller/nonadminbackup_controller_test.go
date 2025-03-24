@@ -36,6 +36,7 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -1054,6 +1055,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Controller: config.Controller{
+					SkipNameValidation: ptr.To(true),
+				},
 				Scheme: k8sClient.Scheme(),
 				Cache: cache.Options{
 					DefaultNamespaces: map[string]cache.Config{
@@ -1487,6 +1491,9 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(k8sClient.Update(ctx, veleroBackup)).To(gomega.Succeed())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+				Controller: config.Controller{
+					SkipNameValidation: ptr.To(true),
+				},
 				Scheme: k8sClient.Scheme(),
 				Cache: cache.Options{
 					DefaultNamespaces: map[string]cache.Config{

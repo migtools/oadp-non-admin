@@ -35,7 +35,7 @@ type VeleroPodVolumeBackupPredicate struct {
 
 // Update event filter only accepts Velero PodVolumeBackup update events from OADP namespace
 // and from Velero PodVolumeBackup that have required metadata
-func (p VeleroPodVolumeBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
+func (p VeleroPodVolumeBackupPredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroPodVolumeBackupPredicate")
 
 	namespace := evt.ObjectNew.GetNamespace()

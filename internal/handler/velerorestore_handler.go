@@ -21,6 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -32,12 +33,12 @@ import (
 type VeleroRestoreHandler struct{}
 
 // Create event handler
-func (VeleroRestoreHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroRestoreHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Create event handler for the Restore object
 }
 
 // Update event handler adds Velero Restore's NonAdminRestore to controller queue
-func (VeleroRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (VeleroRestoreHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroRestoreHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
@@ -52,7 +53,7 @@ func (VeleroRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q
 }
 
 // Delete event handler
-func (VeleroRestoreHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (VeleroRestoreHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	logger := function.GetLogger(ctx, evt.Object, "VeleroRestoreHandler")
 
 	annotations := evt.Object.GetAnnotations()
@@ -67,6 +68,6 @@ func (VeleroRestoreHandler) Delete(ctx context.Context, evt event.DeleteEvent, q
 }
 
 // Generic event handler
-func (VeleroRestoreHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroRestoreHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Generic event handler for the Restore object
 }

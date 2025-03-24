@@ -22,6 +22,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -33,12 +34,12 @@ import (
 type VeleroBackupStorageLocationHandler struct{}
 
 // Create event handler
-func (VeleroBackupStorageLocationHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupStorageLocationHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Create event handler for the BackupStorageLocation object
 }
 
 // Update event handler adds Velero BackupStorageLocation's NonAdminBackupStorageLocation to controller queue
-func (VeleroBackupStorageLocationHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (VeleroBackupStorageLocationHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupStorageLocationHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
@@ -53,11 +54,11 @@ func (VeleroBackupStorageLocationHandler) Update(ctx context.Context, evt event.
 }
 
 // Delete event handler
-func (VeleroBackupStorageLocationHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupStorageLocationHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Delete event handler for the BackupStorageLocation object
 }
 
 // Generic event handler
-func (VeleroBackupStorageLocationHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroBackupStorageLocationHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Generic event handler for the BackupStorageLocation object
 }

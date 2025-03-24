@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // PeriodicalSource will periodically add an empty object to controller queue
@@ -32,7 +33,7 @@ type PeriodicalSource struct {
 }
 
 // Start periodically adds an empty object to queue
-func (p PeriodicalSource) Start(ctx context.Context, q workqueue.RateLimitingInterface) error { //nolint:unparam // object must implement function with this signature
+func (p PeriodicalSource) Start(ctx context.Context, q workqueue.TypedRateLimitingInterface[reconcile.Request]) error { //nolint:unparam // object must implement function with this signature
 	go wait.Until(func() {
 		q.Add(ctrl.Request{})
 	}, p.Frequency, ctx.Done())

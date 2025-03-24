@@ -38,12 +38,12 @@ type VeleroPodVolumeRestoreHandler struct {
 }
 
 // Create event handler
-func (VeleroPodVolumeRestoreHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroPodVolumeRestoreHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Create event handler for the PodVolumeRestore object
 }
 
 // Update event handler adds Velero PodVolumeRestore's NonAdminRestore to controller queue
-func (h VeleroPodVolumeRestoreHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (h VeleroPodVolumeRestoreHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroPodVolumeRestoreHandler")
 
 	owners := evt.ObjectNew.GetOwnerReferences()
@@ -73,11 +73,11 @@ func (h VeleroPodVolumeRestoreHandler) Update(ctx context.Context, evt event.Upd
 }
 
 // Delete event handler
-func (VeleroPodVolumeRestoreHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroPodVolumeRestoreHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Delete event handler for the PodVolumeRestore object
 }
 
 // Generic event handler
-func (VeleroPodVolumeRestoreHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
+func (VeleroPodVolumeRestoreHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
 	// Generic event handler for the PodVolumeRestore object
 }
