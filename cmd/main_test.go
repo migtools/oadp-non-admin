@@ -25,6 +25,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	consoleEncoderType = "zapcore.consoleEncoder"
+	jsonEncoderType    = "*zapcore.jsonEncoder"
+)
+
 func Test_translateLogrusToZapLevel(t *testing.T) {
 	for _, level := range logrus.AllLevels {
 		t.Run(level.String(), func(t *testing.T) {
@@ -49,22 +54,22 @@ func TestEncoderForFormat(t *testing.T) {
 		{
 			name:        "json format",
 			inputFormat: "json",
-			wantTypeStr: "*zapcore.jsonEncoder",
+			wantTypeStr: jsonEncoderType,
 		},
 		{
 			name:        "text format",
 			inputFormat: "text",
-			wantTypeStr: "zapcore.consoleEncoder",
+			wantTypeStr: consoleEncoderType,
 		},
 		{
 			name:        "invalid format defaults to text",
 			inputFormat: "invalid",
-			wantTypeStr: "zapcore.consoleEncoder",
+			wantTypeStr: consoleEncoderType,
 		},
 		{
 			name:        "empty format defaults to text",
 			inputFormat: "",
-			wantTypeStr: "zapcore.consoleEncoder",
+			wantTypeStr: consoleEncoderType,
 		},
 	}
 
