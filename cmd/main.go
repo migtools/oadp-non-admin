@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
+	uberzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -101,10 +102,18 @@ func main() {
 			logLevelEnvInvalid = true
 		}
 	}
+
+	logFormat := "text"
+	if logFormatEnv, found := os.LookupEnv(constant.LogFormatEnvVar); found && len(logFormatEnv) > 0 {
+		logFormat = logFormatEnv
+	}
+
 	opts := zap.Options{
 		Level:       logLevel,
 		Development: true,
+		Encoder:     encoderForFormat(logFormat),
 	}
+
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -336,4 +345,17 @@ func translateLogrusToZapLevel(level logrus.Level) (logLevel zapcore.Level, logL
 		logLevel = zapcore.InfoLevel
 	}
 	return logLevel, logLevelEnvInvalid
+}
+
+func encoderForFormat(format string) zapcore.Encoder {
+	switch format {
+	case "json":
+		cfg := uberzap.NewProductionConfig()
+		return zapcore.NewJSONEncoder(cfg.EncoderConfig)
+	case "text":
+		fallthrough
+	default:
+		cfg := uberzap.NewDevelopmentConfig()
+		return zapcore.NewConsoleEncoder(cfg.EncoderConfig)
+	}
 }

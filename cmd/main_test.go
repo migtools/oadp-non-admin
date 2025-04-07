@@ -18,10 +18,16 @@ limitations under the License.
 package main
 
 import (
+	"reflect"
 	"testing"
 
 	_ "github.com/onsi/ginkgo/v2" // To fix: flag provided but not defined: -ginkgo.vv
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	consoleEncoderType = "zapcore.consoleEncoder"
+	jsonEncoderType    = "*zapcore.jsonEncoder"
 )
 
 func Test_translateLogrusToZapLevel(t *testing.T) {
@@ -34,6 +40,48 @@ func Test_translateLogrusToZapLevel(t *testing.T) {
 			}
 			if zapLevel.String() == "" {
 				t.Error("empty zap level unexpected")
+			}
+		})
+	}
+}
+
+func TestEncoderForFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputFormat string
+		wantTypeStr string
+	}{
+		{
+			name:        "json format",
+			inputFormat: "json",
+			wantTypeStr: jsonEncoderType,
+		},
+		{
+			name:        "text format",
+			inputFormat: "text",
+			wantTypeStr: consoleEncoderType,
+		},
+		{
+			name:        "invalid format defaults to text",
+			inputFormat: "invalid",
+			wantTypeStr: consoleEncoderType,
+		},
+		{
+			name:        "empty format defaults to text",
+			inputFormat: "",
+			wantTypeStr: consoleEncoderType,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enc := encoderForFormat(tt.inputFormat)
+			actualType := reflect.TypeOf(enc).String()
+			t.Logf("Returned type for format %q: %T", tt.inputFormat, enc)
+
+			if actualType != tt.wantTypeStr {
+				t.Errorf("encoderForFormat(%q) returned encoder of type %s, want %s",
+					tt.inputFormat, actualType, tt.wantTypeStr)
 			}
 		})
 	}

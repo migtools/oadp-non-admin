@@ -62,7 +62,8 @@ const (
 	// 4 = Info
 	// 5 = Debug
 	// 6 = Trace
-	LogLevelEnvVar = "LOG_LEVEL"
+	LogLevelEnvVar  = "LOG_LEVEL"
+	LogFormatEnvVar = "LOG_FORMAT"
 )
 
 // EmptyString defines a constant for the empty string
