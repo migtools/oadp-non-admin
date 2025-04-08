@@ -32,7 +32,7 @@ jobs:
       - name: Go linters
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.62.2
+          version: v2.0.2
 
       - name: Go dependencies
         run: make check-go-dependencies
