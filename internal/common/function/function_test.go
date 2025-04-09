@@ -79,7 +79,7 @@ const (
 
 func TestGetNonAdminLabels(t *testing.T) {
 	expected := map[string]string{
-		constant.OadpLabel:      constant.OadpLabelValue,
+		constant.OadpLabel:      "typo",
 		constant.ManagedByLabel: constant.ManagedByLabelValue,
 	}
 
