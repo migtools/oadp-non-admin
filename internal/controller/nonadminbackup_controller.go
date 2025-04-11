@@ -124,7 +124,7 @@ func (r *NonAdminBackupReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			r.createVeleroDeleteBackupRequest,
 		}
 
-	case !nab.ObjectMeta.DeletionTimestamp.IsZero():
+	case !nab.DeletionTimestamp.IsZero():
 		// Direct deletion path - sets status and condition
 		// Remove dependent VeleroBackup object
 		// Remove finalizer from the NonAdminBackup object
@@ -202,7 +202,7 @@ func (r *NonAdminBackupReconciler) setStatusAndConditionForDeletionAndCallDelete
 	} else {
 		logger.V(1).Info("NonAdminBackup status unchanged during deletion")
 	}
-	if nab.ObjectMeta.DeletionTimestamp.IsZero() {
+	if nab.DeletionTimestamp.IsZero() {
 		logger.V(1).Info("Marking NonAdminBackup for deletion", constant.NameString, nab.Name)
 		if err := r.Delete(ctx, nab); err != nil {
 			logger.Error(err, "Failed to call Delete on the NonAdminBackup object")
@@ -689,7 +689,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		if backupSpec.StorageLocation != constant.EmptyString {
 			nonAdminBsl := &nacv1alpha1.NonAdminBackupStorageLocation{}
 
-			if nabslErr := r.Client.Get(ctx, types.NamespacedName{Name: backupSpec.StorageLocation, Namespace: nab.Namespace}, nonAdminBsl); nabslErr != nil {
+			if nabslErr := r.Get(ctx, types.NamespacedName{Name: backupSpec.StorageLocation, Namespace: nab.Namespace}, nonAdminBsl); nabslErr != nil {
 				return false, nabslErr
 			}
 
