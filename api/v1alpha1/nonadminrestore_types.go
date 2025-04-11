@@ -137,6 +137,9 @@ type NonAdminRestoreStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=nonadminrestores,shortName=nar
+// +kubebuilder:printcolumn:name="Request-Phase",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Velero-Phase",type="string",JSONPath=".status.veleroRestore.status.phase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // NonAdminRestore is the Schema for the nonadminrestores API
 type NonAdminRestore struct {
