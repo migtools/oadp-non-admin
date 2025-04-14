@@ -50,7 +50,8 @@ type NonAdminDownloadRequestStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=nonadmindownloadrequests,shortName=nadr
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Request-Phase",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // NonAdminDownloadRequest is the Schema for the nonadmindownloadrequests API.
 type NonAdminDownloadRequest struct {
