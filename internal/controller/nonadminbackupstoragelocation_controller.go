@@ -160,9 +160,13 @@ func (r *NonAdminBackupStorageLocationReconciler) SetupWithManager(mgr ctrl.Mana
 				VeleroBackupStorageLocationPredicate: predicate.VeleroBackupStorageLocationPredicate{
 					OADPNamespace: r.OADPNamespace,
 				},
+				NonAdminBslSecretPredicate: predicate.NonAdminBslSecretPredicate{},
 			}).
 		Watches(&velerov1.BackupStorageLocation{}, &handler.VeleroBackupStorageLocationHandler{}).
 		Watches(&nacv1alpha1.NonAdminBackupStorageLocationRequest{}, &handler.NonAdminBackupStorageLocationRequestHandler{}).
+		Watches(&corev1.Secret{}, &handler.NonAdminBslSecretHandler{
+			Client: r.Client,
+		}).
 		Complete(r)
 }
 
