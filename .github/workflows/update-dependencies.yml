@@ -1,0 +1,172 @@
+name: Update OADP Go Dependencies
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  # Allow manual triggering
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-oadp-go-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Go version from go.mod
+        id: go-version
+        run: |
+          GO_VERSION=$(grep -E "^go [0-9]+\.[0-9]+(\.[0-9]+)?" go.mod | awk '{print $2}')
+          echo "version=$GO_VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted Go version: $GO_VERSION"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go-version.outputs.version }}
+          check-latest: true
+
+      - name: Get branch list
+        id: branch-list
+        run: |
+          # Get list of branches that match the pattern (master, main, oadp-*)
+          # Filter out the "HEAD -> origin/master" line
+          BRANCHES=$(git branch -r | grep -E 'origin/(master|main|oadp-.*)' | grep -v "HEAD ->" | sed 's/origin\///' | tr '\n' ' ')
+          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
+          echo "Found branches: $BRANCHES"
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt install gh -y
+
+      - name: Setup Git
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+
+      - name: Authenticate GitHub CLI
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Process each branch
+        run: |
+          # Store original branch to return to at the end
+          ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Original branch: $ORIGINAL_BRANCH"
+
+          # Get the list of branches from previous step
+          BRANCHES="${{ steps.branch-list.outputs.branches }}"
+
+          # Process each branch
+          for BRANCH in $BRANCHES; do
+            echo "==== Processing branch: $BRANCH ===="
+
+            # Create a new branch for the PR
+            PR_BRANCH="update-deps-$BRANCH-$(date +%Y%m%d)"
+            echo "Creating PR branch: $PR_BRANCH"
+
+            # Checkout the target branch first
+            git checkout $BRANCH || {
+              echo "Failed to checkout branch $BRANCH, skipping"
+              continue
+            }
+
+            # Create and checkout the PR branch
+            git checkout -b $PR_BRANCH || {
+              echo "Failed to create PR branch $PR_BRANCH, skipping"
+              continue
+            }
+            # Determine Velero repository based on branch
+            if [ "$BRANCH" == "master" ]; then
+              VELERO_REPO="github.com/openshift/velero@konveyor-dev"
+            else
+              VELERO_REPO="github.com/openshift/velero@$BRANCH"
+            fi
+
+            # Update dependencies
+            echo "Updating dependencies for $BRANCH branch with openshift/oadp-operator@$BRANCH"
+            go get github.com/openshift/oadp-operator@$BRANCH || echo "Warning: go get failed but continuing"
+
+            echo "Updating velero replacement to $VELERO_REPO"
+            go mod edit -replace github.com/vmware-tanzu/velero=$VELERO_REPO
+
+            # Run go mod tidy
+            go mod tidy
+
+            # Check if there are changes
+            if git diff --quiet go.mod go.sum; then
+              echo "No changes detected for branch $BRANCH, skipping PR creation"
+              continue
+            fi
+
+            # Show diff for logging purposes
+            echo "Changes detected:"
+            git diff --stat go.mod go.sum
+
+            # Commit changes
+            git add go.mod go.sum
+            git commit -m "Update dependencies for $BRANCH branch"
+
+            # Check if PR branch exists remotely
+            echo "Checking if PR branch exists remotely..."
+            if git ls-remote --heads origin $PR_BRANCH | grep -q $PR_BRANCH; then
+              echo "PR branch exists remotely, checking if it's up to date..."
+
+              # Fetch the remote branch
+              git fetch origin $PR_BRANCH
+
+              # Check if there are differences between local and remote
+              if git diff --quiet HEAD origin/$PR_BRANCH; then
+                echo "Local and remote branches are identical, no need to push"
+              else
+                echo "Local and remote branches differ, force pushing updates"
+                git push -f -u origin $PR_BRANCH || {
+                  echo "Failed to push branch $PR_BRANCH, skipping PR creation"
+                  continue
+                }
+              fi
+            else
+              echo "PR branch doesn't exist remotely, pushing new branch"
+              git push -u origin $PR_BRANCH || {
+                echo "Failed to push branch $PR_BRANCH, skipping PR creation"
+                continue
+              }
+            fi
+
+            # Check if PR already exists
+            echo "Checking for existing PRs..."
+            PR_EXISTS=$(gh pr list --head $PR_BRANCH --json number | jq length)
+
+            if [ "$PR_EXISTS" -eq "0" ]; then
+              # Create PR if it doesn't exist
+              echo "Creating new PR for branch $BRANCH"
+              # VELERO_REPO is already defined above
+
+              gh pr create --base $BRANCH \
+                --head $PR_BRANCH \
+                --title "Update dependencies for $BRANCH branch" \
+                --body "Automated PR to update dependencies for $BRANCH branch.
+
+                Changes:
+                - Updated github.com/openshift/oadp-operator to $BRANCH
+                - Updated github.com/vmware-tanzu/velero replacement to $VELERO_REPO
+                - Run go mod tidy" || echo "Warning: PR creation failed"
+            else
+              echo "PR already exists for branch $BRANCH, reusing PR"
+            fi
+
+            echo "==== Completed processing for branch: $BRANCH ===="
+          done
+
+          # Return to original branch
+          echo "Returning to original branch: $ORIGINAL_BRANCH"
+          git checkout $ORIGINAL_BRANCH || echo "Warning: Failed to return to original branch $ORIGINAL_BRANCH"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
