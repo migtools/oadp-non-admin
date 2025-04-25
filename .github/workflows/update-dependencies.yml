@@ -57,6 +57,7 @@ jobs:
 
       - name: Process each branch
         run: |
+          set -e
           # Store original branch to return to at the end
           ORIGINAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
           echo "Original branch: $ORIGINAL_BRANCH"
