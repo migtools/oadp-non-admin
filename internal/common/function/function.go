@@ -19,6 +19,7 @@ package function
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -135,11 +136,11 @@ func ValidateBackupSpec(ctx context.Context, clientInstance client.Client, oadpN
 			return fmt.Errorf("NonAdminBackup spec.backupSpec.storageLocation is invalid: %v", err)
 		}
 		if nonAdminBsl.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
-			return fmt.Errorf("NonAdminBackupStorageLocation is not in created state and can not be used for the NonAdminBackup")
+			return errors.New("NonAdminBackupStorageLocation is not in created state and can not be used for the NonAdminBackup")
 		}
 
 		if nonAdminBsl.Status.VeleroBackupStorageLocation == nil || nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID == constant.EmptyString {
-			return fmt.Errorf("unable to get VeleroBackupStorageLocation UUID from NonAdminBackupStorageLocation Status")
+			return errors.New("unable to get VeleroBackupStorageLocation UUID from NonAdminBackupStorageLocation Status")
 		}
 		veleroObjectsNACUUID := nonAdminBsl.Status.VeleroBackupStorageLocation.NACUUID
 		veleroBackupStorageLocation, veleroBslErr := GetVeleroBackupStorageLocationByLabel(ctx, clientInstance, oadpNamespace, veleroObjectsNACUUID)
@@ -184,7 +185,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	}
 
 	if nonAdminRestore.Spec.RestoreSpec.BackupName == constant.EmptyString {
-		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is not set")
+		return errors.New("NonAdminRestore spec.restoreSpec.backupName is not set")
 	}
 
 	nab := &nacv1alpha1.NonAdminBackup{}
@@ -197,7 +198,7 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 	}
 	// TODO better way to check readiness? simplify and ask user to pass velero backup name? (user has access to this info in nonAdminBackup status)
 	if nab.Status.Phase != nacv1alpha1.NonAdminPhaseCreated {
-		return fmt.Errorf("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
+		return errors.New("NonAdminRestore spec.restoreSpec.backupName is invalid: NonAdminBackup is not ready to be restored")
 	}
 	// TODO validate that velero backup exists?
 	// TODO does velero validate if backup is ready to be restored?
@@ -237,12 +238,12 @@ func ValidateRestoreSpec(ctx context.Context, clientInstance client.Client, nonA
 // ValidateBslSpec return nil, if NonAdminBackupStorageLocation is valid; error otherwise
 func ValidateBslSpec(ctx context.Context, clientInstance client.Client, nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, enforcedBSLSpec *oadpv1alpha1.EnforceBackupStorageLocationSpec, appliedBackupSyncPeriod time.Duration, defaultBackupSyncPeriod *time.Duration) error {
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Default {
-		return fmt.Errorf("NonAdminBackupStorageLocation cannot be used as a default BSL")
+		return errors.New("NonAdminBackupStorageLocation cannot be used as a default BSL")
 	}
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential == nil {
-		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
+		return errors.New("NonAdminBackupStorageLocation spec.bslSpec.credential is not set")
 	} else if nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Name == constant.EmptyString || nonAdminBsl.Spec.BackupStorageLocationSpec.Credential.Key == constant.EmptyString {
-		return fmt.Errorf("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
+		return errors.New("NonAdminBackupStorageLocation spec.bslSpec.credential.name or spec.bslSpec.credential.key is not set")
 	}
 	bslSyncPeriodErrorMessage := "NABSL spec.backupStorageLocationSpec.backupSyncPeriod (%v) can not be greater or equal non admin backupSyncPeriod (%v)"
 	if nonAdminBsl.Spec.BackupStorageLocationSpec.BackupSyncPeriod != nil {

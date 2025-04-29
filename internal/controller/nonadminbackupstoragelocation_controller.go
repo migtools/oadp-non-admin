@@ -103,7 +103,7 @@ func (r *NonAdminBackupStorageLocationReconciler) Reconcile(ctx context.Context,
 
 	// First switch statement takes precedence over the next one
 	switch {
-	case !nabsl.ObjectMeta.DeletionTimestamp.IsZero():
+	case !nabsl.DeletionTimestamp.IsZero():
 		logger.V(1).Info("Executing direct deletion path")
 		reconcileSteps = []naBSLReconcileStepFunction{
 			r.initNaBSLDelete,
@@ -189,7 +189,7 @@ func (r *NonAdminBackupStorageLocationReconciler) deleteNonAdminBackups(ctx cont
 	nonAdminBackupList := &nacv1alpha1.NonAdminBackupList{}
 	listOpts := &client.ListOptions{Namespace: nabsl.Namespace}
 
-	if err := r.Client.List(ctx, nonAdminBackupList, listOpts); err != nil {
+	if err := r.List(ctx, nonAdminBackupList, listOpts); err != nil {
 		return false, err
 	}
 
@@ -471,14 +471,14 @@ func (r *NonAdminBackupStorageLocationReconciler) ensureNonAdminRequest(
 		terminalErr = reconcile.TerminalError(errors.New(message))
 		expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
 	} else {
-		switch {
-		case nabslRequest.Spec.ApprovalDecision == "pending" || nabslRequest.Spec.ApprovalDecision == constant.EmptyString:
+		switch nabslRequest.Spec.ApprovalDecision {
+		case "pending", constant.EmptyString:
 			reason, message = "BslSpecApprovalPending", "NonAdminBackupStorageLocationRequest approval pending"
 			terminalErr = reconcile.TerminalError(errors.New(message))
-		case nabslRequest.Spec.ApprovalDecision == "approve":
+		case "approve":
 			adminApprovedCondition = metav1.ConditionTrue
 			reason, message = "BslSpecApproved", "NonAdminBackupStorageLocationRequest approval decision set to Approve"
-		case nabslRequest.Spec.ApprovalDecision == "reject":
+		case "reject":
 			reason, message = "BslSpecRejected", "NonAdminBackupStorageLocationRequest approval decision set to Reject"
 			expectedPhase = nacv1alpha1.NonAdminPhaseBackingOff
 			terminalErr = reconcile.TerminalError(errors.New(message))
@@ -954,9 +954,10 @@ func getEnforcedBSLSpec(nonAdminBsl *nacv1alpha1.NonAdminBackupStorageLocation, 
 func updatePhaseIfNeeded(currentPhase *nacv1alpha1.NonAdminBSLRequestPhase, nabslApprovalDecision nacv1alpha1.NonAdminBSLRequest) bool {
 	newPhase := nacv1alpha1.NonAdminBSLRequestPhasePending
 
-	if nabslApprovalDecision == nacv1alpha1.NonAdminBSLRequestApproved {
+	switch nabslApprovalDecision {
+	case nacv1alpha1.NonAdminBSLRequestApproved:
 		newPhase = nacv1alpha1.NonAdminBSLRequestPhaseApproved
-	} else if nabslApprovalDecision == nacv1alpha1.NonAdminBSLRequestRejected {
+	case nacv1alpha1.NonAdminBSLRequestRejected:
 		newPhase = nacv1alpha1.NonAdminBSLRequestPhaseRejected
 	}
 
