@@ -30,7 +30,7 @@ jobs:
         run: make simulation-test
 
       - name: Go linters
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v8
         with:
           version: v2.0.2
 
