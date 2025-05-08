@@ -1,30 +1,34 @@
-#@follow_tag(registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:rhel_9_golang_1.23)
-FROM registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:v1.23.6-202503041452.g6c23478.el9 AS builder
-COPY --chown=1001:0 $REMOTE_SOURCE $REMOTE_SOURCE_DIR
-WORKDIR $REMOTE_SOURCE_DIR/app/
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_golang_1.23 AS builder
+COPY --chown=1001:0 . .
+WORKDIR $APP_ROOT/app/
+COPY go.mod go.mod
+COPY go.sum go.sum
+RUN go mod download
+COPY cmd/main.go cmd/main.go
+COPY api/ api/
+COPY internal/ internal/
 ENV BUILDTAGS strictfipsruntime
 ENV GOEXPERIMENT strictfipsruntime
-RUN source $CACHITO_ENV_FILE && CGO_ENABLED=1 GOOS=linux go build -tags "$BUILDTAGS" -mod=mod -a -o manager cmd/main.go
+RUN CGO_ENABLED=1 GOOS=linux go build -tags "$BUILDTAGS" -mod=mod -a -o manager cmd/main.go
 
-#@follow_tag(registry.redhat.io/ubi9/ubi-minimal:latest)
-FROM registry.redhat.io/ubi9/ubi-minimal:9.5-1745855087
+FROM registry.redhat.io/ubi9/ubi-minimal:latest
 RUN microdnf -y update && microdnf clean all
-COPY --from=builder $REMOTE_SOURCE_DIR/app/manager /manager
+COPY --from=builder $APP_ROOT/app/manager /manager
 
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
 
-LABEL \
-        com.redhat.component="oadp-non-admin-container" \
-        version="1.5.0" \
-        name="oadp/oadp-non-admin-rhel9" \
-        License="Apache License 2.0" \
-        io.k8s.display-name="OADP Non-Admin" \
-        io.openshift.tags="migration" \
-        io.k8s.description="OpenShift API for Data Protection - Non-Admin" \
-        io.openshift.build.commit.id="58b7d83dc66a82fcac0f317a84c8845e3386921d" \
-        io.openshift.build.source-location="https://github.com/migtools/oadp-non-admin" \
-        io.openshift.build.commit.url="https://github.com/migtools/oadp-non-admin/commit/58b7d83dc66a82fcac0f317a84c8845e3386921d" \
-        summary="OpenShift API for Data Protection - Non-Admin" \
-        maintainer="OpenShift API for Data Protection Team <oadp-team@redhat.com>"
+#LABEL \
+#        com.redhat.component="oadp-non-admin-container" \
+#        version="1.5.0" \
+#        name="oadp/oadp-non-admin-rhel9" \
+#        License="Apache License 2.0" \
+#        io.k8s.display-name="OADP Non-Admin" \
+#        io.openshift.tags="migration" \
+#        io.k8s.description="OpenShift API for Data Protection - Non-Admin" \
+#        io.openshift.build.commit.id="58b7d83dc66a82fcac0f317a84c8845e3386921d" \
+#        io.openshift.build.source-location="https://github.com/migtools/oadp-non-admin" \
+#        io.openshift.build.commit.url="https://github.com/migtools/oadp-non-admin/commit/58b7d83dc66a82fcac0f317a84c8845e3386921d" \
+#        summary="OpenShift API for Data Protection - Non-Admin" \
+#        maintainer="OpenShift API for Data Protection Team <oadp-team@redhat.com>"
