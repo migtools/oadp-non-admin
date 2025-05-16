@@ -14,7 +14,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/vmware-tanzu/velero v1.16.0-rc.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/sync v0.11.0
+	golang.org/x/sync v0.12.0
 	k8s.io/api v0.31.3
 	k8s.io/apimachinery v0.31.3
 	k8s.io/client-go v0.31.3
@@ -83,11 +83,11 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
-	golang.org/x/net v0.36.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/oauth2 v0.27.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/term v0.30.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
@@ -104,4 +104,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20250403135551-33c8709257f2
+replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20250514165055-8fbcf3a8da11
