@@ -3,11 +3,11 @@ name: Continuous Integration
 on:
   push:
     branches:
-      - master
+      - oadp-dev
       - oadp-1.5
   pull_request:
     branches:
-      - master
+      - oadp-dev
       - oadp-1.5
   schedule:
     - cron: '0 0 * * 1' # Every Monday at 00:00 UTC

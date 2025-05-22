@@ -27,7 +27,7 @@ resources:
 #- ../prometheus
 
 patches:
-# Create same deployment as OADP https://github.com/openshift/oadp-operator/blob/master/controllers/nonadmin_controller.go
+# Create same deployment as OADP https://github.com/openshift/oadp-operator/blob/oadp-dev/controllers/nonadmin_controller.go
 - path: manager_oadp_patch.yaml
 # Protect the /metrics endpoint by putting it behind auth.
 # If you want your controller-manager to expose the /metrics
