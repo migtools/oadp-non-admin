@@ -1,5 +1,5 @@
 FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_golang_1.23 AS builder
-COPY --chown=1001:0 . .
+COPY . .
 WORKDIR $APP_ROOT/app/
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -12,23 +12,22 @@ ENV GOEXPERIMENT strictfipsruntime
 RUN CGO_ENABLED=1 GOOS=linux go build -tags "$BUILDTAGS" -mod=mod -a -o manager cmd/main.go
 
 FROM registry.redhat.io/ubi9/ubi-minimal:latest
-RUN microdnf -y update && microdnf clean all
 COPY --from=builder $APP_ROOT/app/manager /manager
 
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
 
-#LABEL \
-#        com.redhat.component="oadp-non-admin-container" \
-#        version="1.5.0" \
-#        name="oadp/oadp-non-admin-rhel9" \
-#        License="Apache License 2.0" \
-#        io.k8s.display-name="OADP Non-Admin" \
-#        io.openshift.tags="migration" \
-#        io.k8s.description="OpenShift API for Data Protection - Non-Admin" \
-#        io.openshift.build.commit.id="58b7d83dc66a82fcac0f317a84c8845e3386921d" \
-#        io.openshift.build.source-location="https://github.com/migtools/oadp-non-admin" \
-#        io.openshift.build.commit.url="https://github.com/migtools/oadp-non-admin/commit/58b7d83dc66a82fcac0f317a84c8845e3386921d" \
-#        summary="OpenShift API for Data Protection - Non-Admin" \
-#        maintainer="OpenShift API for Data Protection Team <oadp-team@redhat.com>"
+LABEL \
+        com.redhat.component="oadp-non-admin-container" \
+        version="1.5.0" \
+        name="oadp/oadp-non-admin-rhel9" \
+        License="Apache License 2.0" \
+        io.k8s.display-name="OADP Non-Admin" \
+        io.openshift.tags="migration" \
+        io.k8s.description="OpenShift API for Data Protection - Non-Admin" \
+        io.openshift.build.commit.id="58b7d83dc66a82fcac0f317a84c8845e3386921d" \
+        io.openshift.build.source-location="https://github.com/migtools/oadp-non-admin" \
+        io.openshift.build.commit.url="https://github.com/migtools/oadp-non-admin/commit/58b7d83dc66a82fcac0f317a84c8845e3386921d" \
+        summary="OpenShift API for Data Protection - Non-Admin" \
+        maintainer="OpenShift API for Data Protection Team <oadp-team@redhat.com>"
