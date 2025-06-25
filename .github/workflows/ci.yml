@@ -90,7 +90,9 @@ jobs:
       - name: Check Non Admin Controller (NAC) manifests
         working-directory: ./oadp-operator
         run: |
+          git status
           NON_ADMIN_CONTROLLER_PATH=../oadp-non-admin make update-non-admin-manifests
+          git status
           if test -n "$(git status --short)"; then
             echo "::error::run 'make update-non-admin-manifests' in OADP repository to update Non Admin Controller (NAC) manifests"
             exit 1
@@ -99,8 +101,10 @@ jobs:
       - name: Check Velero manifests
         working-directory: ./oadp-non-admin
         run: |
+          git status
           OADP_OPERATOR_PATH=../oadp-operator make update-velero-manifests
           if test -n "$(git status --short)"; then
+            git status
             echo "::error::run 'make update-velero-manifests' in Non Admin Controller (NAC) repository to update Velero manifests"
             exit 1
           fi
