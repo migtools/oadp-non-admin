@@ -116,7 +116,7 @@ spec:
     prefix: velero
   provider: aws
 ```
-The DPA spec must be set in the following way: 
+The DPA spec must be set in the following way:
 
 ```
 nonAdmin:
@@ -128,7 +128,7 @@ nonAdmin:
       region: us-west-2
     objectStorage:  <--- all of the objectStorage options must match expected NaBSL options
       bucket: my-company-bucket
-      prefix: velero 
+      prefix: velero
     provider: aws
 ```
 
@@ -155,7 +155,7 @@ In the same sense as the NABSL, cluster administrators can also restrict the Non
 | `labelSelector`                            | ✅ Yes       |                          |                 |
 | `orLabelSelectors`                         | ✅ Yes       |                          |                 |
 | `snapshotVolumes`                          | ✅ Yes       |                          |                 |
-| `storageLocation`                          |              |                          | ⚠️ Can be empty (implying default BSL usage) or needs to be an existing NABSL |
+| `storageLocation`                          |              |                          | ⚠️ should point to an existing NABSL |
 | `volumeSnapshotLocations`                  |              |                          | ⚠️ Not supported for non-admin users, default will be used if needed |
 | `ttl`                                      | ✅ Yes       |                          |                 |
 | `defaultVolumesToFsBackup`                 | ✅ Yes       |                          |                 |
@@ -164,7 +164,7 @@ In the same sense as the NABSL, cluster administrators can also restrict the Non
 | `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |                 |
 | `hooks`                                    |              |                          |                 |
 
-An example enforcement set in the DPA spec to enforce the 
+An example enforcement set in the DPA spec to enforce the
   * ttl to be set to "158h0m0s"
   * snapshotMoveData to be set to true
 
@@ -198,7 +198,7 @@ NonAdminRestores spec fields can also be restricted by the cluster administrator
 | `preserveNodePorts`           | ✅ Yes       |                |                 |
 | `existingResourcePolicy`      |              |                |                 |
 | `hooks`                       |              |                | ⚠️ special case |
-| `resourceModifers`            |              |                | ⚠️ Non-admin users can specify the config-map that admins created in OADP Operator NS(Admins enforcing this value be a good alternative here), they cannot specify their own configmap as its lifecycle handling is not currently managed by NAC controller | 
+| `resourceModifers`            |              |                | ⚠️ Non-admin users can specify the config-map that admins created in OADP Operator NS(Admins enforcing this value be a good alternative here), they cannot specify their own configmap as its lifecycle handling is not currently managed by NAC controller |
 
 
 
