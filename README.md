@@ -92,7 +92,7 @@ The following NABSL fields are currently supported for template enforcement:
 | **NABSL Field**            | **Admin Enforceable** | **Restricted** | **special case** |
 |----------------------------|-----------------|----------------|-----------------|
 | `backupSyncPeriod`         |                 |                | ⚠️ Must be set lower than the DPA.backupSyncPeriod and lower than the garbage collection period |
-| `provider`                 |                 |                | ⚠️ special case |
+| `provider`                 |                 |                |                 |
 | `objectStorage`            | ✅ Yes          |                |                 |
 | `credential`               | ✅ Yes          |                |                 |
 | `config`                   | ✅ Yes          |                |                 |
@@ -162,7 +162,7 @@ In the same sense as the NABSL, cluster administrators can also restrict the Non
 | `snapshotMoveData`                         | ✅ Yes       |                          |                 |
 | `datamover`                                | ✅ Yes       |                          |                 |
 | `uploaderConfig.parallelFilesUpload`       | ✅ Yes       |                          |                 |
-| `hooks`                                    |              |                          | ⚠️ special case |
+| `hooks`                                    |              |                          |                 |
 
 An example enforcement set in the DPA spec to enforce the 
   * ttl to be set to "158h0m0s"
@@ -196,7 +196,7 @@ NonAdminRestores spec fields can also be restricted by the cluster administrator
 | `namespaceMapping`            | ❌ No        | ✅ Yes         | ⚠️ restricted for non-admin users and hence non-enforceable by admins                |
 | `restorePVs`                  | ✅ Yes       |                |                 |
 | `preserveNodePorts`           | ✅ Yes       |                |                 |
-| `existingResourcePolicy`      |              |                | ⚠️ special case |
+| `existingResourcePolicy`      |              |                |                 |
 | `hooks`                       |              |                | ⚠️ special case |
 | `resourceModifers`            |              |                | ⚠️ Non-admin users can specify the config-map that admins created in OADP Operator NS(Admins enforcing this value be a good alternative here), they cannot specify their own configmap as its lifecycle handling is not currently managed by NAC controller | 
 
