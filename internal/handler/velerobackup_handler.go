@@ -22,7 +22,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -34,12 +33,12 @@ import (
 type VeleroBackupHandler struct{}
 
 // Create event handler
-func (VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	// Create event handler for the Backup object
 }
 
 // Update event handler adds Velero Backup's NonAdminBackup to controller queue
-func (VeleroBackupHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroBackupHandler")
 
 	annotations := evt.ObjectNew.GetAnnotations()
@@ -54,7 +53,7 @@ func (VeleroBackupHandler) Update(ctx context.Context, evt event.TypedUpdateEven
 }
 
 // Delete event handler
-func (VeleroBackupHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroBackupHandler) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.Object, "VeleroBackupHandler")
 
 	annotations := evt.Object.GetAnnotations()
@@ -69,6 +68,6 @@ func (VeleroBackupHandler) Delete(ctx context.Context, evt event.DeleteEvent, q 
 }
 
 // Generic event handler
-func (VeleroBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the Backup object
 }
