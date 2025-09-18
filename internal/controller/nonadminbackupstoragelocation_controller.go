@@ -19,10 +19,10 @@ multiple controllers or processes attempted to update the same NonAdminBackupSto
 objects simultaneously. The following changes were made:
 
 1. RETRY LOGIC FRAMEWORK (updateStatusWithRetry function):
-   - Implements exponential backoff retry strategy for status updates
+   - Uses standard Kubernetes client-go retry.RetryOnConflict with DefaultRetry settings
    - Handles "object has been modified" errors gracefully
    - Fetches fresh object copies to avoid stale ResourceVersion conflicts
-   - Provides detailed logging for debugging concurrent update issues
+   - Leverages proven Kubernetes retry patterns (5 attempts, 10ms+jitter)
 
 2. NIL SAFETY CHECKS (ensureNonAdminRequest function):
    - Prevents panic when SourceNonAdminBSL is nil during initialization
@@ -62,7 +62,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait" // ADDED: For exponential backoff retry logic
+	"k8s.io/client-go/util/retry" // ADDED: For standard Kubernetes retry logic
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -98,73 +98,55 @@ type NonAdminBackupStorageLocationReconciler struct {
 
 type naBSLReconcileStepFunction func(ctx context.Context, logger logr.Logger, nabsl *nacv1alpha1.NonAdminBackupStorageLocation) (bool, error)
 
-// updateStatusWithRetry attempts to update an object's status with retry logic for conflict resolution.
-// This function implements optimistic concurrency control to handle the common scenario where
-// multiple controllers or reconcile loops attempt to update the same Kubernetes object simultaneously.
+// updateStatusWithRetry attempts to update an object's status using standard Kubernetes retry logic.
+// This uses the recommended client-go retry.RetryOnConflict with retry.DefaultRetry configuration
+// to handle resource conflicts that occur when multiple controllers update the same object.
 //
 // The retry logic addresses the error:
 // "Operation cannot be fulfilled on <resource>: the object has been modified;
-//  please apply your changes to the latest version and try again"
 //
-// How it works:
-// 1. Fetches the latest version of the object from the API server
-// 2. Applies the update function to the fresh object copy
-// 3. Attempts the status update
-// 4. If a resource conflict occurs, retries with exponential backoff
-// 5. Gives up on non-conflict errors to avoid infinite loops
+//	please apply your changes to the latest version and try again"
+//
+// Uses Kubernetes defaults:
+//   - 5 retry attempts
+//   - 10ms initial delay with linear backoff
+//   - 10% jitter to prevent thundering herd
 //
 // Parameters:
 //   - ctx: Context for cancellation and timeouts
 //   - logger: Logger for debugging retry attempts
-//   - obj: The object to update (used for key extraction and result copying)
+//   - obj: The object to update (used for key extraction)
 //   - updateFn: Function that applies changes to the fresh object copy
 //
 // Returns:
 //   - error: nil on success, error on failure or timeout
 func (r *NonAdminBackupStorageLocationReconciler) updateStatusWithRetry(ctx context.Context, logger logr.Logger, obj client.Object, updateFn func(client.Object) bool) error {
-	return wait.ExponentialBackoff(wait.Backoff{
-		Duration: 100 * time.Millisecond, // Start with 100ms delay
-		Factor:   2.0,                    // Double the delay each retry
-		Steps:    5,                      // Maximum 5 retry attempts
-		Cap:      5 * time.Second,        // Maximum delay between retries
-	}, func() (bool, error) {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Get the latest version of the object from the API server to ensure we have
 		// the most recent ResourceVersion and avoid stale object conflicts
 		key := client.ObjectKeyFromObject(obj)
 		fresh := obj.DeepCopyObject().(client.Object)
 		if err := r.Get(ctx, key, fresh); err != nil {
-			if apierrors.IsNotFound(err) {
-				// Object was deleted, this is a terminal error
-				return false, err
-			}
-			logger.V(1).Info("Failed to get latest object version, retrying...", "error", err.Error())
-			return false, nil // Retry - temporary network or API server issue
+			return err // RetryOnConflict will handle conflict vs non-conflict errors
 		}
 
 		// Apply the update function to the fresh object copy
 		// The update function should modify the object and return true if changes were made
 		if !updateFn(fresh) {
 			// No update needed - the object is already in the desired state
-			return true, nil
+			return nil
 		}
 
 		// Attempt the status update with the fresh object that has the latest ResourceVersion
+		// RetryOnConflict will automatically retry if this returns a conflict error
 		if err := r.Status().Update(ctx, fresh); err != nil {
-			if apierrors.IsConflict(err) {
-				// Resource conflict detected - another process modified the object
-				// Log and retry with a fresh copy
-				logger.V(1).Info("Resource conflict detected, retrying status update...")
-				return false, nil // Retry
-			}
-			// Non-conflict error (validation, permission, etc.) - don't retry
-			return false, err
+			return err // Return the raw error so RetryOnConflict can identify conflicts
 		}
 
 		// Success - copy the updated ResourceVersion back to the original object
-		// so the caller has the latest version
 		obj.SetResourceVersion(fresh.GetResourceVersion())
 		logger.V(1).Info("Status update successful")
-		return true, nil
+		return nil
 	})
 }
 
