@@ -24,7 +24,6 @@ import (
 
 	"github.com/go-logr/logr"
 	oadpv1alpha1 "github.com/openshift/oadp-operator/api/v1alpha1"
-	oadpcommon "github.com/openshift/oadp-operator/pkg/common"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
 	corev1 "k8s.io/api/core/v1"
@@ -757,12 +756,8 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 
 	enforcedBSLSpec := getEnforcedBSLSpec(nabsl, r.EnforcedBslSpec)
 
-	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *enforcedBSLSpec)
-
-	if err != nil {
-		logger.Error(err, "Failed to update VeleroBackupStorageLocation spec")
-		return false, err
-	}
+	// Update the VeleroBackupStorageLocation spec
+	veleroBsl.Spec = *enforcedBSLSpec
 
 	// NaBSL/BSL must have a unique prefix for proper function of the non-admin backup sync controller
 	// 1. Check if user has specified the prefix as "foo" in NaBSL creation, then prefix used would be <non-admin-ns>/foo

@@ -19,11 +19,11 @@ package handler
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -38,12 +38,12 @@ type VeleroPodVolumeBackupHandler struct {
 }
 
 // Create event handler
-func (VeleroPodVolumeBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroPodVolumeBackupHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	// Create event handler for the PodVolumeBackup object
 }
 
 // Update event handler adds Velero PodVolumeBackup's NonAdminBackup to controller queue
-func (h VeleroPodVolumeBackupHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (h VeleroPodVolumeBackupHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroPodVolumeBackupHandler")
 
 	owners := evt.ObjectNew.GetOwnerReferences()
@@ -73,11 +73,11 @@ func (h VeleroPodVolumeBackupHandler) Update(ctx context.Context, evt event.Type
 }
 
 // Delete event handler
-func (VeleroPodVolumeBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroPodVolumeBackupHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 	// Delete event handler for the PodVolumeBackup object
 }
 
 // Generic event handler
-func (VeleroPodVolumeBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroPodVolumeBackupHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the PodVolumeBackup object
 }
