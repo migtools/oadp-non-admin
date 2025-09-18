@@ -19,10 +19,10 @@ package handler
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -37,12 +37,12 @@ type VeleroRestoreQueueHandler struct {
 }
 
 // Create event handler
-func (VeleroRestoreQueueHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroRestoreQueueHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	// Create event handler for the Restore object
 }
 
 // Update event handler adds Velero Restore's NonAdminRestore to controller queue
-func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	// Only update to the first in the queue Velero Restore should trigger changes to the
 	// NonAdminRestore objects. Updates to the Velero Restore 2nd and 3rd does not lower the
 	// queue. This optimizes the number of times we need to update the NonAdminRestore objects
@@ -87,11 +87,11 @@ func (h VeleroRestoreQueueHandler) Update(ctx context.Context, evt event.TypedUp
 }
 
 // Delete event handler
-func (VeleroRestoreQueueHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroRestoreQueueHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 	// Delete event handler for the Restore object
 }
 
 // Generic event handler
-func (VeleroRestoreQueueHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroRestoreQueueHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the Restore object
 }

@@ -22,7 +22,6 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -49,7 +48,7 @@ func (p CompositeBackupPredicate) Create(evt event.CreateEvent) bool {
 }
 
 // Update event filter accepts both NonAdminBackup and Velero Backup update events
-func (p CompositeBackupPredicate) Update(evt event.TypedUpdateEvent[client.Object]) bool {
+func (p CompositeBackupPredicate) Update(evt event.UpdateEvent) bool {
 	switch evt.ObjectNew.(type) {
 	case *nacv1alpha1.NonAdminBackup:
 		return p.NonAdminBackupPredicate.Update(p.Context, evt)
