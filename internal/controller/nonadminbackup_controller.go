@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -194,7 +195,7 @@ func (r *NonAdminBackupReconciler) setStatusAndConditionForDeletionAndCallDelete
 		},
 	)
 	if updatedPhase || updatedCondition {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -238,7 +239,7 @@ func (r *NonAdminBackupReconciler) setStatusForDirectKubernetesAPIDeletion(ctx c
 		},
 	)
 	if updatedPhase || updatedCondition {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -350,7 +351,7 @@ func (r *NonAdminBackupReconciler) createVeleroDeleteBackupRequest(ctx context.C
 	// Status will be applied based on the current state of the DeleteBackupRequest.
 	updated := updateNonAdminBackupDeleteBackupRequestStatus(&nab.Status, deleteBackupRequest)
 	if updated {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, "Failed to update NonAdminBackup Status after DeleteBackupRequest reconciliation")
 			return false, err
 		}
@@ -457,9 +458,10 @@ func (r *NonAdminBackupReconciler) deleteDeleteBackupRequestObjects(ctx context.
 func (r *NonAdminBackupReconciler) removeNabFinalizerUponVeleroBackupDeletion(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) (bool, error) {
 	logger.V(1).Info("VeleroBackup deleted, removing NonAdminBackup finalizer")
 
+	patch := client.MergeFrom(nab.DeepCopy())
 	controllerutil.RemoveFinalizer(nab, constant.NabFinalizerName)
 
-	if err := r.Update(ctx, nab); err != nil {
+	if err := r.Patch(ctx, nab, patch); err != nil {
 		logger.Error(err, "Failed to remove finalizer from NonAdminBackup")
 		return false, err
 	}
@@ -490,7 +492,7 @@ func (r *NonAdminBackupReconciler) initNabCreate(ctx context.Context, logger log
 
 	// Set phase to New
 	if updated := updateNonAdminPhase(&nab.Status.Phase, nacv1alpha1.NonAdminPhaseNew); updated {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -527,7 +529,7 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 			},
 		)
 		if updatedPhase || updatedCondition {
-			if updateErr := r.Status().Update(ctx, nab); updateErr != nil {
+			if updateErr := r.updateStatusWithRetry(ctx, logger, nab); updateErr != nil {
 				logger.Error(updateErr, statusUpdateError)
 				return false, updateErr
 			}
@@ -548,7 +550,7 @@ func (r *NonAdminBackupReconciler) validateSpec(ctx context.Context, logger logr
 		},
 	)
 	if updated {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -590,7 +592,7 @@ func (r *NonAdminBackupReconciler) setBackupUUIDInStatus(ctx context.Context, lo
 			Namespace: r.OADPNamespace,
 			Name:      veleroBackupNACUUID,
 		}
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -606,8 +608,9 @@ func (r *NonAdminBackupReconciler) setFinalizerOnNonAdminBackup(ctx context.Cont
 	// to ensure we won't risk having orphant Velero Backup resource, due to an unexpected error
 	// while adding finalizer after creatign Velero Backup
 	if !controllerutil.ContainsFinalizer(nab, constant.NabFinalizerName) {
+		patch := client.MergeFrom(nab.DeepCopy())
 		controllerutil.AddFinalizer(nab, constant.NabFinalizerName)
-		if err := r.Update(ctx, nab); err != nil {
+		if err := r.Patch(ctx, nab, patch); err != nil {
 			logger.Error(err, "Failed to add finalizer")
 			return false, err
 		}
@@ -663,7 +666,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 				},
 			)
 			if updatedPhase || updatedCondition {
-				if updateErr := r.Status().Update(ctx, nab); updateErr != nil {
+				if updateErr := r.updateStatusWithRetry(ctx, logger, nab); updateErr != nil {
 					logger.Error(updateErr, nonAdminRestoreStatusUpdateFailureMessage)
 					return false, updateErr
 				}
@@ -798,7 +801,7 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	updatedDataUploadStatus := updateNonAdminBackupDataUploadStatus(&nab.Status, dataUploads)
 
 	if updated || updatedPhase || updatedCondition || updatedQueueInfo || updatedPodVolumeBackupStatus || updatedDataUploadStatus {
-		if err := r.Status().Update(ctx, nab); err != nil {
+		if err := r.updateStatusWithRetry(ctx, logger, nab); err != nil {
 			logger.Error(err, statusUpdateError)
 			return false, err
 		}
@@ -808,6 +811,40 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	}
 
 	return false, nil
+}
+
+// updateStatusWithRetry updates the NonAdminBackup status with retry logic to handle resource version conflicts
+func (r *NonAdminBackupReconciler) updateStatusWithRetry(ctx context.Context, logger logr.Logger, nab *nacv1alpha1.NonAdminBackup) error {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Always fetch the latest version before updating status
+		current := &nacv1alpha1.NonAdminBackup{}
+		if err := r.Get(ctx, client.ObjectKeyFromObject(nab), current); err != nil {
+			return err
+		}
+
+		// Preserve existing conditions and merge in new status updates
+		// This prevents losing conditions that were set by other reconcile steps
+		current.Status.Phase = nab.Status.Phase
+		current.Status.VeleroBackup = nab.Status.VeleroBackup
+		current.Status.QueueInfo = nab.Status.QueueInfo
+		current.Status.VeleroDeleteBackupRequest = nab.Status.VeleroDeleteBackupRequest
+		current.Status.DataMoverDataUploads = nab.Status.DataMoverDataUploads
+		current.Status.FileSystemPodVolumeBackups = nab.Status.FileSystemPodVolumeBackups
+
+		// Merge conditions instead of replacing them
+		for _, newCondition := range nab.Status.Conditions {
+			meta.SetStatusCondition(&current.Status.Conditions, newCondition)
+		}
+
+		// Attempt status update on fresh resource version
+		if err := r.Status().Update(ctx, current); err != nil {
+			logger.V(1).Info("Status update conflict, retrying...", "error", err.Error())
+			return err
+		}
+
+		logger.V(1).Info("Status update successful")
+		return nil
+	})
 }
 
 // SetupWithManager sets up the controller with the Manager.
