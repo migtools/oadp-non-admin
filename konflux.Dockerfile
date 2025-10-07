@@ -18,3 +18,8 @@ USER 65532:65532
 
 ENTRYPOINT ["/manager"]
 
+LABEL description="OpenShift API for Data Protection - Non-Admin"
+LABEL io.k8s.description="OpenShift API for Data Protection - Non-Admin"
+LABEL io.k8s.display-name="OADP Non-Admin"
+LABEL io.openshift.tags="migration"
+LABEL summary="OpenShift API for Data Protection - Non-Admin"
