@@ -16,7 +16,7 @@ jobs:
   golang-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v5
         with:
@@ -40,7 +40,7 @@ jobs:
   container-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Build container image
         run: make docker-build
@@ -53,7 +53,7 @@ jobs:
   project-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check if 'make generate' was run
         run: make check-generate
@@ -71,7 +71,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout OADP operator
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: openshift/oadp-operator
           ref: ${{ github.base_ref || github.ref_name }}
@@ -83,7 +83,7 @@ jobs:
           cache: false
 
       - name: Checkout Non Admin Controller (NAC)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: oadp-non-admin
 
