@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -705,11 +706,18 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 
 		if haveNewResourceFilterParameters {
 			// Use the new-style exclusion list
-			backupSpec.ExcludedNamespaceScopedResources = append(backupSpec.ExcludedNamespaceScopedResources,
-				alwaysExcludedNamespacedResources...)
-			backupSpec.ExcludedClusterScopedResources = append(backupSpec.ExcludedClusterScopedResources,
-				alwaysExcludedClusterResources...)
-		} else {
+			// Skip appending when wildcard '*' is already present, as it already
+			// excludes everything and mixing '*' with specific items causes Velero
+			// FailedValidation.
+			if !slices.Contains(backupSpec.ExcludedNamespaceScopedResources, constant.WildcardString) {
+				backupSpec.ExcludedNamespaceScopedResources = append(backupSpec.ExcludedNamespaceScopedResources,
+					alwaysExcludedNamespacedResources...)
+			}
+			if !slices.Contains(backupSpec.ExcludedClusterScopedResources, constant.WildcardString) {
+				backupSpec.ExcludedClusterScopedResources = append(backupSpec.ExcludedClusterScopedResources,
+					alwaysExcludedClusterResources...)
+			}
+		} else if !slices.Contains(backupSpec.ExcludedResources, constant.WildcardString) {
 			// Fallback to the old-style exclusion list
 			backupSpec.ExcludedResources = append(backupSpec.ExcludedResources,
 				alwaysExcludedNamespacedResources...)
