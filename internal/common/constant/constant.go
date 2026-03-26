@@ -93,6 +93,9 @@ const JSONTagString = "json"
 // CommaString defines a constant for the comma string
 const CommaString = ","
 
+// WildcardString defines the wildcard character used in Velero resource filters
+const WildcardString = "*"
+
 // MaximumNacObjectNameLength represents Generated Non Admin Object Name and
 // must be below 63 characters, because it's used within object Label Value
 const MaximumNacObjectNameLength = validation.DNS1123LabelMaxLength
