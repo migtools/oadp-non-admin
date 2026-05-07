@@ -892,7 +892,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createVeleroBSL(ctx context.Co
 
 	enforcedBSLSpec := getEnforcedBSLSpec(nabsl, r.EnforcedBslSpec)
 
-	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *enforcedBSLSpec)
+	err = oadpcommon.UpdateBackupStorageLocation(veleroBsl, *enforcedBSLSpec, logger)
 
 	if err != nil {
 		logger.Error(err, "Failed to update VeleroBackupStorageLocation spec")
