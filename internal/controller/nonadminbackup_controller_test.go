@@ -1546,6 +1546,86 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			},
 			addSyncLabel: true,
 		}),
+		ginkgo.Entry("Should not append default excluded resources when wildcard is used in excludedClusterScopedResources", nonAdminBackupFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{
+					ExcludedClusterScopedResources:   []string{"*"},
+					IncludedNamespaceScopedResources: []string{"pvc"},
+				},
+			},
+			status: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Namespace: oadpNamespace,
+					Status:    nil,
+					Spec: &velerov1.BackupSpec{
+						ExcludedClusterScopedResources:   []string{"*"},
+						IncludedNamespaceScopedResources: []string{"pvc"},
+						ExcludedNamespaceScopedResources: []string{
+							nacv1alpha1.NonAdminBackups,
+							nacv1alpha1.NonAdminRestores,
+							nacv1alpha1.NonAdminBackupStorageLocations,
+						},
+					},
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+				},
+			},
+		}),
+		ginkgo.Entry("Should not append default excluded resources when wildcard is used in excludedNamespaceScopedResources", nonAdminBackupFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminBackupSpec{
+				BackupSpec: &velerov1.BackupSpec{
+					ExcludedNamespaceScopedResources: []string{"*"},
+					IncludedClusterScopedResources:   []string{"persistentvolumes"},
+				},
+			},
+			status: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Namespace: oadpNamespace,
+					Status:    nil,
+					Spec: &velerov1.BackupSpec{
+						ExcludedNamespaceScopedResources: []string{"*"},
+						IncludedClusterScopedResources:   []string{"persistentvolumes"},
+						ExcludedClusterScopedResources: []string{
+							"securitycontextconstraints",
+							"clusterroles",
+							"clusterrolebindings",
+							"priorityclasses",
+							"customresourcedefinitions",
+							"virtualmachineclusterinstancetypes",
+							"virtualmachineclusterpreferences",
+						},
+					},
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupAccepted",
+						Message: "backup accepted",
+					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "BackupScheduled",
+						Message: "Created Velero Backup object",
+					},
+				},
+			},
+		}),
 	)
 
 	ginkgo.DescribeTable("Reconcile triggered by NonAdminBackup sync event",
