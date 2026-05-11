@@ -48,6 +48,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -648,6 +649,7 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 		if updateErr := r.updateStatusWithRetry(ctx, logger, nabslRequest, func(obj client.Object) bool {
 			req, ok := obj.(*nacv1alpha1.NonAdminBackupStorageLocationRequest)
 			if !ok {
+				logger.Error(fmt.Errorf("expected *NonAdminBackupStorageLocationRequest, got %T", obj), "Unexpected type assertion failure")
 				return false
 			}
 			return updatePhaseIfNeeded(&req.Status.Phase, req.Spec.ApprovalDecision)
