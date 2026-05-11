@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 
 	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -348,8 +349,10 @@ func (r *NonAdminRestoreReconciler) createVeleroRestore(ctx context.Context, log
 			}
 		}
 
-		restoreSpec.ExcludedResources = append(restoreSpec.ExcludedResources,
-			"volumesnapshotclasses")
+		if !slices.Contains(restoreSpec.ExcludedResources, constant.WildcardString) {
+			restoreSpec.ExcludedResources = append(restoreSpec.ExcludedResources,
+				"volumesnapshotclasses")
+		}
 
 		veleroRestore = &velerov1.Restore{
 			ObjectMeta: metav1.ObjectMeta{

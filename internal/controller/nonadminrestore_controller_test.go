@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -366,7 +367,11 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 						ginkgo.By("Validating Velero Restore Spec")
 						expectedSpec := scenario.enforcedRestoreSpec.DeepCopy()
 						expectedSpec.IncludedNamespaces = []string{nonAdminRestoreNamespace}
-						expectedSpec.ExcludedResources = []string{"volumesnapshotclasses"}
+						if !slices.Contains(scenario.spec.RestoreSpec.ExcludedResources, "*") {
+							expectedSpec.ExcludedResources = append(expectedSpec.ExcludedResources, "volumesnapshotclasses")
+						} else {
+							expectedSpec.ExcludedResources = scenario.spec.RestoreSpec.ExcludedResources
+						}
 						gomega.Expect(reflect.DeepEqual(veleroRestore.Spec, *expectedSpec)).To(gomega.BeTrue())
 					}
 
@@ -604,6 +609,66 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 				},
 				QueueInfo: nil,
 			},
+		}),
+		ginkgo.Entry("Should not append default excluded resources when wildcard is used in excludedResources", nonAdminRestoreFullReconcileScenario{
+			spec: nacv1alpha1.NonAdminRestoreSpec{
+				RestoreSpec: &velerov1.RestoreSpec{
+					BackupName:        "test",
+					ExcludedResources: []string{"*"},
+				},
+			},
+			backupStatus: nacv1alpha1.NonAdminBackupStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroBackup: &nacv1alpha1.VeleroBackup{
+					Status: &velerov1.BackupStatus{
+						Phase:               velerov1.BackupPhaseCompleted,
+						CompletionTimestamp: &metav1.Time{Time: time.Now()},
+					},
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Accepted",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupAccepted",
+						Message:            "backup accepted",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+					{
+						Type:               "Queued",
+						Status:             metav1.ConditionTrue,
+						Reason:             "BackupScheduled",
+						Message:            "Created Velero Backup object",
+						LastTransitionTime: metav1.NewTime(time.Now()),
+					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 0,
+				},
+			},
+			status: nacv1alpha1.NonAdminRestoreStatus{
+				Phase: nacv1alpha1.NonAdminPhaseCreated,
+				VeleroRestore: &nacv1alpha1.VeleroRestore{
+					Status: nil,
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:    "Accepted",
+						Status:  metav1.ConditionTrue,
+						Reason:  "RestoreAccepted",
+						Message: "restore accepted",
+					},
+					{
+						Type:    "Queued",
+						Status:  metav1.ConditionTrue,
+						Reason:  "RestoreScheduled",
+						Message: "Created Velero Restore object",
+					},
+				},
+				QueueInfo: &nacv1alpha1.QueueInfo{
+					EstimatedQueuePosition: 1,
+				},
+			},
+			enforcedRestoreSpec: &velerov1.RestoreSpec{},
 		}),
 	)
 })

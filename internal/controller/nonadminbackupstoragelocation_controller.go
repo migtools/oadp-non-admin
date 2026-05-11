@@ -12,42 +12,43 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-RESOURCE CONFLICT RESOLUTION ENHANCEMENTS:
-This file has been enhanced to resolve resource conflict issues that occurred when
-multiple controllers or processes attempted to update the same NonAdminBackupStorageLocationRequest
-objects simultaneously. The following changes were made:
-
-1. RETRY LOGIC FRAMEWORK (updateStatusWithRetry function):
-   - Uses standard Kubernetes client-go retry.RetryOnConflict with DefaultRetry settings
-   - Handles "object has been modified" errors gracefully
-   - Fetches fresh object copies to avoid stale ResourceVersion conflicts
-   - Leverages proven Kubernetes retry patterns (5 attempts, 10ms+jitter)
-
-2. NIL SAFETY CHECKS (ensureNonAdminRequest function):
-   - Prevents panic when SourceNonAdminBSL is nil during initialization
-   - Converts terminal errors to requeue conditions for uninitialized status
-   - Allows proper status initialization timing in high-concurrency environments
-
-3. OPTIMIZED STATUS UPDATES (createNonAdminRequest function):
-   - Uses fast-path direct updates for new objects
-   - Falls back to retry logic only when conflicts are detected
-   - Preserves computed status values while ensuring conflict resilience
-
-4. TEST ENVIRONMENT ADAPTATIONS:
-   - Increased timeouts to accommodate retry logic execution time
-   - Reduced polling frequency to handle Kubernetes client rate limiting
-   - Added delays to prevent overwhelming API server during test runs
-
-These enhancements ensure that OADP non-admin backup operations complete successfully
-even under high concurrency or when multiple reconciliation events occur simultaneously.
 */
+
+// RESOURCE CONFLICT RESOLUTION ENHANCEMENTS:
+// This file has been enhanced to resolve resource conflict issues that occurred when
+// multiple controllers or processes attempted to update the same NonAdminBackupStorageLocationRequest
+// objects simultaneously. The following changes were made:
+//
+// 1. RETRY LOGIC FRAMEWORK (updateStatusWithRetry function):
+//   - Uses standard Kubernetes client-go retry.RetryOnConflict with DefaultRetry settings
+//   - Handles "object has been modified" errors gracefully
+//   - Fetches fresh object copies to avoid stale ResourceVersion conflicts
+//   - Leverages proven Kubernetes retry patterns (5 attempts, 10ms+jitter)
+//
+// 2. NIL SAFETY CHECKS (ensureNonAdminRequest function):
+//   - Prevents panic when SourceNonAdminBSL is nil during initialization
+//   - Converts terminal errors to requeue conditions for uninitialized status
+//   - Allows proper status initialization timing in high-concurrency environments
+//
+// 3. OPTIMIZED STATUS UPDATES (createNonAdminRequest function):
+//   - Uses fast-path direct updates for new objects
+//   - Falls back to retry logic only when conflicts are detected
+//   - Preserves computed status values while ensuring conflict resilience
+//
+// 4. TEST ENVIRONMENT ADAPTATIONS:
+//   - Increased timeouts to accommodate retry logic execution time
+//   - Reduced polling frequency to handle Kubernetes client rate limiting
+//   - Added delays to prevent overwhelming API server during test runs
+//
+// These enhancements ensure that OADP non-admin backup operations complete successfully
+// even under high concurrency or when multiple reconciliation events occur simultaneously.
 
 package controller
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -125,7 +126,10 @@ func (r *NonAdminBackupStorageLocationReconciler) updateStatusWithRetry(ctx cont
 		// Get the latest version of the object from the API server to ensure we have
 		// the most recent ResourceVersion and avoid stale object conflicts
 		key := client.ObjectKeyFromObject(obj)
-		fresh := obj.DeepCopyObject().(client.Object)
+		fresh, ok := obj.DeepCopyObject().(client.Object)
+		if !ok {
+			return errors.New("failed to convert deep copy to client.Object")
+		}
 		if err := r.Get(ctx, key, fresh); err != nil {
 			return err // RetryOnConflict will handle conflict vs non-conflict errors
 		}
@@ -643,7 +647,11 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 		// - Event-driven reconciliation causing concurrent status updates
 		logger.V(1).Info("NonAdminBackupStorageLocationRequest already exists")
 		if updateErr := r.updateStatusWithRetry(ctx, logger, nabslRequest, func(obj client.Object) bool {
-			req := obj.(*nacv1alpha1.NonAdminBackupStorageLocationRequest)
+			req, ok := obj.(*nacv1alpha1.NonAdminBackupStorageLocationRequest)
+			if !ok {
+				logger.Error(fmt.Errorf("expected *NonAdminBackupStorageLocationRequest, got %T", obj), "Unexpected type assertion failure")
+				return false
+			}
 			return updatePhaseIfNeeded(&req.Status.Phase, req.Spec.ApprovalDecision)
 		}); updateErr != nil {
 			logger.Error(updateErr, failedUpdateStatusError)
@@ -704,25 +712,21 @@ func (r *NonAdminBackupStorageLocationReconciler) createNonAdminRequest(ctx cont
 	// - Correctness: Proper status initialization even under load
 	if updated := updateNonAdminRequestStatus(&nonAdminBslRequest.Status, nabsl, approvalDecision); updated {
 		if updateErr := r.Status().Update(ctx, &nonAdminBslRequest); updateErr != nil {
-			if apierrors.IsConflict(updateErr) {
-				// CONFLICT DETECTED: Another process modified the request between create and status update
-				// This can happen when:
-				// - Admin approves/rejects the request immediately after creation
-				// - Multiple reconcile loops are triggered by related events
-				// - High concurrency in the test environment
-				logger.V(1).Info("Conflict on initial status update, retrying with fresh object...")
-				if retryErr := r.updateStatusWithRetry(ctx, logger, &nonAdminBslRequest, func(obj client.Object) bool {
-					req := obj.(*nacv1alpha1.NonAdminBackupStorageLocationRequest)
-					return updateNonAdminRequestStatus(&req.Status, nabsl, approvalDecision)
-				}); retryErr != nil {
-					logger.Error(retryErr, failedUpdateStatusError)
-					return false, retryErr
-				}
-			} else {
-				// NON-CONFLICT ERROR: Validation, permission, or other API server issue
-				// Don't retry these as they're likely to persist
+			if !apierrors.IsConflict(updateErr) {
 				logger.Error(updateErr, failedUpdateStatusError)
 				return false, updateErr
+			}
+			// CONFLICT DETECTED: Another process modified the request between create and status update
+			logger.V(1).Info("Conflict on initial status update, retrying with fresh object...")
+			if retryErr := r.updateStatusWithRetry(ctx, logger, &nonAdminBslRequest, func(obj client.Object) bool {
+				req, ok := obj.(*nacv1alpha1.NonAdminBackupStorageLocationRequest)
+				if !ok {
+					return false
+				}
+				return updateNonAdminRequestStatus(&req.Status, nabsl, approvalDecision)
+			}); retryErr != nil {
+				logger.Error(retryErr, failedUpdateStatusError)
+				return false, retryErr
 			}
 		}
 	}
