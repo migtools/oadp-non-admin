@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
-	github.com/openshift/oadp-operator v1.0.2-0.20260521170640-7e5fa6409165
+	github.com/openshift/oadp-operator v1.0.2-0.20260526190554-d9d9b58aefc7
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/vmware-tanzu/velero v1.14.0
@@ -103,4 +103,4 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260521131557-d6cee0cc6900
+replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260526140223-8ef26317c1b0
