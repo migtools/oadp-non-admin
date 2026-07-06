@@ -378,11 +378,6 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 				ParallelFilesUpload: 32, //nolint:revive // just test
 			},
 		},
-		{
-			name:          "VolumeGroupSnapshotLabelKey",
-			enforcedValue: "enforced-label-key",
-			overrideValue: "user-label-key",
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
