@@ -1588,7 +1588,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			spec: nacv1alpha1.NonAdminBackupSpec{
 				BackupSpec: &velerov1.BackupSpec{
 					ExcludedNamespaceScopedResources: []string{"*"},
-					IncludedClusterScopedResources:   []string{"persistentvolumes"},
 				},
 			},
 			status: nacv1alpha1.NonAdminBackupStatus{
@@ -1598,7 +1597,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					Status:    nil,
 					Spec: &velerov1.BackupSpec{
 						ExcludedNamespaceScopedResources: []string{"*"},
-						IncludedClusterScopedResources:   []string{"persistentvolumes"},
 						ExcludedClusterScopedResources: []string{
 							"securitycontextconstraints",
 							"clusterroles",
