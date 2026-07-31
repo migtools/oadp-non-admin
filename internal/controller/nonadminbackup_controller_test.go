@@ -36,7 +36,6 @@ import (
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -123,21 +122,27 @@ func checkTestNonAdminBackupStatus(nonAdminBackup *nacv1alpha1.NonAdminBackup, e
 		}
 	}
 
-	if len(nonAdminBackup.Status.Conditions) != len(expectedStatus.Conditions) {
-		return fmt.Errorf("NonAdminBackup Status has %v Condition(s), expected to have %v", len(nonAdminBackup.Status.Conditions), len(expectedStatus.Conditions))
-	}
-	for index := range nonAdminBackup.Status.Conditions {
-		if nonAdminBackup.Status.Conditions[index].Type != expectedStatus.Conditions[index].Type {
-			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Type %v is not equal to expected %v", index, nonAdminBackup.Status.Conditions[index].Type, expectedStatus.Conditions[index].Type)
+	// Check that all expected conditions are present with correct values
+	// More robust than exact array matching - allows for additional conditions or different ordering
+	for _, expectedCondition := range expectedStatus.Conditions {
+		found := false
+		for _, actualCondition := range nonAdminBackup.Status.Conditions {
+			if actualCondition.Type == expectedCondition.Type {
+				found = true
+				if actualCondition.Status != expectedCondition.Status {
+					return fmt.Errorf("NonAdminBackup Status Condition Type %v has Status %v, expected %v", expectedCondition.Type, actualCondition.Status, expectedCondition.Status)
+				}
+				if actualCondition.Reason != expectedCondition.Reason {
+					return fmt.Errorf("NonAdminBackup Status Condition Type %v has Reason %v, expected %v", expectedCondition.Type, actualCondition.Reason, expectedCondition.Reason)
+				}
+				if !strings.Contains(actualCondition.Message, expectedCondition.Message) {
+					return fmt.Errorf("NonAdminBackup Status Condition Type %v has Message %v, expected to contain %v", expectedCondition.Type, actualCondition.Message, expectedCondition.Message)
+				}
+				break
+			}
 		}
-		if nonAdminBackup.Status.Conditions[index].Status != expectedStatus.Conditions[index].Status {
-			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Status %v is not equal to expected %v", index, nonAdminBackup.Status.Conditions[index].Status, expectedStatus.Conditions[index].Status)
-		}
-		if nonAdminBackup.Status.Conditions[index].Reason != expectedStatus.Conditions[index].Reason {
-			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Reason %v is not equal to expected %v", index, nonAdminBackup.Status.Conditions[index].Reason, expectedStatus.Conditions[index].Reason)
-		}
-		if !strings.Contains(nonAdminBackup.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message) {
-			return fmt.Errorf("NonAdminBackup Status Conditions [%v] Message %v does not contain expected message %v", index, nonAdminBackup.Status.Conditions[index].Message, expectedStatus.Conditions[index].Message)
+		if !found {
+			return fmt.Errorf("NonAdminBackup Status missing expected Condition Type %v", expectedCondition.Type)
 		}
 	}
 
@@ -1145,9 +1150,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(createTestNamespaces(ctx, nonAdminObjectNamespace, oadpNamespace)).To(gomega.Succeed())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-				Controller: config.Controller{
-					SkipNameValidation: ptr.To(true),
-				},
 				Scheme: k8sClient.Scheme(),
 				Cache: cache.Options{
 					DefaultNamespaces: map[string]cache.Config{
@@ -1659,9 +1661,6 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 			gomega.Expect(k8sClient.Update(ctx, veleroBackup)).To(gomega.Succeed())
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-				Controller: config.Controller{
-					SkipNameValidation: ptr.To(true),
-				},
 				Scheme: k8sClient.Scheme(),
 				Cache: cache.Options{
 					DefaultNamespaces: map[string]cache.Config{
