@@ -72,6 +72,40 @@ To use NAC functionality:
 
         After NonAdminRestore completes, check if the application was successful restored by accessing its route and seeing its items in application UI.
 
+    - create NonAdminDownloadRequest to download logs and backup information
+
+        For example, to download backup logs:
+        ```sh
+        oc apply -f - <<EOF
+        apiVersion: oadp.openshift.io/v1alpha1
+        kind: NonAdminDownloadRequest
+        metadata:
+          name: backup-logs-download
+          namespace: <non-admin-user-namespace>
+        spec:
+          target:
+            kind: BackupLog
+            name: <NonAdminBackup-name>
+        EOF
+        ```
+
+        After the download request is processed, get the signed download URL and download the file:
+        ```sh
+        # Wait for processing
+        oc wait --for=condition=Processed nadr/backup-logs-download -n <namespace> --timeout=300s
+        
+        # Get download URL and download file
+        DOWNLOAD_URL=$(oc get nadr backup-logs-download -n <namespace> -o jsonpath='{.status.velero.status.downloadURL}')
+        wget "$DOWNLOAD_URL" -O backup-logs.tar.gz
+        ```
+
+        For detailed information about NonAdminDownloadRequest usage, supported download types, and troubleshooting, see the [NADR Usage Guide](docs/nadr_usage.md).
+
+        Alternatively, use the automated download script:
+        ```sh
+        ./hack/nadr-download.sh -k BackupLog -n <backup-name> -ns <namespace>
+        ```
+
 ## Notes on Non Admin Permissions and Enforcements
 ### Cluster Administrator Enforceable Spec Fields
 There are several types of cluster scoped objects that non-admin users should not have access to backup or restore.  OADP self-service automatically excludes the following list of cluster scoped resources from being backed up or restored.
