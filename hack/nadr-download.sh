@@ -116,6 +116,23 @@ if [[ -z "$KIND" || -z "$NAME" || -z "$NAMESPACE" ]]; then
     exit 1
 fi
 
+# Validate KIND against the documented supported values and determine
+# whether it targets a NonAdminBackup or a NonAdminRestore
+case "$KIND" in
+    BackupLog|BackupContents|BackupVolumeSnapshots|BackupItemOperations|BackupResourceList|BackupResults|CSIBackupVolumeSnapshots|CSIBackupVolumeSnapshotContents|BackupVolumeInfos)
+        TARGET_TYPE="backup"
+        ;;
+    RestoreLog|RestoreResults|RestoreResourceList|RestoreItemOperations|RestoreVolumeInfo)
+        TARGET_TYPE="restore"
+        ;;
+    *)
+        echo "Error: Unsupported kind '$KIND'"
+        echo "Supported backup kinds: BackupLog, BackupContents, BackupVolumeSnapshots, BackupItemOperations, BackupResourceList, BackupResults, CSIBackupVolumeSnapshots, CSIBackupVolumeSnapshotContents, BackupVolumeInfos"
+        echo "Supported restore kinds: RestoreLog, RestoreResults, RestoreResourceList, RestoreItemOperations, RestoreVolumeInfo"
+        exit 1
+        ;;
+esac
+
 # Set default request name if not provided
 if [[ -z "$REQUEST_NAME" ]]; then
     REQUEST_NAME="${NAME,,}-${KIND,,}-download-$(date +%s)"
@@ -127,7 +144,7 @@ mkdir -p "$OUTPUT_DIR"
 log "Starting download process for $KIND from $NAME in namespace $NAMESPACE"
 
 # Check if the referenced backup/restore exists
-if [[ "$KIND" == *"Backup"* || "$KIND" == *"backup"* ]]; then
+if [[ "$TARGET_TYPE" == "backup" ]]; then
     log "Checking if NonAdminBackup '$NAME' exists in namespace '$NAMESPACE'"
     if ! oc get nab "$NAME" -n "$NAMESPACE" &> /dev/null; then
         echo "Error: NonAdminBackup '$NAME' not found in namespace '$NAMESPACE'"
@@ -143,7 +160,7 @@ fi
 
 # Create the NonAdminDownloadRequest
 log "Creating NonAdminDownloadRequest '$REQUEST_NAME'"
-cat << EOF | oc apply -f -
+cat << EOF | oc create -f -
 apiVersion: oadp.openshift.io/v1alpha1
 kind: NonAdminDownloadRequest
 metadata:
@@ -200,16 +217,17 @@ OUTPUT_FILE="$OUTPUT_DIR/$(generate_filename "$KIND" "$NAME")"
 echo "Downloading to: $OUTPUT_FILE"
 log "Download URL: $DOWNLOAD_URL"
 
+DOWNLOAD_STATUS=0
 if command -v wget &> /dev/null; then
-    wget "$DOWNLOAD_URL" -O "$OUTPUT_FILE" --progress=bar:force
+    wget "$DOWNLOAD_URL" -O "$OUTPUT_FILE" --progress=bar:force || DOWNLOAD_STATUS=$?
 elif command -v curl &> /dev/null; then
-    curl -L "$DOWNLOAD_URL" -o "$OUTPUT_FILE" --progress-bar
+    curl -L "$DOWNLOAD_URL" -o "$OUTPUT_FILE" --progress-bar || DOWNLOAD_STATUS=$?
 else
     echo "Error: Neither wget nor curl is available"
     exit 1
 fi
 
-if [ $? -eq 0 ]; then
+if [ "$DOWNLOAD_STATUS" -eq 0 ]; then
     echo "✓ Download completed successfully!"
     echo "  File: $OUTPUT_FILE"
     echo "  Size: $(du -h "$OUTPUT_FILE" | cut -f1)"

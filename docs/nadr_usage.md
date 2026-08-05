@@ -101,7 +101,7 @@ spec:
 
 ```bash
 # Create from YAML file
-oc apply -f nadr-example.yaml
+oc create -f nadr-example.yaml
 
 # Or create directly
 oc create -f - <<EOF

@@ -25,7 +25,7 @@ oc process -f backup-logs.yaml \
   -p NAMESPACE=my-app-namespace \
   -p BACKUP_NAME=my-backup \
   -p REQUEST_NAME=my-backup-logs \
-  | oc apply -f -
+  | oc create -f -
 ```
 
 ### Example: Download Backup Contents
@@ -34,7 +34,7 @@ oc process -f backup-logs.yaml \
 oc process -f backup-contents.yaml \
   -p NAMESPACE=my-app-namespace \
   -p BACKUP_NAME=my-backup \
-  | oc apply -f -
+  | oc create -f -
 ```
 
 ### Example: Download Restore Logs
@@ -43,7 +43,7 @@ oc process -f backup-contents.yaml \
 oc process -f restore-logs.yaml \
   -p NAMESPACE=my-app-namespace \
   -p RESTORE_NAME=my-restore \
-  | oc apply -f -
+  | oc create -f -
 ```
 
 ## Parameters
@@ -67,4 +67,4 @@ All templates support these parameters:
    wget "$DOWNLOAD_URL" -O downloaded-file.tar.gz
    ```
 
-For complete documentation, see [NADR Usage Guide](../../docs/nadr_usage.md).
+For complete documentation, see [NADR Usage Guide](../../../docs/nadr_usage.md).

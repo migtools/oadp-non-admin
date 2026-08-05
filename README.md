@@ -76,7 +76,7 @@ To use NAC functionality:
 
         For example, to download backup logs:
         ```sh
-        oc apply -f - <<EOF
+        oc create -f - <<EOF
         apiVersion: oadp.openshift.io/v1alpha1
         kind: NonAdminDownloadRequest
         metadata:
@@ -92,10 +92,10 @@ To use NAC functionality:
         After the download request is processed, get the signed download URL and download the file:
         ```sh
         # Wait for processing
-        oc wait --for=condition=Processed nadr/backup-logs-download -n <namespace> --timeout=300s
+        oc wait --for=condition=Processed nadr/backup-logs-download -n <non-admin-user-namespace> --timeout=300s
         
         # Get download URL and download file
-        DOWNLOAD_URL=$(oc get nadr backup-logs-download -n <namespace> -o jsonpath='{.status.velero.status.downloadURL}')
+        DOWNLOAD_URL=$(oc get nadr backup-logs-download -n <non-admin-user-namespace> -o jsonpath='{.status.velero.status.downloadURL}')
         wget "$DOWNLOAD_URL" -O backup-logs.tar.gz
         ```
 
@@ -103,7 +103,7 @@ To use NAC functionality:
 
         Alternatively, use the automated download script:
         ```sh
-        ./hack/nadr-download.sh -k BackupLog -n <backup-name> -ns <namespace>
+        ./hack/nadr-download.sh -k BackupLog -n <backup-name> -ns <non-admin-user-namespace>
         ```
 
 ## Notes on Non Admin Permissions and Enforcements
