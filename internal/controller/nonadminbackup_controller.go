@@ -963,6 +963,15 @@ func updateNonAdminBackupPodVolumeBackupStatus(status *nacv1alpha1.NonAdminBacku
 		updated = true
 	}
 
+	// Extract uploader type from the first PodVolumeBackup
+	if len(podVolumeBackupList.Items) > 0 {
+		uploaderType := podVolumeBackupList.Items[0].Spec.UploaderType
+		if status.FileSystemPodVolumeBackups.UploaderType != uploaderType {
+			status.FileSystemPodVolumeBackups.UploaderType = uploaderType
+			updated = true
+		}
+	}
+
 	return updated
 }
 
