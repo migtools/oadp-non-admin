@@ -2,17 +2,15 @@ module github.com/migtools/oadp-non-admin
 
 go 1.25.0
 
-toolchain go1.25.8
-
 require (
 	github.com/go-logr/logr v1.4.3
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/oadp-operator v1.0.2-0.20250813014433-d5a424bd6488
+	github.com/openshift/oadp-operator v1.0.2-0.20260821200455-de8c590f5f98
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
-	github.com/vmware-tanzu/velero v1.16.0-rc.1
+	github.com/vmware-tanzu/velero v1.16.2
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.21.0
 	k8s.io/api v0.31.3
@@ -104,4 +102,6 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260708213831-04e8f00c613a
+replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260731193937-7c457d695c37
+
+exclude github.com/kcp-dev/kcp/sdk v0.0.0-00010101000000-000000000000
