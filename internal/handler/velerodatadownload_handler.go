@@ -19,11 +19,11 @@ package handler
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -38,12 +38,12 @@ type VeleroDataDownloadHandler struct {
 }
 
 // Create event handler
-func (VeleroDataDownloadHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroDataDownloadHandler) Create(_ context.Context, _ event.CreateEvent, _ workqueue.RateLimitingInterface) {
 	// Create event handler for the DataDownload object
 }
 
 // Update event handler adds Velero DataDownload's NonAdminRestore to controller queue
-func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object], q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroDataDownloadHandler")
 
 	owners := evt.ObjectNew.GetOwnerReferences()
@@ -73,11 +73,11 @@ func (h VeleroDataDownloadHandler) Update(ctx context.Context, evt event.TypedUp
 }
 
 // Delete event handler
-func (VeleroDataDownloadHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroDataDownloadHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 	// Delete event handler for the DataDownload object
 }
 
 // Generic event handler
-func (VeleroDataDownloadHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (VeleroDataDownloadHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the DataDownload object
 }

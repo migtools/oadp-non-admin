@@ -20,7 +20,6 @@ import (
 	"context"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
@@ -35,7 +34,7 @@ type VeleroRestoreQueuePredicate struct {
 // and from Velero Restores that have a new CompletionTimestamp. We are not interested in
 // checking if the Velero Restore contains NonAdminRestore metadata, because every Velero Restore
 // may change the Queue position of the NonAdminRestore object.
-func (p VeleroRestoreQueuePredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
+func (p VeleroRestoreQueuePredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroRestoreQueuePredicate")
 
 	// Ensure the new and old objects are of the expected type

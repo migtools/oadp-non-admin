@@ -226,10 +226,10 @@ func (r *NonAdminDownloadRequestReconciler) processDownloadRequest(ctx context.C
 func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&nacv1alpha1.NonAdminDownloadRequest{}, builder.WithPredicates(ctrlpredicate.Funcs{
-			CreateFunc: func(_ event.TypedCreateEvent[client.Object]) bool {
+			CreateFunc: func(_ event.CreateEvent) bool {
 				return true // required fields are set via velero validation markers
 			},
-			UpdateFunc: func(tue event.TypedUpdateEvent[client.Object]) bool {
+			UpdateFunc: func(tue event.UpdateEvent) bool {
 				// only process update on spec change
 				if tue.ObjectNew.GetGeneration() == tue.ObjectOld.GetGeneration() {
 					return false
@@ -239,16 +239,16 @@ func (r *NonAdminDownloadRequestReconciler) SetupWithManager(mgr ctrl.Manager) e
 				}
 				return false
 			},
-			DeleteFunc: func(_ event.TypedDeleteEvent[client.Object]) bool {
+			DeleteFunc: func(_ event.DeleteEvent) bool {
 				return true
 			}, // we process delete events by deleting corresponding velero download requests if found
-			GenericFunc: func(_ event.TypedGenericEvent[client.Object]) bool {
+			GenericFunc: func(_ event.GenericEvent) bool {
 				return false
 			},
 		})).
 		Named("nonadmindownloadrequest").
 		Watches(&velerov1.DownloadRequest{}, handler.Funcs{
-			UpdateFunc: func(ctx context.Context, tue event.TypedUpdateEvent[client.Object], rli workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			UpdateFunc: func(ctx context.Context, tue event.UpdateEvent, rli workqueue.RateLimitingInterface) {
 				if dr, ok := tue.ObjectNew.(*velerov1.DownloadRequest); ok &&
 					dr.Status.Phase == velerov1.DownloadRequestPhaseProcessed { // only reconcile on updates when downloadrequests is processed
 					log := function.GetLogger(ctx, dr, "VeleroDownloadRequestHandler")

@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -278,6 +279,6 @@ func (r *GarbageCollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithLogConstructor(func(_ *reconcile.Request) logr.Logger {
 			return logr.New(ctrl.Log.GetSink().WithValues("controller", "nonadmingarbagecollector"))
 		}).
-		WatchesRawSource(&source.PeriodicalSource{Frequency: r.Frequency}).
+		WatchesRawSource(&source.PeriodicalSource{Frequency: r.Frequency}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }

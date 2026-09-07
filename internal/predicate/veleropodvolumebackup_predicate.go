@@ -18,10 +18,10 @@ package predicate
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
@@ -35,7 +35,7 @@ type VeleroPodVolumeBackupPredicate struct {
 
 // Update event filter only accepts Velero PodVolumeBackup update events from OADP namespace
 // and from Velero PodVolumeBackup that have required metadata
-func (p VeleroPodVolumeBackupPredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
+func (p VeleroPodVolumeBackupPredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, "VeleroPodVolumeBackupPredicate")
 
 	namespace := evt.ObjectNew.GetNamespace()
