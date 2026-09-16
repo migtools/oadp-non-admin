@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/oadp.openshift.io_nonadminbackups.yaml
+- bases/oadp.openshift.io_nonadminschedules.yaml
 - bases/oadp.openshift.io_nonadminrestores.yaml
 - bases/oadp.openshift.io_nonadminbackupstoragelocations.yaml
 - bases/oadp.openshift.io_nonadminbackupstoragelocationrequests.yaml
