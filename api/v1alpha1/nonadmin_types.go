@@ -57,6 +57,9 @@ const (
 	// NonAdminBackups represents the resource name for non-admin backups.
 	NonAdminBackups = "nonadminbackups"
 
+	// NonAdminSchedules represents the resource name for non-admin schedules.
+	NonAdminSchedules = "nonadminschedules"
+
 	// NonAdminRestores represents the resource name for non-admin restores.
 	NonAdminRestores = "nonadminrestores"
 
