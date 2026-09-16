@@ -175,6 +175,35 @@ An example enforcement set in the DPA spec to enforce the
     enforcedBackupSpec.snapshotMoveData: true
 ```
 
+### NonAdminSchedules
+
+`NonAdminSchedule` lets a non-admin user run the same namespaced backup
+template on a standard cron schedule. The controller validates and enforces
+`spec.template.backupSpec` exactly as it does for a `NonAdminBackup`, then
+creates a backing Velero Schedule in the OADP namespace. Each generated Backup
+is surfaced as a synchronized NonAdminBackup in the tenant namespace and can
+be selected by a NonAdminRestore.
+
+```yaml
+apiVersion: oadp.openshift.io/v1alpha1
+kind: NonAdminSchedule
+metadata:
+  name: nightly-backup
+  namespace: tenant-a
+spec:
+  schedule: "0 2 * * *"
+  paused: false
+  template:
+    backupSpec:
+      ttl: 720h
+      storageLocation: tenant-a-bsl
+```
+
+Set `paused: true` to stop future runs. Set `skipImmediately: true` to skip
+the next due run. Deleting the NonAdminSchedule stops future runs but retains
+previously generated backups until their TTL expires or they are deleted
+individually.
+
 #### Restricted NonAdminRestore NAR
 
 NonAdminRestores spec fields can also be restricted by the cluster administrator.  The following NAR spec fields are currently supported for template enforcement:

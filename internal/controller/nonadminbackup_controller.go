@@ -69,6 +69,7 @@ const (
 var (
 	alwaysExcludedNamespacedResources = []string{
 		nacv1alpha1.NonAdminBackups,
+		nacv1alpha1.NonAdminSchedules,
 		nacv1alpha1.NonAdminRestores,
 		nacv1alpha1.NonAdminBackupStorageLocations,
 	}
