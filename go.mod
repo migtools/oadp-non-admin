@@ -7,10 +7,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.28.3
 	github.com/onsi/gomega v1.40.0
-	github.com/openshift/oadp-operator v1.0.2-0.20260903203951-bbd94e2895e1
+	github.com/openshift/oadp-operator v1.0.2-0.20260919041402-45ae8e4d75dd
 	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
-	github.com/vmware-tanzu/velero v1.18.3-rc.1
+	github.com/vmware-tanzu/velero v1.18.3
 	go.uber.org/zap v1.28.0
 	golang.org/x/sync v0.22.0
 	k8s.io/api v0.33.12
@@ -111,7 +111,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260901204729-2561b5f76121
+replace github.com/vmware-tanzu/velero => github.com/openshift/velero v0.10.2-0.20260904060022-e81ee90062e6
 
 replace github.com/kcp-dev/kcp/sdk v0.0.0-00010101000000-000000000000 => github.com/kcp-dev/kcp/sdk v0.27.1
 
