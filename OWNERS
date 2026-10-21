@@ -1,4 +1,5 @@
 approvers:
+  - akarol
   - kaovilai
   - mpryc
   - PrasadJoshi12
@@ -6,6 +7,7 @@ approvers:
   - shubham-pampattiwar
   - sseago
 reviewers:
+  - akarol
   - kaovilai
   - mpryc
   - PrasadJoshi12
