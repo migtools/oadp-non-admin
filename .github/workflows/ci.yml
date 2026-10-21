@@ -31,12 +31,10 @@ jobs:
       - name: Go unit and integration tests
         run: make simulation-test
 
+      # Built from source with the repo's Go toolchain (golangci-lint v1.x release
+      # binaries are built with Go <= 1.24 and cannot lint a go 1.25 module).
       - name: Go linters
-        uses: golangci/golangci-lint-action@v6
-        env:
-          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
-        with:
-          version: v1.62.2
+        run: make lint
 
       - name: Go dependencies
         run: make check-go-dependencies
