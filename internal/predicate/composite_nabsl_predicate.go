@@ -22,7 +22,6 @@ import (
 
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
@@ -50,7 +49,7 @@ func (p CompositeNaBSLPredicate) Create(evt event.CreateEvent) bool {
 }
 
 // Update event filter accepts both NonAdminBackupStorageLocation and Velero BackupStorageLocation update events
-func (p CompositeNaBSLPredicate) Update(evt event.TypedUpdateEvent[client.Object]) bool {
+func (p CompositeNaBSLPredicate) Update(evt event.UpdateEvent) bool {
 	switch evt.ObjectNew.(type) {
 	case *nacv1alpha1.NonAdminBackupStorageLocation:
 		return p.NonAdminBackupStorageLocationPredicate.Update(p.Context, evt)
