@@ -26,7 +26,7 @@ If you are upgrading project's kubebuilder version, please follow [upgrade kubeb
 
 To install OADP operator from default or a release branch in your cluster, with related OADP NAC from default or same release branch, run
 ```sh
-git clone --depth=1 git@github.com:openshift/oadp-operator.git -b master # or appropriate branch
+git clone --depth=1 git@github.com:openshift/oadp-operator.git -b oadp-dev # or appropriate branch
 cd oadp-operator
 make deploy-olm
 ```
@@ -36,7 +36,7 @@ To install OADP operator from a branch in your cluster, with OADP NAC from curre
 export NAC_PATH=$PWD # or appropriate NAC repository path, already with current branch pointing to development branch
 export DEV_IMG=ttl.sh/oadp-non-admin-$(git rev-parse --short HEAD)-$(echo $RANDOM):1h
 IMG=$DEV_IMG make docker-build docker-push
-git clone --depth=1 git@github.com:openshift/oadp-operator.git -b master # or appropriate branch
+git clone --depth=1 git@github.com:openshift/oadp-operator.git -b oadp-dev # or appropriate branch
 cd oadp-operator
 NON_ADMIN_CONTROLLER_PATH=$NAC_PATH NON_ADMIN_CONTROLLER_IMG=$DEV_IMG make update-non-admin-manifests deploy-olm
 ```
@@ -141,7 +141,7 @@ If Velero version or its objects needs changes, follow this workflow:
 
 To upgrade OADP version, run
 ```sh
-go get github.com/openshift/oadp-operator@master # or appropriate branch
+go get github.com/openshift/oadp-operator@oadp-dev # or appropriate branch
 ```
 
 TODO when to update oadp-operator version in go.mod?
