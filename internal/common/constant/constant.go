@@ -35,20 +35,25 @@ const (
 	NarOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nar-origin-nacuuid"
 	NabslOriginNACUUIDLabel = v1alpha1.OadpOperatorLabel + "-nabsl-origin-nacuuid"
 	NadrOriginNACUUIDLabel  = v1alpha1.OadpOperatorLabel + "-nadr-origin-nacuuid"
+	NasOriginNACUUIDLabel   = v1alpha1.OadpOperatorLabel + "-nas-origin-nacuuid"
 	NabSyncLabel            = v1alpha1.OadpOperatorLabel + "-nab-synced-from-nacuuid"
 
-	NabOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
-	NabOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
-	NarOriginNameAnnotation        = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
-	NarOriginNamespaceAnnotation   = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
-	NabslOriginNameAnnotation      = v1alpha1.OadpOperatorLabel + "-nabsl-origin-name"
-	NabslOriginNamespaceAnnotation = v1alpha1.OadpOperatorLabel + "-nabsl-origin-namespace"
-	NadrOriginNameAnnotation       = v1alpha1.OadpOperatorLabel + "-nadr-origin-name"
-	NadrOriginNamespaceAnnotation  = v1alpha1.OadpOperatorLabel + "-nadr-origin-namespace"
+	NabOriginNameAnnotation            = v1alpha1.OadpOperatorLabel + "-nab-origin-name"
+	NabOriginNamespaceAnnotation       = v1alpha1.OadpOperatorLabel + "-nab-origin-namespace"
+	NarOriginNameAnnotation            = v1alpha1.OadpOperatorLabel + "-nar-origin-name"
+	NarOriginNamespaceAnnotation       = v1alpha1.OadpOperatorLabel + "-nar-origin-namespace"
+	NabslOriginNameAnnotation          = v1alpha1.OadpOperatorLabel + "-nabsl-origin-name"
+	NabslOriginNamespaceAnnotation     = v1alpha1.OadpOperatorLabel + "-nabsl-origin-namespace"
+	NadrOriginNameAnnotation           = v1alpha1.OadpOperatorLabel + "-nadr-origin-name"
+	NadrOriginNamespaceAnnotation      = v1alpha1.OadpOperatorLabel + "-nadr-origin-namespace"
+	NasOriginNameAnnotation            = v1alpha1.OadpOperatorLabel + "-nas-origin-name"
+	NasOriginNamespaceAnnotation       = v1alpha1.OadpOperatorLabel + "-nas-origin-namespace"
+	NasOriginStorageLocationAnnotation = v1alpha1.OadpOperatorLabel + "-nas-origin-storage-location"
 
 	NabFinalizerName   = "nonadminbackup.oadp.openshift.io/finalizer"
 	NarFinalizerName   = "nonadminrestore.oadp.openshift.io/finalizer"
 	NabslFinalizerName = "nonadminbackupstoragelocation.oadp.openshift.io/finalizer"
+	NasFinalizerName   = "nonadminschedule.oadp.openshift.io/finalizer"
 )
 
 // Common environment variables for the Non Admin Controller
