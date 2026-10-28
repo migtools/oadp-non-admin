@@ -1,5 +1,5 @@
 /*
-Copyright 2026.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,9 @@ type NonAdminScheduleTemplate struct {
 
 // NonAdminScheduleSpec defines the desired state of NonAdminSchedule.
 type NonAdminScheduleSpec struct {
+	// Template defines the backup request to run on the schedule.
+	Template NonAdminScheduleTemplate `json:"template"`
+
 	// Schedule is a standard cron expression defining when to create a backup.
 	Schedule string `json:"schedule"`
 
@@ -42,9 +45,6 @@ type NonAdminScheduleSpec struct {
 	// has submitted the request to the backing Velero Schedule.
 	// +optional
 	SkipImmediately bool `json:"skipImmediately,omitempty"`
-
-	// Template defines the backup request to run on the schedule.
-	Template NonAdminScheduleTemplate `json:"template"`
 }
 
 // VeleroSchedule contains information about the backing Velero Schedule object.
@@ -68,15 +68,6 @@ type VeleroSchedule struct {
 
 // NonAdminScheduledBackup describes one generated backup in schedule status.
 type NonAdminScheduledBackup struct {
-	// Name is the synchronized NonAdminBackup name for this schedule run.
-	Name string `json:"name"`
-
-	// VeleroBackupName is the generated backing Velero Backup name.
-	VeleroBackupName string `json:"veleroBackupName"`
-
-	// Phase is the current Velero Backup phase.
-	Phase velerov1.BackupPhase `json:"phase,omitempty"`
-
 	// StartTimestamp is when the Backup started.
 	// +optional
 	StartTimestamp *metav1.Time `json:"startTimestamp,omitempty"`
@@ -88,6 +79,15 @@ type NonAdminScheduledBackup struct {
 	// Expiration is when Velero will remove the Backup.
 	// +optional
 	Expiration *metav1.Time `json:"expiration,omitempty"`
+
+	// Name is the synchronized NonAdminBackup name for this schedule run.
+	Name string `json:"name"`
+
+	// VeleroBackupName is the generated backing Velero Backup name.
+	VeleroBackupName string `json:"veleroBackupName"`
+
+	// Phase is the current Velero Backup phase.
+	Phase velerov1.BackupPhase `json:"phase,omitempty"`
 }
 
 // NonAdminScheduleStatus defines the observed state of NonAdminSchedule.

@@ -1,5 +1,5 @@
 /*
-Copyright 2026.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -403,4 +403,69 @@ func scheduleTestScheme(t *testing.T) *runtime.Scheme {
 
 func ctrlRequest(key types.NamespacedName) ctrl.Request {
 	return ctrl.Request{NamespacedName: key}
+}
+
+func TestNonAdminScheduleStripsTemplateMetadata(t *testing.T) {
+	ctx := context.Background()
+	scheme := scheduleTestScheme(t)
+	nas := &nacv1alpha1.NonAdminSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "nightly", Namespace: "tenant-a"},
+		Spec: nacv1alpha1.NonAdminScheduleSpec{
+			Schedule: "0 2 * * *",
+			Template: nacv1alpha1.NonAdminScheduleTemplate{
+				BackupSpec: &velerov1.BackupSpec{
+					Metadata: velerov1.Metadata{Labels: map[string]string{
+						"tenant-label":                 "value",
+						constant.NasOriginNACUUIDLabel: "hijack",
+					}},
+				},
+			},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	reconciler := &NonAdminScheduleReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp", EnforcedBackupSpec: &velerov1.BackupSpec{}}
+
+	template, err := reconciler.scheduleTemplate(ctx, nas)
+	if err != nil {
+		t.Fatalf("build schedule template: %v", err)
+	}
+	if template.Metadata.Labels != nil {
+		t.Fatalf("template metadata labels = %v, want nil so Velero inherits the Schedule's NAC labels", template.Metadata.Labels)
+	}
+}
+
+func TestNonAdminScheduleBoundsScheduleNACUUIDLength(t *testing.T) {
+	ctx := context.Background()
+	scheme := scheduleTestScheme(t)
+	longNamespace := "tenant-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	nas := &nacv1alpha1.NonAdminSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "nightly-schedule-with-a-fairly-long-name", Namespace: longNamespace},
+		Spec: nacv1alpha1.NonAdminScheduleSpec{
+			Schedule: "0 2 * * *",
+			Template: nacv1alpha1.NonAdminScheduleTemplate{BackupSpec: &velerov1.BackupSpec{}},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(nas).WithObjects(nas).Build()
+	reconciler := &NonAdminScheduleReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp", EnforcedBackupSpec: &velerov1.BackupSpec{}}
+	req := types.NamespacedName{Name: nas.Name, Namespace: nas.Namespace}
+
+	for range 3 {
+		if _, err := reconciler.Reconcile(ctx, ctrlRequest(req)); err != nil {
+			t.Fatalf("reconcile NonAdminSchedule: %v", err)
+		}
+	}
+
+	actualNAS := &nacv1alpha1.NonAdminSchedule{}
+	if err := client.Get(ctx, req, actualNAS); err != nil {
+		t.Fatalf("get NonAdminSchedule: %v", err)
+	}
+	nacUUID := actualNAS.Status.VeleroSchedule.NACUUID
+	if len(nacUUID) > scheduleNACUUIDMaxLength {
+		t.Fatalf("schedule NACUUID length = %d, want <= %d", len(nacUUID), scheduleNACUUIDMaxLength)
+	}
+	// The generated Velero Backup name (schedule name + 15 char timestamp) must remain a valid label value.
+	generatedBackupName := nacUUID + "-20260102150405"
+	if len(generatedBackupName) > constant.MaximumNacObjectNameLength {
+		t.Fatalf("generated backup name length = %d, want <= %d", len(generatedBackupName), constant.MaximumNacObjectNameLength)
+	}
 }

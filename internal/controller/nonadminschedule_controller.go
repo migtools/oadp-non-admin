@@ -1,5 +1,5 @@
 /*
-Copyright 2026.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -46,6 +46,15 @@ import (
 
 const nonAdminScheduleHistoryLimit = 5
 
+// veleroGeneratedBackupTimestampSuffixLength is the length Velero appends to a Schedule name to
+// form each generated Backup name, for example "-20060102150405".
+const veleroGeneratedBackupTimestampSuffixLength = 15
+
+// scheduleNACUUIDMaxLength bounds the backing Velero Schedule name so every generated Backup name
+// (scheduleName + timestamp suffix) stays within the Kubernetes label value limit. NAC reuses the
+// generated Backup name as the value of the nab-synced-from-nacuuid and nab-origin-nacuuid labels.
+const scheduleNACUUIDMaxLength = constant.MaximumNacObjectNameLength - veleroGeneratedBackupTimestampSuffixLength
+
 // NonAdminScheduleReconciler reconciles a NonAdminSchedule with a backing
 // Velero Schedule in the OADP namespace.
 type NonAdminScheduleReconciler struct {
@@ -86,7 +95,7 @@ func (r *NonAdminScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	if nas.Status.VeleroSchedule == nil || nas.Status.VeleroSchedule.NACUUID == constant.EmptyString {
 		nas.Status.VeleroSchedule = &nacv1alpha1.VeleroSchedule{
-			NACUUID:   function.GenerateNacObjectUUID(nas.Namespace, nas.Name),
+			NACUUID:   function.GenerateNacObjectUUIDWithMaxLength(nas.Namespace, nas.Name, scheduleNACUUIDMaxLength),
 			Namespace: r.OADPNamespace,
 		}
 		nas.Status.VeleroSchedule.Name = nas.Status.VeleroSchedule.NACUUID
@@ -111,7 +120,7 @@ func (r *NonAdminScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		// tenant object at submission time so subsequent reconciliations do not
 		// repeatedly request skipped runs.
 		nas.Spec.SkipImmediately = false
-		if err := r.Update(ctx, nas); err != nil {
+		if err = r.Update(ctx, nas); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -136,7 +145,7 @@ func (r *NonAdminScheduleReconciler) reconcileDeletion(ctx context.Context, nas 
 		veleroSchedule := &velerov1.Schedule{}
 		err := r.Get(ctx, types.NamespacedName{Namespace: r.OADPNamespace, Name: nas.Status.VeleroSchedule.Name}, veleroSchedule)
 		if err == nil {
-			if err := r.Delete(ctx, veleroSchedule); err != nil {
+			if err = r.Delete(ctx, veleroSchedule); err != nil {
 				return ctrl.Result{}, err
 			}
 			return ctrl.Result{Requeue: true}, nil
@@ -209,6 +218,14 @@ func (r *NonAdminScheduleReconciler) scheduleTemplate(ctx context.Context, nas *
 		template.ExcludedResources = append(template.ExcludedResources, alwaysExcludedNamespacedResources...)
 		template.ExcludedResources = append(template.ExcludedResources, alwaysExcludedClusterResources...)
 	}
+
+	// NAC owns the labels Velero copies onto generated Backups. The NonAdminSchedule API exposes
+	// the full Velero BackupSpec, which embeds Metadata, so a tenant could otherwise set template
+	// metadata labels that Velero would copy onto generated Backups in place of the backing
+	// Schedule's NAC owned labels. Clear the template metadata so Velero always inherits the
+	// Schedule labels, which the synchronizer, garbage collector, and reaper rely on to identify
+	// schedule generated backups.
+	template.Metadata = velerov1.Metadata{}
 
 	return template, nil
 }
