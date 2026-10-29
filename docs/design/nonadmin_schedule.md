@@ -58,7 +58,7 @@ NAC is the single owner of the generated backups' tenant-facing lifecycle: it cr
 
 - `schedule`: a standard Velero cron expression.
 - `paused`: stops or resumes future executions.
-- `skipImmediately`: skips the next scheduled execution. This is an edge trigger and NAC resets it after Velero accepts it.
+- `skipImmediately`: requests that Velero skip a backup that is due immediately, following Velero's `Schedule` skipImmediately semantics. It skips a catch-up run that would otherwise fire right away when the schedule is new or resumed, not an arbitrary future scheduled run. This is an edge trigger and NAC resets it after Velero accepts it.
 - `template.backupSpec`: the complete existing Velero `BackupSpec` surface.
 
 Tenant controlled template metadata is intentionally not honored.
@@ -163,7 +163,7 @@ This runs independently of the NonAdminSchedule and does not rely on the garbage
 Three cleanup paths exist and must not overlap:
 
 - Velero removes a generated `Backup` when its TTL expires. The backup deletion reconciles the child NAB through the NonAdminBackup controller's existing Velero `Backup` watch, and the child deletes itself as described above. The NonAdminSchedule controller also reaps dangling children on its own reconcile while the schedule still exists, which is a fast path, not the authoritative one.
-- A tenant deletes a child NAB. The existing NAB delete path creates a Velero `DeleteBackupRequest` and removes the backing generated `Backup`.
+- A tenant removes a run. Setting `spec.deleteBackup: true` on a child NAB routes through the NAB delete-backup path, which creates a Velero `DeleteBackupRequest` and removes the backup data from object storage. Plain deletion of a child NAB only removes the `NonAdminBackup` and its Velero `Backup` object; the data in object storage is not deleted and persists until the backup TTL expires.
 - The garbage collector does not participate, by the ownership rule above.
 
 ## Alternatives Considered

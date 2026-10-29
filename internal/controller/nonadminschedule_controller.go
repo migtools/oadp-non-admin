@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
@@ -35,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	ctrlhandler "sigs.k8s.io/controller-runtime/pkg/handler"
 	ctrlpredicate "sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -55,10 +57,18 @@ const veleroGeneratedBackupTimestampSuffixLength = 15
 // generated Backup name as the value of the nab-synced-from-nacuuid and nab-origin-nacuuid labels.
 const scheduleNACUUIDMaxLength = constant.MaximumNacObjectNameLength - veleroGeneratedBackupTimestampSuffixLength
 
+// scheduleRejectRequeueInterval is how often a rejected NonAdminSchedule is re-validated. A
+// rejection can be transient (for example a NABSL that is still provisioning), and those
+// dependencies are not watched, so the reconcile must retry rather than terminate.
+const scheduleRejectRequeueInterval = time.Minute
+
 // NonAdminScheduleReconciler reconciles a NonAdminSchedule with a backing
 // Velero Schedule in the OADP namespace.
 type NonAdminScheduleReconciler struct {
 	client.Client
+	// APIReader is an uncached reader used while draining generated Backups on deletion, so a run
+	// created just before deletion is visible even if the cache has not caught up yet.
+	APIReader          client.Reader
 	Scheme             *runtime.Scheme
 	EnforcedBackupSpec *velerov1.BackupSpec
 	OADPNamespace      string
@@ -107,7 +117,7 @@ func (r *NonAdminScheduleReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	template, err := r.scheduleTemplate(ctx, nas)
 	if err != nil {
-		return ctrl.Result{}, r.setRejected(ctx, nas, err)
+		return r.setRejected(ctx, nas, err)
 	}
 
 	veleroSchedule, err := r.reconcileVeleroSchedule(ctx, nas, template)
@@ -155,10 +165,67 @@ func (r *NonAdminScheduleReconciler) reconcileDeletion(ctx context.Context, nas 
 		}
 	}
 
-	// The backing Schedule does not use owner references for generated Backups.
-	// Removing it therefore stops future runs while retaining existing backups.
+	// The backing Schedule is gone, so Velero creates no further runs. Drain any already generated
+	// Backups into child NonAdminBackups before removing the finalizer, so a run created just before
+	// deletion stays accessible through NAB and NAR. The backing Schedule does not own the generated
+	// Backups through owner references, so removing it retains existing backups.
+	if err := r.drainGeneratedBackups(ctx, nas); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	controllerutil.RemoveFinalizer(nas, constant.NasFinalizerName)
 	return ctrl.Result{}, r.Update(ctx, nas)
+}
+
+// drainGeneratedBackups ensures every already generated Backup for this schedule has a child
+// NonAdminBackup. It uses the uncached reader so a run created just before deletion is not missed.
+func (r *NonAdminScheduleReconciler) drainGeneratedBackups(ctx context.Context, nas *nacv1alpha1.NonAdminSchedule) error {
+	if nas.Status.VeleroSchedule == nil || nas.Status.VeleroSchedule.NACUUID == constant.EmptyString {
+		return nil
+	}
+	backupList := &velerov1.BackupList{}
+	if err := r.APIReader.List(ctx, backupList, client.InNamespace(r.OADPNamespace), client.MatchingLabels{
+		velerov1.ScheduleNameLabel:     nas.Status.VeleroSchedule.Name,
+		constant.NasOriginNACUUIDLabel: nas.Status.VeleroSchedule.NACUUID,
+	}); err != nil {
+		return err
+	}
+	for index := range backupList.Items {
+		backup := &backupList.Items[index]
+		if backup.Annotations[constant.NasOriginNamespaceAnnotation] != nas.Namespace ||
+			backup.Annotations[constant.NasOriginNameAnnotation] != nas.Name {
+			continue
+		}
+		if err := r.syncGeneratedBackup(ctx, nas, backup); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// pauseBackingSchedule pauses the Velero Schedule owned by this NonAdminSchedule, if one exists. It
+// is used when a schedule is rejected so the backing Schedule stops running a now-disallowed
+// template instead of continuing with stale configuration.
+func (r *NonAdminScheduleReconciler) pauseBackingSchedule(ctx context.Context, nas *nacv1alpha1.NonAdminSchedule) error {
+	if nas.Status.VeleroSchedule == nil || nas.Status.VeleroSchedule.Name == constant.EmptyString {
+		return nil
+	}
+	veleroSchedule := &velerov1.Schedule{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: r.OADPNamespace, Name: nas.Status.VeleroSchedule.Name}, veleroSchedule)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if veleroSchedule.Labels[constant.NasOriginNACUUIDLabel] != nas.Status.VeleroSchedule.NACUUID {
+		return nil
+	}
+	if veleroSchedule.Spec.Paused {
+		return nil
+	}
+	veleroSchedule.Spec.Paused = true
+	return r.Update(ctx, veleroSchedule)
 }
 
 func (r *NonAdminScheduleReconciler) scheduleTemplate(ctx context.Context, nas *nacv1alpha1.NonAdminSchedule) (*velerov1.BackupSpec, error) {
@@ -451,7 +518,12 @@ func (r *NonAdminScheduleReconciler) updateStatus(ctx context.Context, nas *nacv
 	return r.Status().Update(ctx, nas)
 }
 
-func (r *NonAdminScheduleReconciler) setRejected(ctx context.Context, nas *nacv1alpha1.NonAdminSchedule, cause error) error {
+func (r *NonAdminScheduleReconciler) setRejected(ctx context.Context, nas *nacv1alpha1.NonAdminSchedule, cause error) (ctrl.Result, error) {
+	// Pause the owned backing Schedule so it stops running a now-disallowed template while the
+	// NonAdminSchedule is rejected (for example after an administrator tightens the enforced spec).
+	if err := r.pauseBackingSchedule(ctx, nas); err != nil {
+		return ctrl.Result{}, err
+	}
 	previous := nas.DeepCopy()
 	nas.Status.Phase = nacv1alpha1.NonAdminPhaseBackingOff
 	meta.SetStatusCondition(&nas.Status.Conditions, metav1.Condition{
@@ -462,10 +534,13 @@ func (r *NonAdminScheduleReconciler) setRejected(ctx context.Context, nas *nacv1
 	})
 	if !reflect.DeepEqual(previous.Status, nas.Status) {
 		if err := r.Status().Update(ctx, nas); err != nil {
-			return err
+			return ctrl.Result{}, err
 		}
 	}
-	return reconcile.TerminalError(cause)
+	// Requeue rather than terminating: the rejection may be transient (for example a NABSL that is
+	// still provisioning), and that dependency is not watched. A tenant spec fix bumps the
+	// generation and reconciles immediately regardless.
+	return ctrl.Result{RequeueAfter: scheduleRejectRequeueInterval}, nil
 }
 
 func scheduleAnnotations(nas *nacv1alpha1.NonAdminSchedule) map[string]string {
@@ -512,11 +587,29 @@ func nextRun(veleroSchedule *velerov1.Schedule) *metav1.Time {
 	return &metav1.Time{Time: cronSchedule.Next(lastRun)}
 }
 
+// nonAdminSchedulePredicate reconciles on spec (generation) changes and on deletion requests.
+// Deleting a NonAdminSchedule that carries a finalizer sets only deletionTimestamp, which does not
+// bump the generation, so a generation-only predicate would drop that update and leave the
+// finalizer and the backing Schedule in place until some unrelated event fired.
+type nonAdminSchedulePredicate struct {
+	ctrlpredicate.Funcs
+}
+
+func (nonAdminSchedulePredicate) Update(e event.UpdateEvent) bool {
+	if e.ObjectOld == nil || e.ObjectNew == nil {
+		return false
+	}
+	if !e.ObjectNew.GetDeletionTimestamp().IsZero() {
+		return true
+	}
+	return e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()
+}
+
 // SetupWithManager registers the NAS controller and maps backing Velero object
 // events to the tenant-owned NAS identified by NAC annotations.
 func (r *NonAdminScheduleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&nacv1alpha1.NonAdminSchedule{}, builder.WithPredicates(ctrlpredicate.GenerationChangedPredicate{})).
+		For(&nacv1alpha1.NonAdminSchedule{}, builder.WithPredicates(nonAdminSchedulePredicate{})).
 		Watches(&velerov1.Schedule{}, ctrlhandler.EnqueueRequestsFromMapFunc(nonAdminScheduleRequest), builder.WithPredicates(ctrlpredicate.ResourceVersionChangedPredicate{})).
 		Watches(&velerov1.Backup{}, ctrlhandler.EnqueueRequestsFromMapFunc(nonAdminScheduleRequest), builder.WithPredicates(ctrlpredicate.ResourceVersionChangedPredicate{})).
 		Complete(r)

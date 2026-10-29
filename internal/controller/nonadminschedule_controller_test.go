@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	nacv1alpha1 "github.com/migtools/oadp-non-admin/api/v1alpha1"
 	"github.com/migtools/oadp-non-admin/internal/common/constant"
@@ -508,5 +509,115 @@ func TestNonAdminScheduleSyncWithDefaultStorageLocation(t *testing.T) {
 	}
 	if child.Spec.BackupSpec.StorageLocation != "" {
 		t.Fatalf("child storage location = %q, want empty for default BSL", child.Spec.BackupSpec.StorageLocation)
+	}
+}
+
+func TestNonAdminSchedulePredicateAcceptsDeletion(t *testing.T) {
+	p := nonAdminSchedulePredicate{}
+	base := &nacv1alpha1.NonAdminSchedule{ObjectMeta: metav1.ObjectMeta{Generation: 1}}
+
+	if p.Update(event.UpdateEvent{ObjectOld: base, ObjectNew: base.DeepCopy()}) {
+		t.Fatal("expected a no-op update (same generation, no deletion) to be dropped")
+	}
+
+	newer := base.DeepCopy()
+	newer.Generation = 2
+	if !p.Update(event.UpdateEvent{ObjectOld: base, ObjectNew: newer}) {
+		t.Fatal("expected a generation change to be accepted")
+	}
+
+	deleting := base.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	if !p.Update(event.UpdateEvent{ObjectOld: base, ObjectNew: deleting}) {
+		t.Fatal("expected a deletion-timestamp update (generation unchanged) to be accepted")
+	}
+}
+
+func TestNonAdminScheduleRejectionPausesBackingSchedule(t *testing.T) {
+	ctx := context.Background()
+	scheme := scheduleTestScheme(t)
+	nas := &nacv1alpha1.NonAdminSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "nightly", Namespace: "tenant-a", Finalizers: []string{constant.NasFinalizerName}},
+		Spec: nacv1alpha1.NonAdminScheduleSpec{
+			Schedule: "0 2 * * *",
+			Template: nacv1alpha1.NonAdminScheduleTemplate{
+				BackupSpec: &velerov1.BackupSpec{IncludedNamespaces: []string{"other-namespace"}},
+			},
+		},
+		Status: nacv1alpha1.NonAdminScheduleStatus{
+			VeleroSchedule: &nacv1alpha1.VeleroSchedule{NACUUID: "schedule-uuid", Name: "schedule-uuid", Namespace: "openshift-adp"},
+		},
+	}
+	veleroSchedule := &velerov1.Schedule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "schedule-uuid",
+			Namespace: "openshift-adp",
+			Labels:    map[string]string{constant.NasOriginNACUUIDLabel: "schedule-uuid"},
+		},
+		Spec: velerov1.ScheduleSpec{Paused: false},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(nas).WithObjects(nas, veleroSchedule).Build()
+	reconciler := &NonAdminScheduleReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp", EnforcedBackupSpec: &velerov1.BackupSpec{}}
+
+	res, err := reconciler.Reconcile(ctx, ctrlRequest(types.NamespacedName{Name: "nightly", Namespace: "tenant-a"}))
+	if err != nil {
+		t.Fatalf("reconcile should requeue a rejection, not error: %v", err)
+	}
+	if res.RequeueAfter == 0 {
+		t.Fatal("expected a rejection to requeue for re-validation, not terminate")
+	}
+	got := &velerov1.Schedule{}
+	if err := client.Get(ctx, types.NamespacedName{Name: "schedule-uuid", Namespace: "openshift-adp"}, got); err != nil {
+		t.Fatalf("get backing Velero Schedule: %v", err)
+	}
+	if !got.Spec.Paused {
+		t.Fatal("expected the backing Velero Schedule to be paused while the NonAdminSchedule is rejected")
+	}
+}
+
+func TestNonAdminScheduleDeletionDrainsGeneratedBackups(t *testing.T) {
+	ctx := context.Background()
+	scheme := scheduleTestScheme(t)
+	now := metav1.Now()
+	nas := &nacv1alpha1.NonAdminSchedule{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "nightly",
+			Namespace:         "tenant-a",
+			Finalizers:        []string{constant.NasFinalizerName},
+			DeletionTimestamp: &now,
+		},
+		Status: nacv1alpha1.NonAdminScheduleStatus{
+			VeleroSchedule: &nacv1alpha1.VeleroSchedule{NACUUID: "schedule-uuid", Name: "schedule-uuid", Namespace: "openshift-adp"},
+		},
+	}
+	// Backup generated just before deletion, not yet synced into a child NAB. No backing Schedule
+	// exists anymore (already deleted).
+	backup := &velerov1.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "schedule-uuid-20260915020000",
+			Namespace: "openshift-adp",
+			Labels: map[string]string{
+				velerov1.ScheduleNameLabel:     "schedule-uuid",
+				constant.NasOriginNACUUIDLabel: "schedule-uuid",
+			},
+			Annotations: map[string]string{
+				constant.NasOriginNamespaceAnnotation: "tenant-a",
+				constant.NasOriginNameAnnotation:      "nightly",
+			},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nas, backup).Build()
+	reconciler := &NonAdminScheduleReconciler{Client: client, APIReader: client, Scheme: scheme, OADPNamespace: "openshift-adp"}
+
+	if _, err := reconciler.reconcileDeletion(ctx, nas); err != nil {
+		t.Fatalf("reconcile deletion: %v", err)
+	}
+	child := &nacv1alpha1.NonAdminBackup{}
+	if err := client.Get(ctx, types.NamespacedName{Name: backup.Name, Namespace: "tenant-a"}, child); err != nil {
+		t.Fatalf("drain did not create the child NonAdminBackup for the last run: %v", err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: "nightly", Namespace: "tenant-a"}, &nacv1alpha1.NonAdminSchedule{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the finalizer to be removed after draining, got: %v", err)
 	}
 }

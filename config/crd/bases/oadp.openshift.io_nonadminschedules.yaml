@@ -67,8 +67,11 @@ spec:
                 type: string
               skipImmediately:
                 description: |-
-                  SkipImmediately skips the next due backup. NAC resets this field after it
-                  has submitted the request to the backing Velero Schedule.
+                  SkipImmediately, when true, requests that Velero skip a backup that is due immediately,
+                  following Velero's Schedule skipImmediately semantics: it skips a catch-up run that would
+                  otherwise fire right away when the schedule is new or resumed, rather than skipping an
+                  arbitrary future scheduled run. NAC passes the request through and resets this field after
+                  submitting it to the backing Velero Schedule.
                 type: boolean
               template:
                 description: Template defines the backup request to run on the schedule.

@@ -199,6 +199,7 @@ func main() {
 	}
 	if err = (&controller.NonAdminScheduleReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,

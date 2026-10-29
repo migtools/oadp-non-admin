@@ -41,8 +41,11 @@ type NonAdminScheduleSpec struct {
 	// +optional
 	Paused bool `json:"paused,omitempty"`
 
-	// SkipImmediately skips the next due backup. NAC resets this field after it
-	// has submitted the request to the backing Velero Schedule.
+	// SkipImmediately, when true, requests that Velero skip a backup that is due immediately,
+	// following Velero's Schedule skipImmediately semantics: it skips a catch-up run that would
+	// otherwise fire right away when the schedule is new or resumed, rather than skipping an
+	// arbitrary future scheduled run. NAC passes the request through and resets this field after
+	// submitting it to the backing Velero Schedule.
 	// +optional
 	SkipImmediately bool `json:"skipImmediately,omitempty"`
 }
