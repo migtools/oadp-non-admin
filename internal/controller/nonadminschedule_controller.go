@@ -392,13 +392,11 @@ func (r *NonAdminScheduleReconciler) syncGeneratedBackup(ctx context.Context, na
 	}
 
 	childSpec := backup.Spec.DeepCopy()
-	// Preserve the tenant-facing NABSL name so existing NAB consumers, such as
-	// NonAdminDownloadRequest, continue to resolve the storage location.
-	storageLocation, found := backup.Annotations[constant.NasOriginStorageLocationAnnotation]
-	if !found {
-		return fmt.Errorf("generated Velero Backup %s is missing its tenant storage location", backup.Name)
-	}
-	childSpec.StorageLocation = storageLocation
+	// Restore the tenant-facing NABSL name so existing NAB consumers, such as
+	// NonAdminDownloadRequest, continue to resolve the storage location. When the tenant did not
+	// set a storage location (the backup uses the default BSL), the annotation is absent and the
+	// child keeps no explicit storage location, matching the default BSL behavior.
+	childSpec.StorageLocation = backup.Annotations[constant.NasOriginStorageLocationAnnotation]
 	child = &nacv1alpha1.NonAdminBackup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      backup.Name,

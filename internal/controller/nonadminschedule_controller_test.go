@@ -469,3 +469,44 @@ func TestNonAdminScheduleBoundsScheduleNACUUIDLength(t *testing.T) {
 		t.Fatalf("generated backup name length = %d, want <= %d", len(generatedBackupName), constant.MaximumNacObjectNameLength)
 	}
 }
+
+func TestNonAdminScheduleSyncWithDefaultStorageLocation(t *testing.T) {
+	ctx := context.Background()
+	scheme := scheduleTestScheme(t)
+	nas := &nacv1alpha1.NonAdminSchedule{
+		ObjectMeta: metav1.ObjectMeta{Name: "nightly", Namespace: "tenant-a"},
+		Spec: nacv1alpha1.NonAdminScheduleSpec{
+			Template: nacv1alpha1.NonAdminScheduleTemplate{BackupSpec: &velerov1.BackupSpec{}},
+		},
+		Status: nacv1alpha1.NonAdminScheduleStatus{
+			VeleroSchedule: &nacv1alpha1.VeleroSchedule{NACUUID: "schedule-uuid", Name: "schedule-uuid", Namespace: "openshift-adp"},
+		},
+	}
+	// A schedule with no tenant storage location uses the default BSL, so scheduleAnnotations
+	// does not set the storage location annotation on generated backups.
+	backup := &velerov1.Backup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "schedule-uuid-20260915020000",
+			Namespace: "openshift-adp",
+			Labels: map[string]string{
+				velerov1.ScheduleNameLabel:     "schedule-uuid",
+				constant.NasOriginNACUUIDLabel: "schedule-uuid",
+			},
+			Annotations: scheduleAnnotations(nas),
+		},
+		Spec: velerov1.BackupSpec{StorageLocation: "sample-dpa-1"},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(nas).WithObjects(nas, backup).Build()
+	reconciler := &NonAdminScheduleReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp"}
+
+	if _, err := reconciler.syncGeneratedBackups(ctx, nas, &velerov1.Schedule{ObjectMeta: metav1.ObjectMeta{Name: "schedule-uuid"}}); err != nil {
+		t.Fatalf("sync generated backups with default storage location: %v", err)
+	}
+	child := &nacv1alpha1.NonAdminBackup{}
+	if err := client.Get(ctx, types.NamespacedName{Name: backup.Name, Namespace: "tenant-a"}, child); err != nil {
+		t.Fatalf("get synchronized NonAdminBackup: %v", err)
+	}
+	if child.Spec.BackupSpec.StorageLocation != "" {
+		t.Fatalf("child storage location = %q, want empty for default BSL", child.Spec.BackupSpec.StorageLocation)
+	}
+}
