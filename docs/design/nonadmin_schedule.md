@@ -77,6 +77,15 @@ Kubernetes caps a label value at 63 characters.
 Therefore the schedule NACUUID must be at most 48 characters (`63 - len("-20060102150405")`) so every generated backup name stays a valid label value.
 The default `GenerateNacObjectUUID` caps at 63, which is too long for this case, so NAC must allocate the schedule NACUUID with a 48 character bound while keeping the full UUID portion for uniqueness.
 
+Naming example.
+A tenant creates a `NonAdminSchedule` named `nightly` in namespace `nas-test-tenant`.
+
+- Backing Velero `Schedule`, named after the allocated NACUUID (the tenant namespace truncated to fit the 48 character budget, plus a UUID): `nas-test-t-0016ccc0-022e-442c-824b-fb01728260d2`.
+- Each generated Velero `Backup`, named `<scheduleName>-<timestamp>` by Velero: `nas-test-t-0016ccc0-022e-442c-824b-fb01728260d2-20261029170616`.
+- The synchronized child `NonAdminBackup` in the tenant namespace reuses the generated backup name: `nas-test-t-0016ccc0-022e-442c-824b-fb01728260d2-20261029170616`.
+
+The tenant-facing `NonAdminSchedule` name and namespace are preserved on the backing objects through the `nas-origin-name` and `nas-origin-namespace` annotations, so NAC always maps a backing object back to its owning `NonAdminSchedule`.
+
 ### Validation and template enforcement
 
 On each reconcile NAC builds a throwaway NAB from `template.backupSpec` and runs the same `ValidateBackupSpec` used by `NonAdminBackup`.
