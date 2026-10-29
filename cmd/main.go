@@ -189,11 +189,22 @@ func main() {
 
 	if err = (&controller.NonAdminBackupReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to setup NonAdminBackup controller with manager")
+		os.Exit(1)
+	}
+	if err = (&controller.NonAdminScheduleReconciler{
+		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
+		Scheme:             mgr.GetScheme(),
+		OADPNamespace:      oadpNamespace,
+		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to setup NonAdminSchedule controller with manager")
 		os.Exit(1)
 	}
 	if err = (&controller.NonAdminRestoreReconciler{

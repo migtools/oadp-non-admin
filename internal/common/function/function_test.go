@@ -383,6 +383,11 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			enforcedValue: "enforced-label-key",
 			overrideValue: "user-label-key",
 		},
+		{
+			name:          "BackupType",
+			enforcedValue: velerov1.BackupTypeFull,
+			overrideValue: velerov1.BackupTypeIncremental,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -830,6 +835,15 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			},
 			overrideValue: &corev1.TypedLocalObjectReference{
 				Name: "melon",
+			},
+		},
+		{
+			name: "ResourcePolicy",
+			enforcedValue: &corev1.TypedLocalObjectReference{
+				Name: "pear",
+			},
+			overrideValue: &corev1.TypedLocalObjectReference{
+				Name: "grape",
 			},
 		},
 	}
@@ -2157,4 +2171,71 @@ func TestGetRestoreQueueInfo(t *testing.T) {
 			assert.Equal(t, tt.expectedQueue, queueInfo.EstimatedQueuePosition)
 		})
 	}
+}
+
+func TestIsScheduleGeneratedVeleroBackup(t *testing.T) {
+	tests := []struct {
+		name   string
+		labels map[string]string
+		want   bool
+	}{
+		{
+			name:   "nil labels",
+			labels: nil,
+			want:   false,
+		},
+		{
+			name:   "schedule label only",
+			labels: map[string]string{velerov1.ScheduleNameLabel: "sched-uuid"},
+			want:   false,
+		},
+		{
+			name:   "nas origin label only",
+			labels: map[string]string{constant.NasOriginNACUUIDLabel: "sched-uuid"},
+			want:   false,
+		},
+		{
+			name: "both labels present",
+			labels: map[string]string{
+				velerov1.ScheduleNameLabel:     "sched-uuid",
+				constant.NasOriginNACUUIDLabel: "sched-uuid",
+			},
+			want: true,
+		},
+		{
+			name: "both labels present but empty values",
+			labels: map[string]string{
+				velerov1.ScheduleNameLabel:     "",
+				constant.NasOriginNACUUIDLabel: "",
+			},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsScheduleGeneratedVeleroBackup(tt.labels))
+		})
+	}
+}
+
+func TestGenerateNacObjectUUIDWithMaxLength(t *testing.T) {
+	const scheduleBound = constant.MaximumNacObjectNameLength - 15
+	longNamespace := strings.Repeat("a", 80)
+	longName := strings.Repeat("b", 80)
+
+	name := GenerateNacObjectUUIDWithMaxLength(longNamespace, longName, scheduleBound)
+	assert.LessOrEqual(t, len(name), scheduleBound, "generated name must respect the max length bound")
+
+	// A generated Velero Backup name is the schedule name plus a 15 character timestamp suffix.
+	// That derived name is reused as a label value, so it must stay within the 63 character limit.
+	generatedBackupName := name + "-20260102150405"
+	assert.LessOrEqual(t, len(generatedBackupName), constant.MaximumNacObjectNameLength,
+		"derived generated backup name must stay a valid label value")
+
+	// The full UUID portion is always kept for uniqueness.
+	assert.GreaterOrEqual(t, len(name), len(uuid.New().String()))
+
+	// Two allocations for the same inputs must differ.
+	other := GenerateNacObjectUUIDWithMaxLength(longNamespace, longName, scheduleBound)
+	assert.NotEqual(t, name, other)
 }

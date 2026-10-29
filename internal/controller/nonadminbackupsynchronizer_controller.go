@@ -95,6 +95,11 @@ func (r *NonAdminBackupSynchronizerReconciler) Reconcile(ctx context.Context, _ 
 	var backupsToSync []velerov1.Backup
 	var possibleBackupsToSync []velerov1.Backup
 	for _, backup := range veleroBackupList.Items {
+		// Schedule generated backups are owned exclusively by the NonAdminSchedule controller,
+		// which creates their child NonAdminBackups. Skip them here to avoid a duplicate child.
+		if function.IsScheduleGeneratedVeleroBackup(backup.GetLabels()) {
+			continue
+		}
 		if function.CheckVeleroBackupAnnotations(&backup) &&
 			function.CheckLabelAnnotationValueIsValid(backup.GetLabels(), constant.NabOriginNACUUIDLabel) &&
 			backup.Status.CompletionTimestamp != nil &&
