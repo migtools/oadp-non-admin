@@ -145,9 +145,15 @@ Deleting a `NonAdminSchedule` deletes the backing Velero `Schedule`, which stops
 Already created child NABs and their Velero `Backup` objects are retained until their TTL expires or the tenant deletes a child NAB.
 The backing Schedule does not own the generated backups through owner references, so removing it does not cascade delete history.
 
-Three distinct cleanup paths exist and must not overlap:
+Child NAB cleanup must survive `NonAdminSchedule` deletion.
+The schedule may be deleted long before its retained backups expire, so cleanup cannot depend on the NonAdminSchedule controller still reconciling.
+The NonAdminBackup controller already watches Velero `Backup` objects, so it owns the reap: when a schedule child NAB (identified by the `nas-origin-nacuuid` label) that has already reached the `Created` phase finds its backing Velero `Backup` gone, the controller deletes the child.
+Requiring the `Created` phase confirms the child synced at least once, so a transient cache miss cannot trigger a spurious deletion.
+This runs independently of the NonAdminSchedule and does not rely on the garbage collector, which skips schedule generated backups.
 
-- Velero removes a generated `Backup` when its TTL expires. On the next reconcile NAC's reaper deletes the now dangling child NAB, guarded so it only deletes children it created (verified by the `nas-origin-nacuuid` label and the child's own status NACUUID).
+Three cleanup paths exist and must not overlap:
+
+- Velero removes a generated `Backup` when its TTL expires. The backup deletion reconciles the child NAB through the NonAdminBackup controller's existing Velero `Backup` watch, and the child deletes itself as described above. The NonAdminSchedule controller also reaps dangling children on its own reconcile while the schedule still exists, which is a fast path, not the authoritative one.
 - A tenant deletes a child NAB. The existing NAB delete path creates a Velero `DeleteBackupRequest` and removes the backing generated `Backup`.
 - The garbage collector does not participate, by the ownership rule above.
 

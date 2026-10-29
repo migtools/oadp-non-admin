@@ -646,6 +646,21 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 	}
 
 	if veleroBackup == nil {
+		// A schedule generated child NonAdminBackup mirrors a backing Velero Backup that it never
+		// creates. Once Velero removes that Backup at TTL expiry, the child has nothing left to
+		// mirror. Reap it here so cleanup does not depend on the NonAdminSchedule still existing
+		// (it may already be deleted) and does not rely on the garbage collector, which skips
+		// schedule generated backups. Requiring the Created phase confirms the child synced at
+		// least once, so a transient cache miss cannot trigger a spurious deletion.
+		if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NasOriginNACUUIDLabel) &&
+			nab.Status.Phase == nacv1alpha1.NonAdminPhaseCreated &&
+			nab.DeletionTimestamp.IsZero() {
+			logger.Info("Backing Velero Backup for schedule generated NonAdminBackup no longer exists, deleting child", constant.UUIDString, veleroBackupNACUUID)
+			if err = r.Delete(ctx, nab); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
 		if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel) || nab.Status.Phase == nacv1alpha1.NonAdminPhaseCreated {
 			if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel) {
 				err = errors.New("related Velero Backup to be synced from does not exist")

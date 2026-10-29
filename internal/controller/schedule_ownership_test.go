@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	velerov1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -172,5 +173,79 @@ func TestGarbageCollectorSkipsScheduleGeneratedBackup(t *testing.T) {
 	err := client.Get(ctx, types.NamespacedName{Name: "plain-orphan", Namespace: "openshift-adp"}, &velerov1.Backup{})
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("control non schedule orphan backup was not deleted: %v", err)
+	}
+}
+
+// TestScheduleChildReapedWhenBackingBackupGone proves a schedule generated child NonAdminBackup
+// is deleted once its backing Velero Backup no longer exists, independent of the NonAdminSchedule.
+func TestScheduleChildReapedWhenBackingBackupGone(t *testing.T) {
+	ctx := context.Background()
+	scheme := ownershipTestScheme(t)
+	child := &nacv1alpha1.NonAdminBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "sched-uuid-20260915020000",
+			Namespace:  "tenant-a",
+			Finalizers: []string{constant.NabFinalizerName},
+			Labels: map[string]string{
+				constant.NabSyncLabel:          "sched-uuid-20260915020000",
+				constant.NasOriginNACUUIDLabel: "sched-uuid",
+			},
+		},
+		Status: nacv1alpha1.NonAdminBackupStatus{
+			Phase:        nacv1alpha1.NonAdminPhaseCreated,
+			VeleroBackup: &nacv1alpha1.VeleroBackup{NACUUID: "sched-uuid-20260915020000"},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(child).WithObjects(child).Build()
+	reconciler := &NonAdminBackupReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp"}
+
+	requeue, err := reconciler.createVeleroBackupAndSyncWithNonAdminBackup(ctx, logr.Discard(), child.DeepCopy())
+	if err != nil {
+		t.Fatalf("reconcile child: %v", err)
+	}
+	if !requeue {
+		t.Fatal("expected requeue after initiating child deletion")
+	}
+	actual := &nacv1alpha1.NonAdminBackup{}
+	if err := client.Get(ctx, types.NamespacedName{Name: child.Name, Namespace: child.Namespace}, actual); err != nil {
+		t.Fatalf("get child: %v", err)
+	}
+	if actual.DeletionTimestamp.IsZero() {
+		t.Fatal("expected schedule child NonAdminBackup to be marked for deletion")
+	}
+}
+
+// TestNonScheduleSyncedNABNotReapedWhenBackupGone proves the reap is scoped to schedule children:
+// a regular synced NonAdminBackup (no nas-origin-nacuuid label) is not deleted when its backup is gone.
+func TestNonScheduleSyncedNABNotReapedWhenBackupGone(t *testing.T) {
+	ctx := context.Background()
+	scheme := ownershipTestScheme(t)
+	nab := &nacv1alpha1.NonAdminBackup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "plain-synced",
+			Namespace:  "tenant-a",
+			Finalizers: []string{constant.NabFinalizerName},
+			Labels: map[string]string{
+				constant.NabSyncLabel: "plain-uuid",
+			},
+		},
+		Status: nacv1alpha1.NonAdminBackupStatus{
+			Phase:        nacv1alpha1.NonAdminPhaseCreated,
+			VeleroBackup: &nacv1alpha1.VeleroBackup{NACUUID: "plain-uuid"},
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(nab).WithObjects(nab).Build()
+	reconciler := &NonAdminBackupReconciler{Client: client, Scheme: scheme, OADPNamespace: "openshift-adp"}
+
+	_, err := reconciler.createVeleroBackupAndSyncWithNonAdminBackup(ctx, logr.Discard(), nab.DeepCopy())
+	if err == nil {
+		t.Fatal("expected a terminal error for a synced NAB whose backup is missing")
+	}
+	actual := &nacv1alpha1.NonAdminBackup{}
+	if err := client.Get(ctx, types.NamespacedName{Name: nab.Name, Namespace: nab.Namespace}, actual); err != nil {
+		t.Fatalf("get nab: %v", err)
+	}
+	if !actual.DeletionTimestamp.IsZero() {
+		t.Fatal("regular synced NonAdminBackup must not be reaped when its backup is missing")
 	}
 }
