@@ -189,6 +189,7 @@ func main() {
 
 	if err = (&controller.NonAdminBackupReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		OADPNamespace:      oadpNamespace,
 		EnforcedBackupSpec: dpaConfiguration.EnforceBackupSpec,

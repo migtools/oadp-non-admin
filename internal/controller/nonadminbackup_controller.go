@@ -51,6 +51,9 @@ import (
 // NonAdminBackupReconciler reconciles a NonAdminBackup object
 type NonAdminBackupReconciler struct {
 	client.Client
+	// APIReader is an uncached reader used to confirm a backing Velero Backup is truly gone
+	// (versus a transient cache miss) before reaping a not-yet-synced schedule child.
+	APIReader          client.Reader
 	Scheme             *runtime.Scheme
 	EnforcedBackupSpec *velerov1.BackupSpec
 	OADPNamespace      string
@@ -653,13 +656,27 @@ func (r *NonAdminBackupReconciler) createVeleroBackupAndSyncWithNonAdminBackup(c
 		// schedule generated backups. Requiring the Created phase confirms the child synced at
 		// least once, so a transient cache miss cannot trigger a spurious deletion.
 		if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NasOriginNACUUIDLabel) &&
-			nab.Status.Phase == nacv1alpha1.NonAdminPhaseCreated &&
 			nab.DeletionTimestamp.IsZero() {
-			logger.Info("Backing Velero Backup for schedule generated NonAdminBackup no longer exists, deleting child", constant.UUIDString, veleroBackupNACUUID)
-			if err = r.Delete(ctx, nab); err != nil {
-				return false, err
+			// A child that reached Created synced at least once, so a cached miss now means the
+			// backing Backup was really deleted. A child that never reached Created could instead
+			// be a transient cache miss during initial sync, so confirm the deletion with an
+			// uncached read before reaping it.
+			confirmedGone := nab.Status.Phase == nacv1alpha1.NonAdminPhaseCreated
+			if !confirmedGone {
+				liveBackups := &velerov1.BackupList{}
+				if listErr := r.APIReader.List(ctx, liveBackups, client.InNamespace(r.OADPNamespace),
+					client.MatchingLabels{constant.NabOriginNACUUIDLabel: veleroBackupNACUUID}); listErr != nil {
+					return false, listErr
+				}
+				confirmedGone = len(liveBackups.Items) == 0
 			}
-			return true, nil
+			if confirmedGone {
+				logger.Info("Backing Velero Backup for schedule generated NonAdminBackup no longer exists, deleting child", constant.UUIDString, veleroBackupNACUUID)
+				if err = r.Delete(ctx, nab); err != nil {
+					return false, err
+				}
+				return true, nil
+			}
 		}
 		if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel) || nab.Status.Phase == nacv1alpha1.NonAdminPhaseCreated {
 			if function.CheckLabelAnnotationValueIsValid(nab.Labels, constant.NabSyncLabel) {
