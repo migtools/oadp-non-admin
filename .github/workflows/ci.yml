@@ -3,11 +3,11 @@ name: Continuous Integration
 on:
   push:
     branches:
-      - master
+      - oadp-dev
       - oadp-1.5
   pull_request:
     branches:
-      - master
+      - oadp-dev
       - oadp-1.5
   schedule:
     - cron: '0 0 * * 1' # Every Monday at 00:00 UTC
@@ -29,10 +29,10 @@ jobs:
       - name: Go unit and integration tests
         run: make simulation-test
 
+      # Built from source with the repo's Go toolchain (the prebuilt golangci-lint v2.0.2
+      # release binary is built with Go 1.24 and cannot lint a go 1.26 module).
       - name: Go linters
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.0.2
+        run: make lint
 
       - name: Go dependencies
         run: make check-go-dependencies

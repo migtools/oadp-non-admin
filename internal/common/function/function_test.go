@@ -383,6 +383,11 @@ func TestValidateBackupSpecEnforcedFields(t *testing.T) {
 			enforcedValue: "enforced-label-key",
 			overrideValue: "user-label-key",
 		},
+		{
+			name:          "BackupType",
+			enforcedValue: velerov1.BackupTypeFull,
+			overrideValue: velerov1.BackupTypeIncremental,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -830,6 +835,15 @@ func TestValidateRestoreSpecEnforcedFields(t *testing.T) {
 			},
 			overrideValue: &corev1.TypedLocalObjectReference{
 				Name: "melon",
+			},
+		},
+		{
+			name: "ResourcePolicy",
+			enforcedValue: &corev1.TypedLocalObjectReference{
+				Name: "apple",
+			},
+			overrideValue: &corev1.TypedLocalObjectReference{
+				Name: "pear",
 			},
 		},
 	}

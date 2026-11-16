@@ -117,6 +117,10 @@ type DataMoverDataUploads struct {
 
 // FileSystemPodVolumeBackups contains information of the related Velero PodVolumeBackup objects.
 type FileSystemPodVolumeBackups struct {
+	// type of uploader used for pod volume backups (e.g., kopia, restic)
+	// +optional
+	UploaderType string `json:"uploaderType,omitempty"`
+
 	// number of PodVolumeBackups related to this NonAdminBackup's Backup
 	// +optional
 	Total int `json:"total,omitempty"`
@@ -136,10 +140,6 @@ type FileSystemPodVolumeBackups struct {
 	// number of PodVolumeBackups related to this NonAdminBackup's Backup in phase Completed
 	// +optional
 	Completed int `json:"completed,omitempty"`
-
-	// type of uploader used for pod volume backups (e.g., kopia, restic)
-	// +optional
-	UploaderType string `json:"uploaderType,omitempty"`
 }
 
 // NonAdminBackupStatus defines the observed state of NonAdminBackup
