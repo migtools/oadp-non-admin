@@ -4,9 +4,18 @@ metadata:
   labels:
     app.kubernetes.io/name: oadp-nac
     app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: download-request
   name: nonadmindownloadrequest-sample
 spec:
   target:
+    # Download kind - options include:
+    # For backups: BackupLog, BackupContents, BackupVolumeSnapshots, 
+    #              BackupItemOperations, BackupResourceList, BackupResults,
+    #              CSIBackupVolumeSnapshots, CSIBackupVolumeSnapshotContents,
+    #              BackupVolumeInfos
+    # For restores: RestoreLog, RestoreResults, RestoreResourceList,
+    #               RestoreItemOperations, RestoreVolumeInfo
     kind: BackupLog
+    # Name of the NonAdminBackup or NonAdminRestore to download from
     name: non-admin-backup-name
 

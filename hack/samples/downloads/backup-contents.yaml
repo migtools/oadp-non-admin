@@ -1,0 +1,28 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nadr-backup-contents
+parameters:
+- name: NAMESPACE
+  description: "Namespace where the NonAdminBackup was created"
+  required: true
+- name: BACKUP_NAME
+  description: "Name of the NonAdminBackup to download contents from"
+  required: true
+- name: REQUEST_NAME
+  description: "Name for the download request"
+  value: "backup-contents-download"
+objects:
+- apiVersion: oadp.openshift.io/v1alpha1
+  kind: NonAdminDownloadRequest
+  metadata:
+    name: ${REQUEST_NAME}
+    namespace: ${NAMESPACE}
+    labels:
+      app.kubernetes.io/name: oadp-nac
+      app.kubernetes.io/component: download-request
+      download-type: backup-contents
+  spec:
+    target:
+      kind: BackupContents
+      name: ${BACKUP_NAME}

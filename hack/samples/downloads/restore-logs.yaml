@@ -1,0 +1,28 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: nadr-restore-logs
+parameters:
+- name: NAMESPACE
+  description: "Namespace where the NonAdminRestore was created"
+  required: true
+- name: RESTORE_NAME
+  description: "Name of the NonAdminRestore to download logs from"
+  required: true
+- name: REQUEST_NAME
+  description: "Name for the download request"
+  value: "restore-logs-download"
+objects:
+- apiVersion: oadp.openshift.io/v1alpha1
+  kind: NonAdminDownloadRequest
+  metadata:
+    name: ${REQUEST_NAME}
+    namespace: ${NAMESPACE}
+    labels:
+      app.kubernetes.io/name: oadp-nac
+      app.kubernetes.io/component: download-request
+      download-type: restore-logs
+  spec:
+    target:
+      kind: RestoreLog
+      name: ${RESTORE_NAME}
