@@ -1315,6 +1315,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						expectedSpec.IncludedNamespaces = []string{nonAdminObjectNamespace}
 						expectedSpec.ExcludedResources = []string{
 							nacv1alpha1.NonAdminBackups,
+							nacv1alpha1.NonAdminSchedules,
 							nacv1alpha1.NonAdminRestores,
 							nacv1alpha1.NonAdminBackupStorageLocations,
 							"securitycontextconstraints",
@@ -1421,6 +1422,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					Spec: &velerov1.BackupSpec{
 						ExcludedResources: []string{
 							"nonadminbackups",
+							"nonadminschedules",
 							"nonadminrestores",
 							"nonadminbackupstoragelocations",
 							"securitycontextconstraints",
@@ -1474,6 +1476,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 					Spec: &velerov1.BackupSpec{
 						ExcludedResources: []string{
 							"nonadminbackups",
+							"nonadminschedules",
 							"nonadminrestores",
 							"nonadminbackupstoragelocations",
 							"securitycontextconstraints",
@@ -1563,6 +1566,7 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminBackup Controller",
 						IncludedNamespaceScopedResources: []string{"pvc"},
 						ExcludedNamespaceScopedResources: []string{
 							nacv1alpha1.NonAdminBackups,
+							nacv1alpha1.NonAdminSchedules,
 							nacv1alpha1.NonAdminRestores,
 							nacv1alpha1.NonAdminBackupStorageLocations,
 						},

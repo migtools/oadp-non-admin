@@ -365,9 +365,32 @@ func compareStorageTypes(enforcedStorageType, currentStorageType reflect.Value) 
 	return ""
 }
 
+// IsScheduleGeneratedVeleroBackup reports whether a Velero Backup was produced by a
+// NonAdminSchedule. Such backups carry both the Velero schedule-name label (which Velero copies
+// from the backing Schedule) and the NAS origin NACUUID label. They are owned exclusively by the
+// NonAdminSchedule controller, so the periodic synchronizer and the garbage collector must skip
+// them.
+func IsScheduleGeneratedVeleroBackup(backupLabels map[string]string) bool {
+	if backupLabels == nil {
+		return false
+	}
+	return backupLabels[velerov1.ScheduleNameLabel] != constant.EmptyString &&
+		backupLabels[constant.NasOriginNACUUIDLabel] != constant.EmptyString
+}
+
 // GenerateNacObjectUUID generates a unique name based on the provided namespace and object origin name.
 // It includes a UUID suffix. If the name exceeds the maximum length, it truncates nacName first, then namespace.
 func GenerateNacObjectUUID(namespace, nacName string) string {
+	return GenerateNacObjectUUIDWithMaxLength(namespace, nacName, constant.MaximumNacObjectNameLength)
+}
+
+// GenerateNacObjectUUIDWithMaxLength behaves like GenerateNacObjectUUID but bounds the result to
+// maxLength characters. It always keeps the full UUID suffix for uniqueness and truncates nacName
+// first, then namespace, to fit. Callers that reuse the generated name to derive a label value must
+// bound it so the derived value stays within the Kubernetes label value limit. A NonAdminSchedule
+// does this: Velero suffixes the backing Schedule name with a timestamp to form each generated
+// Backup name, and NAC reuses that Backup name as a label value.
+func GenerateNacObjectUUIDWithMaxLength(namespace, nacName string, maxLength int) string {
 	// Generate UUID suffix
 	uuidSuffix := uuid.New().String()
 
@@ -380,9 +403,9 @@ func GenerateNacObjectUUID(namespace, nacName string) string {
 		nacObjectName = namespace + constant.NameDelimiter + nacObjectName
 	}
 
-	if len(nacObjectName) > constant.MaximumNacObjectNameLength {
+	if len(nacObjectName) > maxLength {
 		// Calculate remaining length after UUID
-		remainingLength := constant.MaximumNacObjectNameLength - len(uuidSuffix)
+		remainingLength := maxLength - len(uuidSuffix)
 
 		delimeterLength := len(constant.NameDelimiter)
 

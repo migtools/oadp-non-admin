@@ -145,6 +145,12 @@ func (r *GarbageCollectorReconciler) Reconcile(ctx context.Context, _ ctrl.Reque
 			return err
 		}
 		for _, backup := range veleroBackupList.Items {
+			// Schedule generated backups are retained by Velero TTL and owned by the
+			// NonAdminSchedule controller. The garbage collector must not treat them as orphans.
+			if function.IsScheduleGeneratedVeleroBackup(backup.GetLabels()) {
+				logger.V(1).Info("Skipping schedule generated Backup", constant.NameString, backup.Name)
+				continue
+			}
 			if !function.CheckLabelAnnotationValueIsValid(backup.GetLabels(), constant.NabOriginNACUUIDLabel) {
 				logger.V(1).Info("Backup does not have required label", constant.NameString, backup.Name)
 				// TODO delete?
