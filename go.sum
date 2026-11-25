@@ -127,8 +127,8 @@ github.com/onsi/ginkgo/v2 v2.19.0 h1:9Cnnf7UHo57Hy3k6/m5k3dRfGTMXGvxhHFvkDTCTpvA
 github.com/onsi/ginkgo/v2 v2.19.0/go.mod h1:rlwLi9PilAFJ8jCg9UE1QP6VBpd6/xj3SRC0d6TU0To=
 github.com/onsi/gomega v1.33.1 h1:dsYjIxxSR755MDmKVsaFQTE22ChNBcuuTWgkUDSubOk=
 github.com/onsi/gomega v1.33.1/go.mod h1:U4R44UsT+9eLIaYRB2a5qajjtQYn0hauxvRm16AVYg0=
-github.com/openshift/oadp-operator v1.0.2-0.20260906045107-bdb91bda180e h1:GbWIhJ6x6TlUIztWCvR/uIhFymfVzLTZEmHlaffu3ak=
-github.com/openshift/oadp-operator v1.0.2-0.20260906045107-bdb91bda180e/go.mod h1:JT3eOmnG/wJLNonXj7oVueefU163iI0tbEDWKu581ok=
+github.com/openshift/oadp-operator v1.0.2-0.20261125100235-3f84065537ba h1:BvpiuV1ugh6vDJyXvfT9WeuCPkq+WX9Yoxs+2YHDnp4=
+github.com/openshift/oadp-operator v1.0.2-0.20261125100235-3f84065537ba/go.mod h1:P5BLG+xHfbde0DLXb+BQ7pY5xjb6cFqgfMCLPSrroj8=
 github.com/openshift/velero v0.10.2-0.20261124172115-552ff5870b31 h1:kYHTglY9UUey0IsmkGpT48AyiO0Kv9mRtd71Q7JRbX0=
 github.com/openshift/velero v0.10.2-0.20261124172115-552ff5870b31/go.mod h1:p4ZJ0d/D0Lw4PH9YzvSDir9ruIg3V9B7MUW6uGBM1xk=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
