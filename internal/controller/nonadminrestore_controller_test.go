@@ -210,10 +210,8 @@ var _ = ginkgo.Describe("Test full reconcile loop of NonAdminRestore Controller"
 			}
 
 			k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
-				Controller: config.Controller{
-					SkipNameValidation: ptr.To(true),
-				},
-				Scheme: k8sClient.Scheme(),
+				Controller: config.Controller{},
+				Scheme:     k8sClient.Scheme(),
 			})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 

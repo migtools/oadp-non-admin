@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -169,6 +170,6 @@ func (r *NonAdminBackupSynchronizerReconciler) SetupWithManager(mgr ctrl.Manager
 		WithLogConstructor(func(_ *reconcile.Request) logr.Logger {
 			return logr.New(ctrl.Log.GetSink().WithValues("controller", "nonadminbackupsynchronizer"))
 		}).
-		WatchesRawSource(&source.PeriodicalSource{Frequency: r.SyncPeriod}).
+		WatchesRawSource(&source.PeriodicalSource{Frequency: r.SyncPeriod}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 }

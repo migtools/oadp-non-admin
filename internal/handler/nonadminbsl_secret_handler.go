@@ -19,11 +19,11 @@ package handler
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -37,7 +37,7 @@ type NonAdminBslSecretHandler struct {
 }
 
 // Create event handler
-func (h NonAdminBslSecretHandler) Create(ctx context.Context, evt event.CreateEvent, q workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (h NonAdminBslSecretHandler) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
 	// Create event handler for the Secret object
 	logger := function.GetLogger(ctx, evt.Object, "NonAdminBslSecretHandler")
 
@@ -65,16 +65,16 @@ func (h NonAdminBslSecretHandler) Create(ctx context.Context, evt event.CreateEv
 }
 
 // Update event handler
-func (NonAdminBslSecretHandler) Update(_ context.Context, _ event.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (NonAdminBslSecretHandler) Update(_ context.Context, _ event.UpdateEvent, _ workqueue.RateLimitingInterface) {
 	// Update event handler for the Secret object
 }
 
 // Delete event handler
-func (NonAdminBslSecretHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (NonAdminBslSecretHandler) Delete(_ context.Context, _ event.DeleteEvent, _ workqueue.RateLimitingInterface) {
 	// Delete event handler for the Secret object
 }
 
 // Generic event handler
-func (NonAdminBslSecretHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+func (NonAdminBslSecretHandler) Generic(_ context.Context, _ event.GenericEvent, _ workqueue.RateLimitingInterface) {
 	// Generic event handler for the Secret object
 }

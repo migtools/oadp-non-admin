@@ -19,7 +19,6 @@ package predicate
 import (
 	"context"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/migtools/oadp-non-admin/internal/common/function"
@@ -38,7 +37,7 @@ func (NonAdminRestorePredicate) Create(ctx context.Context, evt event.CreateEven
 }
 
 // Update event filter only accepts NonAdminRestore update events that include generation change
-func (NonAdminRestorePredicate) Update(ctx context.Context, evt event.TypedUpdateEvent[client.Object]) bool {
+func (NonAdminRestorePredicate) Update(ctx context.Context, evt event.UpdateEvent) bool {
 	logger := function.GetLogger(ctx, evt.ObjectNew, nonAdminRestorePredicateKey)
 
 	if evt.ObjectNew.GetGeneration() != evt.ObjectOld.GetGeneration() {
